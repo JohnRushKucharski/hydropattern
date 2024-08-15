@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "hydropattern"
+version = "0.0.0"
+description = "A python command line application and package that finds natural flow regime like patterns in time series data."
+authors = ["John Kucharski <johnkucharski@gmail.com>"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+climate-canvas = {git = "https://github.com/JohnRushKucharski/climate-canvas.git"}
+numpy = "^2.0.1"
+pandas = "^2.2.2"
+matplotlib = "^3.9.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
