@@ -6,12 +6,16 @@ authors = ["John Kucharski <johnkucharski@gmail.com>"]
 license = "GPL-3.0-or-later"
 readme = "README.md"
 
+[tool.poetry.scripts]
+hydropattern="hydropattern.cli:app"
+
 [tool.poetry.dependencies]
 python = "^3.12"
 climate-canvas = {git = "https://github.com/JohnRushKucharski/climate-canvas.git"}
 numpy = "^2.0.1"
 pandas = "^2.2.2"
 matplotlib = "^3.9.2"
+typer = "^0.12.3"
 
 
 [build-system]
