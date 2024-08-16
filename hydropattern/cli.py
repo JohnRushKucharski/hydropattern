@@ -2,6 +2,7 @@
 
 import tomllib
 from typing import Any
+from pathlib import Path
 
 import typer
 import numpy as np
@@ -18,17 +19,30 @@ def callback():
     '''hydropattern command line interface.'''
 
 @app.command()
-def run(path: str = typer.Argument(..., help='''
-                                   Path to *.toml configuration file.
-                                   ''')):
+def run(path: str = typer.Argument(..., help='Path to *.toml configuration file.'),
+        plot: bool = typer.Option(False, "--plot", help='Plot response surface.'),
+        output_filename: str = typer.Option('', "--output-name", help='''
+                                            Filename for output .csv. 
+                                            By default '_output' is appended to the path file name
+                                            and this output is written to same directory as path.''')):
     '''Run the hydropattern command line interface.'''
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
     output = evaluate_patterns(timeseries.data, components)
-    typer.echo(output)
-    xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
-    plot_response_surface(xs, ys, zs, interpolate=True)
+    directory = Path(path).parent
+    if output_filename:
+        output_path = directory/output_filename
+        output[0].to_csv(output_path)
+        typer.echo(f'Output written to: {output_path}.')
+    else:
+        file_name = Path(path).stem
+        output_path = directory/(file_name + '_output.csv')
+        output[0].to_csv(output_path)
+        typer.echo(f'Output written to: {output_path}.')
+    if plot:
+        xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
+        plot_response_surface(xs, ys, zs, interpolate=True)
 
 def load_config_file(path: str) -> dict[str, Any]:
     '''Load a configuration file.'''
