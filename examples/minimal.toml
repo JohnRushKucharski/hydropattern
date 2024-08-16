@@ -2,5 +2,5 @@
 path = "examples/single_timeseries.csv"
 date_format = "%Y-%m-%d"        # datetime format code.
 
-[component.single_characteristic]
+[components.single_characteristic]
 magnitude = [">", 1.0]

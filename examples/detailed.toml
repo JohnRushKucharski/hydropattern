@@ -1,0 +1,131 @@
+# ----------------------OVERVIEW------------------------- #
+# This is an example configuration file.
+# More information about toml files here: https://toml.io/en/
+
+# These files configure the hydropattern application.
+# The application tracks the occurence of components of
+# natural flow regimes in hydrologic timeseries.
+
+# This example file contains configuration data needed to:
+# 1 - identify hydrologic timeseries that will be evaluated, and
+# 2 - define a natural flow regime components.
+# Learn more about natural flow regime in this paper:
+# Poff, N. L., Allan, J. D., Bain, M. B., Karr, J. R., Prestegaard, K. L., Richter, B. D., Sparks, R. E., & Stromberg, J. C. (1997). The Natural Flow Regime. BioScience, 47(11), 769–784. https://doi.org/10.2307/1313099
+
+# The program uses the functional flows terminology.
+# Learn more about function flows in this paper:
+# Yarnell, S. M., Stein, E. D., Webb, J. A., Grantham, T., Lusardi, R. A., Zimmerman, J., Peek, R. A., Lane, B. A., Howard, J., & Sandoval-Solis, S. (2020). A functional flows approach to selecting ecologically relevant flow metrics for environmental flow applications. River Research and Applications, 36(2), 318-324. https://doi.org/10.1002/rra.3575
+# Note: Figure 2 and Table 2 are particularly helpful.
+
+# Basic terminology:
+# COMPONENT: Natural flow regimes are composed of one or 
+#   more components.
+# CHARACTERISTIC: components are composed of one or more
+#   of the following characteristics:
+#   Magnitude, Timing, Duration, Frequency, Rate of Change.
+# METRICS: describe the the truth value for each characteristic
+#   (when evaluated in a hydrologic timeseries).
+# VERBOSE: true if characteristic should be evaluated when
+#   other component characteristics requirements are not met.
+#   true by default.
+# SUCCESS PATTERN: describes if each characteristic being
+#   true represents a success or failure.
+#   true by default.
+# ------------------------------------------------------- #
+
+# ------------------IDENTIFY TIMESERIES------------------ #
+[timeseries]
+path = "examples/ex_single_timeseries.csv"
+date_format = "%Y-%m-%d"        # datetime format code. 
+# options:
+# first_day_of_water_year = 1   # defaults to 1. i.e., 1 = 1 January
+# columns = [1, 2, 3]           # columns containing hydrolgic data, defaults to [1].
+
+# -------------------DEFINE COMPONENTS------------------- #
+# first component.
+[components.november_pulse_flow]           # name of the component.
+
+# component compute options:
+# verbose = true                # evaluate characteristics (in order) if component can be met, defaults to true.
+# success_pattern = true        # component is present if all characteristics are met, defaults to true.
+# note: verbose option must be set before characteristics.
+
+# characteristics:
+timing = [305, 335]             # 1 November - 1 December.
+magnitude = [">", 1.0]          # Flow > 1.0.
+rate_of_change = [">", 2.0, 1]  # Flow_t > Flow_t-1 x 2.0.
+# component compute settings
+# options:
+success_pattern = true          # Component is present when characteristics are met.
+
+# second component.
+[components.dry_season_baseflow]
+timing = [152, 305]             # 1 June - 1 November.
+magnitude = ["<", 1.0]          # Flow < 1.0.
+duration = [">", 7]             # For more than 7 timesteps.
+success_pattern = false         # Describes baseflow failure.
+
+# third component.
+[components.bankfull_flow]
+verbose = false
+magnitude = [">", 2.0]
+frequency = [">=", 1, 5]         # at least once every 5 years.
+
+# -------------Timeseries Parameter Notes---------------- #
+# Path: must be path to *.csv file, with following header row:
+#   time, <column_name_1>, ..., <column_name_n>
+# Time_format: string datetime formate code
+#   ex: use "%Y-%m-%d" for date in format "1900-01-31" (i.e., 31 Jan 1900).
+#   see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior 
+# First_day_of_water_year: day of year associated with start of water year.  
+#   - defaults to 1 (i.e., 01 Jan).
+#   - based on 365 day year (i.e. 59 = 28 Feb, 60 = 01 Mar)
+#   - must be positive integer on range [1, 365].
+#   - note during leap years (i.e. day of year, day of water year is same for 28 and 29 Feb)
+# Columns: file columns containing hydrologic data
+#   - must be positive integer, since column 0 must be 'time' column.
+# ------------------------------------------------------- #
+
+# -------------Characteristic Metric Notes--------------- #
+# Timing: in form [first_doy, last_doy] 
+#   - day of year (doy) NOT day of water year values.
+#   - both doy values are inclusive.
+#   - must be positive integers on range [1, 366].
+# Magnitude: in form [operator, value, (optional)ma_periods]
+#   - operators: >, <, =
+#   - value: same units as timeseries.
+#   - value: must be positive real number.
+#   - ma_periods: creates moving average for time series s.t:
+#           y_t = | 0 if t < k - 1 
+#                 | (x_[t-k+1]+x[t-k+2]+...+x_t)/k o/w
+#       where x is a time series of hyrologic values, and
+#       ma_periods=k. Defaults to k=1.
+#   - value is compared against y_t (defined above).
+# Rate of Change: in form ...
+#   [operator, value, (optional)ma_periods, (optional)look_back, (optional)min]
+#   - operators: >, <, =
+#   - ma_periods: same as for magnitude characteristic above.
+#   - look_back: positive integer used in equation:
+#           z_t = y_t / y_[t-n]
+#       where y is time series of hydrologic values or
+#       moving average from time series of hydrologic values, and
+#       look_back=n. Defaults to n=1.
+#   - value: is compared against z_t (defined above).
+#   - min: minimum value for lookback value: y[t-n].
+#       Must be a positive real value.
+#       Defaults to 0, see lookback and value note.
+#   - look_back and value: if y_[t-n] is 0 and min is 0
+#        an exception is NOT raised and any positive value will succeed.    
+# Duration: in form [operator, time_steps]
+#   - operators: >, <, =
+#   - time_steps: number of previous timesteps over which 
+#       other component characteristics must be true.
+#   - time_steps: must be positive integer.
+# Frequency: [operator, value] OR [operator, n_times, N_years]
+#   - operators: >, <, =
+#   - value: annual frequency as postive real number on range [0, 1].
+#   - n_times: number of time condition must occur in N_years.
+#   - N_years: continous period of years over which condition
+#       is evaluated.
+#   - n_times and N_years: must be postive integers.
+# ------------------------------------------------------- #
