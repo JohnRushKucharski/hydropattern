@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 import numpy as np
+import pandas as pd
 from climate_canvas.plots_utilities import plot_response_surface
 
 from hydropattern.timeseries import Timeseries
@@ -19,27 +20,33 @@ def callback():
     '''hydropattern command line interface.'''
 
 @app.command()
-def run(path: str = typer.Argument(..., help='Path to *.toml configuration file.'),
-        plot: bool = typer.Option(False, "--plot", help='Plot response surface.'),
-        output_filename: str = typer.Option('', "--output-name", help='''
-                                            Filename for output .csv. 
-                                            By default '_output' is appended to the path file name
-                                            and this output is written to same directory as path.''')):
+def run(path: str = typer.Argument(...,
+                                   help='Path to *.toml configuration file.'),
+        plot: bool = typer.Option(False, "--plot",
+                                  help='Plot response surface.'),
+        output_directory: str = typer.Option(None, "--output-dir",
+                                             help='''Directory for output .csvs.
+                                             If write_to_excel is False, 
+                                             by default
+                                            '_output' is appended to the path file name,
+                                             and a directory with that name is created in 
+                                             the path directory.
+                                             If write_to_excel is True,
+                                             by default the output file is written
+                                             to the path directory 
+                                             and no output directory is created.'''),
+        write_to_excel: bool = typer.Option(False, "--excel",
+                                            help='''If true, all outputs are written
+                                            to a single Excel file.
+                                            If false, each time series output is written
+                                            to a separate .csv file.''')):
     '''Run the hydropattern command line interface.'''
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
     output = evaluate_patterns(timeseries.data, components)
-    directory = Path(path).parent
-    if output_filename:
-        output_path = directory/output_filename
-        output[0].to_csv(output_path)
-        typer.echo(f'Output written to: {output_path}.')
-    else:
-        file_name = Path(path).stem
-        output_path = directory/(file_name + '_output.csv')
-        output[0].to_csv(output_path)
-        typer.echo(f'Output written to: {output_path}.')
+    write_output(output, path, output_directory, write_to_excel)
+
     if plot:
         xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
         plot_response_surface(xs, ys, zs, interpolate=True)
@@ -68,3 +75,27 @@ def load_components(data: dict[str, Any]) -> list[Component]:
     if 'components' not in data:
         raise ValueError('No components data in configuration file.')
     return parse_components(data['components'])
+
+def write_output(dfs: list[pd.DataFrame],
+                 input_path: str, output_directory: str, write_to_excel: bool):
+    '''Write output to .csv files or an Excel file.'''
+    if output_directory:
+        output_path = Path(output_directory)
+        output_path.mkdir(parents=True, exist_ok=True)
+    else:
+        output_path = Path(input_path).parent
+        if not write_to_excel:
+            output_path = Path(input_path).parent/(Path(input_path).stem + '_output')
+            output_path.mkdir(parents=True, exist_ok=True)
+    if write_to_excel:
+        output_filename = Path(input_path).stem + '_output.xlsx'
+        writer = pd.ExcelWriter(output_path/output_filename)
+        for _, df in enumerate(dfs):
+            df.to_excel(writer, sheet_name=df.columns[0])
+        writer.close()
+        typer.echo(f'Output written to: {output_path}{chr(92)}{output_filename}.')
+    else:
+        for _, df in enumerate(dfs):
+            output_filename = f'{df.columns[0]}.csv'
+            df.to_csv(output_path/output_filename)
+        typer.echo(f'Output written to: {output_path}.')

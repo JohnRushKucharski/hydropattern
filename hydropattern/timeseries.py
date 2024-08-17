@@ -13,6 +13,7 @@ Example:
     1900-01-02,13
     ...
 '''
+from pathlib import Path
 from dataclasses import dataclass
 from dateutil.relativedelta import relativedelta
 
@@ -61,7 +62,10 @@ class Timeseries:
         self.validate_dataframe(self.data)
         self.data['dowy'] = self.data.index.map(
             lambda x: to_day_of_water_year(x, self.first_day_of_water_year))
-        #todo: validate file path exists and first day of water year [0,365]
+        if self.first_day_of_water_year < 1 or self.first_day_of_water_year > 365:
+            raise ValueError('first_day_of_water_year must be between 1 and 365.')
+        if not Path(self.file_path).exists():
+            raise ValueError('File path does not exist.')
 
     @staticmethod
     def validate_dataframe(data: pd.DataFrame) -> None:
@@ -106,11 +110,12 @@ class Timeseries:
         if date_format:
             df = pd.read_csv(path, header=0, index_col=0, parse_dates=[0],
                              date_format=date_format,
-                             ).rename_axis('time', axis=0).sort_index()
+                             ).rename_axis('time', axis=0)
+            pd.to_datetime(df.index, format=date_format, errors='raise')
         else:
             df = pd.read_csv(path, header=0, index_col=0, parse_dates=[0],
-                             ).rename_axis('time', axis=0).sort_index()
-        return Timeseries(file_path=path, data=df.apply(pd.to_numeric, errors='raise'),
+                             ).rename_axis('time', axis=0)
+        return Timeseries(file_path=path, data=df.apply(pd.to_numeric, errors='raise').sort_index(),
                           first_day_of_water_year=first_dowy)
 
     def date_to_day_of_water_year(self, date: pd.Timestamp) -> int:
