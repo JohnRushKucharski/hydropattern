@@ -32,7 +32,43 @@ Examples are provided below.
 ## Getting Started
 The program can be used as either: (a) python package, imported from the project GitHub repository: https://github.com/JohnRushKucharski/hydropattern or the PiPl python package index. (b) a command line application.
 
-#todo: fill out setup instructions.
+### Installation Instructions
+
+hydropattern requires python 3.12+. It aims to be multi-platform and has been run on Windows 11 and MacOS 14 and 15.
+
+#### Clone or Fork climate-canvas from GitHub
+The hydropattern source code can be found here: https://github.com/JohnRushKucharski/hydropattern is available under the GNU Version 3 General Public License.
+
+It can be cloned or forked by following the normal cloning or forking instructions, which are available here: https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository and here: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo.
+
+
+#### Installation with Poetry
+
+hydropattern is developed with Poetry, which can be used to simply the installation process.
+
+To install Poetry, follow the instructions here: https://python-poetry.org/docs/.
+
+Once Poetry is installed, use your favorite shell to go to the location of the local hydropattern repository, e.g.
+
+``
+cd <PATH_TO_LOCAL>\hydropattern
+``
+
+Next run:
+
+``
+poetry install
+``
+
+This will create a python virtual environment containing all the required hydropattern dependencies, without affecting your system's global python environment.
+
+The hydropattern program should now be ready for use as either a python package or command line utility. To test the command line interface (CLI) type the following command into your shell:
+
+``
+poetry run python hydropattern
+``
+
+This should return help instructions for the hydropattern CLI.
 
 ### Inputs
 The program requires two primary inputs:
