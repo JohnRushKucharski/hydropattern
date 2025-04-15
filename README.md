@@ -94,9 +94,31 @@ t_m     | value_0,m     | value_1,m | ... | value_n-1,m | value_n,m     |
 where the 'time' column contains a datetimestring that can be parsed as a pandas datetime index. By default pandas will, with a warning message and possible error, attempt to guess format of this string. However, the format of this string can be specified in the toml file, described above. Example time series are provided in the .\examples directory on the project's GiHub repository.
 
 ## CLI Basic Usage
-#todo: run command
+The program can be run on a timeseries of input data, given a valid .toml file configuration (see inputs section above). Using the **run** command. For example, using poetry in a terminal the run command has the following syntax:
 
-todo: plot_timeseries command
+``
+poetry python hydropattern run "path_to_toml_file"
+``
+
+where "path_to_toml_file" is replaced with a valid path to the input .toml file. The following **optional arguments**, can be appended to the end of the run command above:
+
+``
+--output-dir "path_to_output_csv_or_xlsx_files"
+``
+
+> Output file are placed in the same directory as the timeseries specified in the .toml file by default. Providing a valid path to this optinal argument will store the outputs in a different location.
+
+``
+--plot
+``
+
+> This plots a response surface of with the output data.
+
+``
+--excel
+``
+
+> This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file.
 
 
 
