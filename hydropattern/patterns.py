@@ -9,8 +9,6 @@ The following characteristics are evaluated:
     - frequency
 '''
 from enum import Enum
-from numbers import Real
-from functools import partial
 from typing import Callable
 from dataclasses import dataclass
 from collections import namedtuple
@@ -19,40 +17,73 @@ import numpy as np
 import pandas as pd
 
 #region comparision functions
-def lt(a: Real, b: Real) -> bool:
+def lt(a: float, b: float) -> bool:
     '''Returns True if a is less than b.'''
     return a < b
-def le(a: Real, b: Real) -> bool:
+def le(a: float, b: float) -> bool:
     '''Returns True if a is less than or equal to b.'''
     return a <= b
-def gt(a: Real, b: Real) -> bool:
+def gt(a: float, b: float) -> bool:
     '''Returns True if a is greater than b.'''
     return a > b
-def ge(a: Real, b: Real) -> bool:
+def ge(a: float, b: float) -> bool:
     '''Returns True if a is greater than or equal to b.'''
     return a >= b
-def eq(a: Real, b: Real) -> bool:
+def eq(a: float, b: float) -> bool:
     '''Returns True if a is equal to b.'''
     return a == b
-def ne(a: Real, b: Real) -> bool:
+def ne(a: float, b: float) -> bool:
     '''Returns True if a is not equal to b.'''
     return a != b
 
-def comparison_fx(symbol1: str, bound1: Real,
-                  symbol2: str|None = None, bound2: Real|None = None) -> Callable[[Real], bool]:
-    '''Returns the corresponding operator function for the given symbol.'''
-    def closure(s: str, bound: Real, is_bound_b: bool = True) -> Callable[[Real], bool]:
+def comparison_fx(symbol1: str, bound1: float,
+                  symbol2: str|None = None, bound2: float|None = None) -> Callable[[float], bool]:
+    '''
+    Returns the corresponding operator function for the given symbol.
+    
+    Examples:
+    - comparison_fx('>', 1) -> lambda x: x > 1
+    - comparison_fx('<', 1, '>', 0) -> lambda x: 0 < x < 1
+    '''
+    def closure(s: str, bound: float, is_bound_b: bool = True) -> Callable[[float], bool]:
+        '''
+        Returns a partially constructed comparison function 
+        (i.e. built-in python gt(a, b) operator function) for a single bound.
+        
+        Parameters
+        ----------
+            s (str): Comparison symbol (i.e., <, <=, >, >=, =, !=).
+            bound (Real): Bound value (i.e., 1.0).
+            is_bound_b (bool): If True, the bound is the second argument in the comparison function.
+                               If False, the bound is the first argument in the comparison function.
+                               Defaults to True.
+        Returns
+        -------
+            Callable[[Real], bool]: Partially constructed comparison function. 
+        Raises
+        -------
+            KeyError: For invalid symbol.
+        Examples
+        -------
+            [1] closure('>', 1, True) -> lambda x: 1 > x 
+                                      -> lt(x, 1) (same as lambda x: x < 1)
+                This saves the "lt" function so a value "x" can be compared to the bound 1
+                at a later time.      
+        '''
         symbols = {
             '<': lt,    # a < b
             '<=': le,   # a <= b
             '>': gt,    # a > b
             '>=': ge,   # a >= b
-            '=': eq,   # a == b
+            '=': eq,    # a == b
             '!=': ne    # a != b
         }
         if is_bound_b:
-            return partial(symbols[s], b=bound)
-        return partial(symbols[s], a=bound)
+            # Return a function that calls symbols[s](value, bound)
+            return lambda value: symbols[s](value, bound)
+        else:
+            # Return a function that calls symbols[s](bound, value)
+            return lambda value: symbols[s](bound, value)
     # Single bound, not a between comparison.
     if symbol2 is None and bound2 is None:
         return closure(symbol1, bound1)
@@ -66,8 +97,8 @@ def comparison_fx(symbol1: str, bound1: Real,
         # So it is provided like: [a(~b1), symbol1, symbol2, b(~b2)]
         fx1 = closure(symbol1, bound1, is_bound_b=False)
         fx2 = closure(symbol2, bound2, is_bound_b=True)
-        def fx3(value: Real) -> bool:
-            return fx1(b=value) and fx2(a=value)
+        def fx3(value: float) -> bool:
+            return fx1(value) and fx2(value)
         return fx3
     # Every bound must have a symbol.
     raise ValueError('symbol2 must be provided if bound2 is provided.')
@@ -77,7 +108,7 @@ def comparison_fx(symbol1: str, bound1: Real,
 CharacteristicType = Enum('CharacteristicType',
                           ['TIMING', 'MAGNITUDE', 'DURATION', 'RATE_OF_CHANGE', 'FREQUENCY'])
 
-type Characteristic_fx = Callable[[pd.DataFrame, int, None|np.ndarray], np.ndarray]
+type Characteristic_fx = Callable[[pd.DataFrame, None|np.ndarray], np.ndarray]
 
 Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type'])
 
@@ -97,8 +128,10 @@ def is_order_1(order: int, output: None|np.ndarray) -> bool:
     if order > 1:
         if output is None:
             raise ValueError('Output must be provided for order greater than 1.')
-        if order > len(output):
-            raise ValueError('Order must be less than or equal to the length of the output.')
+        # Check if output row lengths are long enough for order (i.e. ncols >= order-1),
+        # by definition numpy arrays are rectangular (no need to check len of each row).
+        if output.shape[1] < order - 1: #columns.
+            raise ValueError('Order must be less than or equal to the number of columns in output.')
         return False
     # order == 1
     return True
@@ -138,7 +171,7 @@ def moving_average(data: np.ndarray,
 #endregion
 
 #region timing
-def timing_fx(f: Callable[[Real], bool],
+def timing_fx(f: Callable[[float], bool],
               order: int = 1) -> Characteristic_fx:
     '''Creates function to evaluate timing characteristics.
 
@@ -155,16 +188,18 @@ def timing_fx(f: Callable[[Real], bool],
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray = None) -> np.ndarray:
         # uses dowy (last) df column
-        data = df.iloc[:, -1].values
+        data = np.asarray(df.iloc[:, -1].values)
         if not is_dowy_timeseries(data):
             raise ValueError('''Timing characteristics must be evaluated on a
                              day of water year timeseries.''')
         if is_order_1(order, output):
             @np.vectorize
-            def fx(value: Real) -> int:
+            def fx(value: float) -> int:
                 return 1 if f(value) else 0
             return fx(data)
         else: # is valid order > 1
+            if output is None:
+                raise ValueError("Output cannot be None for order > 1")
             result = np.zeros(len(data))
             for t, row in enumerate(output):
                 # 1st order-1 values are 1
@@ -175,7 +210,7 @@ def timing_fx(f: Callable[[Real], bool],
 #endregion
 
 #region magnitude
-def magnitude_fx(f: Callable[[Real], bool],
+def magnitude_fx(f: Callable[[float], bool],
                  order: int = 1, ma_periods: int = 1) -> Characteristic_fx:
     '''
     Creates function to evaluate magnitude characteristics.
@@ -193,7 +228,7 @@ def magnitude_fx(f: Callable[[Real], bool],
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray = None) -> np.ndarray:
         # uses hydrologic data (1st) df column
-        data = df.iloc[:, 0].values
+        data = np.asarray(df.iloc[:, 0].values)
         data = data if ma_periods == 1 else moving_average(data, ma_periods)
 
         n = len(data)
@@ -203,6 +238,8 @@ def magnitude_fx(f: Callable[[Real], bool],
             if is_order_1(order, output):
                 result[t] = 1 if f(data[t]) else 0
             else: # is valid order > 1
+                if output is None:
+                    raise ValueError("Output cannot be None for order > 1")
                 # 1st order-1 values are 1
                 if np.all(output[t][-order+1:]==1):
                     result[t] = 1 if f(data[t]) else 0
@@ -225,14 +262,14 @@ def magnitude_fx(f: Callable[[Real], bool],
 #endregion
 
 #region duration
-def duration_fx(f: Callable[[Real], bool],
+def duration_fx(f: Callable[[float], bool],
                 order: int) -> Characteristic_fx:
     '''
     Creates function to evaluate duration characteristics.
 
     Parameters
     ----------
-        f (Callable[[Real], bool]): Comparision function.
+        f (Callable[[float], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
             within list of component characteristics. 
             Must be greater than 1 for duration characteristics.
@@ -245,10 +282,13 @@ def duration_fx(f: Callable[[Real], bool],
         # uses output not df to determine duration
         if is_order_1(order, output):
             raise ValueError('Order must be greater than 1 for duration characteristics.')
+        if output is None:
+            raise ValueError("Output cannot be None for duration characteristics")
         n, T = 0, len(df) # pylint: disable=invalid-name
         result = np.zeros(T)
         for t, row in enumerate(output):
-            # 1st order-1 values are 1
+            # from 0th to [order - 1]
+            # check if values are all 1s
             if np.all(row[:order-1]==1):
                 n += 1
             # break in 1s
@@ -272,14 +312,14 @@ def duration_fx(f: Callable[[Real], bool],
 #endregion
 
 #region frequency
-def frequency_fx(f: Callable[[Real], bool],
+def frequency_fx(f: Callable[[float], bool],
                  order: int, ma_period: int) -> Characteristic_fx:
     '''
     Creates function to evaluate frequency characteristics.
 
     Parameters
     ----------
-        f (Callable[[Real], bool]): Comparision function.
+        f (Callable[[float], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
             within list of component characteristics.
         ma_period (int): window (in years) over which f is evaluated. 
@@ -290,13 +330,15 @@ def frequency_fx(f: Callable[[Real], bool],
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray) -> np.ndarray:
         # uses dowy (last) df column
-        data = df.iloc[:, -1].values
+        data = np.asarray(df.iloc[:, -1].values)
         if is_order_1(order, output):
             raise ValueError('Order must be greater than 1 for frequency characteristics.')
+        if output is None:
+            raise ValueError("Output cannot be None for frequency characteristics")
         if not is_dowy_timeseries(data):
             raise ValueError('''Frequency characteristics must be evaluated on a
                              day of water year timeseries.''')
-        nyr = []
+        nyr: list[int] = []
         is_true = False
         n, T = 0, len(data) # pylint: disable=invalid-name
         for t in range(T):
@@ -357,7 +399,7 @@ def frequency_fx(f: Callable[[Real], bool],
 #endregion
 
 #region rate_of_change
-def rate_of_change_fx(f: Callable[[Real], bool],
+def rate_of_change_fx(f: Callable[[float], bool],
                       order: int = 1, ma_periods: int = 1,
                       look_back: int = 1, minimum: float = 0.0) -> Characteristic_fx:
     '''
@@ -365,7 +407,7 @@ def rate_of_change_fx(f: Callable[[Real], bool],
 
     Parameters
     ----------
-        f (Callable[[Real], bool]): Comparision function.
+        f (Callable[[float], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
             within list of component characteristics.
     Returns
@@ -375,7 +417,7 @@ def rate_of_change_fx(f: Callable[[Real], bool],
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray) -> np.ndarray:
         # uses hydrologic data (1st) df column
-        data = df.iloc[:, 0].values
+        data = np.asarray(df.iloc[:, 0].values)
         data = data if ma_periods == 1 else moving_average(data, ma_periods)
 
         n = len(data)
@@ -387,6 +429,8 @@ def rate_of_change_fx(f: Callable[[Real], bool],
                     if data[t-look_back] > minimum:
                         result[t] = 1 if f(data[t] / data[t-look_back]) else 0
             else: # is valid order > 1
+                if output is None:
+                    raise ValueError("Output cannot be None for order > 1")
                 # 1st order-1 values are 1
                 if np.all(output[t][-order+1:]==1):
                     if t-look_back >= 0:
@@ -461,7 +505,7 @@ def validate_timeseries(timeseries: pd.DataFrame) -> None:
     if len(df.columns) < 2:
         raise ValueError('''Timeseries must contain at a minimum one hydrologic data column
                          and one day of water year column.''')
-    if not is_dowy_timeseries(timeseries.iloc[:, -1].values):
+    if not is_dowy_timeseries(np.asarray(timeseries.iloc[:, -1].values)):
         raise ValueError('''Timeseries must contain
                          day of water year column in last position.''')
 #endregion

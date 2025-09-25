@@ -1,6 +1,6 @@
 '''Parses data from configuration file.'''
 from enum import Enum
-from typing import Any
+from typing import Callable, Any
 
 import hydropattern.patterns as patterns
 
@@ -8,7 +8,7 @@ def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
     '''Build components.'''
     components = []
     for component_name, elements in data.items():
-        characteristics: list[tuple[str, Any]] = []
+        characteristics: list[patterns.Characteristic] = []
         # since python 3.7 dictionaries are ordered
         # so the order of the elements is preserved
         verbose, success, order = True, True, 1
@@ -56,7 +56,7 @@ def symbol_to_string(symbol: str) -> str:
         '!=': 'ne'
     }[symbol]
 
-def between_parser(metrics: list[Any], inclusive=True) -> patterns.comparison_fx:
+def between_parser(metrics: list[Any], inclusive=True) -> Callable[[float], bool]:
     '''Generates comparision function for between metrics (i.e., [minimum, maximum]).'''
     if len(metrics) != 2 or not all(isinstance(i, (int, float)) for i in metrics):
         raise ValueError('Between metrics must have two numeric values.')
@@ -75,6 +75,7 @@ def validate_symbol(symbol: str) -> str:
         symbol_to_string(symbol)
     except KeyError as e:
         raise NotImplementedError(f'Invalid comparision symbol: {symbol}.') from e
+    return symbol
 
 def validate_simple_comparision_pair(metrics: list[Any]) -> None:
     '''Validate comparision pair.'''
@@ -160,7 +161,7 @@ def validate_timing_metrics(metrics: list[Any])-> None:
     if not all(isinstance(i, int) for i in metrics):
         raise ValueError(error_msg)
 #endregion
-def timing_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
+def timing_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse timing metrics.
     
     Parameters
@@ -173,7 +174,7 @@ def timing_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
-        tuple[str, Any]: characteristic name and function.
+        Characteristic: characteristic name and function.
     Raises
     ------
         ValueError: if metrics are not in the correct form.
@@ -218,7 +219,7 @@ def validate_magnitude_metrics(metrics: list[Any]) -> ComparisionType:
         validate_ma_period(metrics)
     return validate_comparison_metrics(metrics)
 #endregion
-def magnitude_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
+def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse magnitude metrics.
     
     Parameters
@@ -232,7 +233,7 @@ def magnitude_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
-        tuple[str, Any]: characteristic name and function.
+       Characteristic: characteristic name and function.
     Raises
     ------
         ValueError: if metrics are not in the correct form.
@@ -286,7 +287,7 @@ def validate_duration_metrics(metrics: list[Any]) -> ComparisionType:
     return validate_comparison_metrics(metrics)
 #endregion
 
-def duration_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
+def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse duration metrics.
     
     Parameters
@@ -299,7 +300,7 @@ def duration_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
-        tuple[str, Any]: characteristic name and function.
+        Characteristic: characteristic name and function.
     Raises
     ------
         ValueError: if metrics are not in the correct form.
@@ -359,7 +360,7 @@ def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
 
 #endregion
 
-def rate_of_change_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
+def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse rate of change metrics.
     
     Parameters
@@ -378,7 +379,7 @@ def rate_of_change_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
-        tuple[str, Any]: characteristic name and function.
+        Characteristic: characteristic name and function.
     Raises
     ------
         ValueError: if metrics are not in the correct form.
@@ -425,7 +426,7 @@ def validate_frequency_metrics(metrics: list[Any]) -> ComparisionType:
     return validate_comparison_metrics(metrics)
 #endregion
 
-def frequency_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
+def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse frequency metrics.
     
     Parameters
@@ -440,7 +441,7 @@ def frequency_parser(metrics: list[Any], order: int) -> tuple[str, Any]:
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
-        tuple[str, Any]: characteristic name and function.
+        Characteristic: characteristic name and function.
     Raises
     ------
         ValueError: if metrics are not in the correct form.

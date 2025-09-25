@@ -12,6 +12,14 @@ from hydropattern.patterns import (comparison_fx,
 # used in characteristic function tests.
 df = pd.DataFrame({'col1': [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
                    'col2': [1, 2, 3, 4, 5, 6]})
+# df =
+#     col1  col2
+# 0   10.0     1
+# 1   20.0     2
+# 2   30.0     3
+# 3   40.0     4
+# 4   50.0     5
+# 5   60.0     6
 
 class TestPatterns(unittest.TestCase):
     '''Tests for the patterns module.'''
@@ -176,8 +184,37 @@ class TestPatterns(unittest.TestCase):
     def test_duration_fx_start_ordermismatch(self):
         '''Test duration_fx function.'''
         order = 3
+        # array with 6 rows and 4 columns.
         o = np.zeros(shape=(len(df), 4))
+        # 1s in first 5 rows last 2 columns.
         o[0:5,2:4] = 1 # add 1s in columns that matter
+        # o = [
+        #     [0, 0, 1, 1],
+        #     [0, 0, 1, 1],
+        #     [0, 0, 1, 1],
+        #     [0, 0, 1, 1],
+        #     [0, 0, 1, 1],
+        #     [0, 0, 0, 0]
+        # ]
+        # duration_fx(gt(x, 1)~f(x>1), order=3) -> fx
+        fx = duration_fx(comparison_fx('>', 1, None, None), order)
+        # fx(dataframe, output_array) -> 1D array (this case with 6 rows).
+        self.assertTrue(np.all(fx(df, o) == np.array([0, 0, 0, 0, 0, 0])))
+
+    def test_duration_fx_start_order_not_mismatched(self):
+        '''Test duration check performed on start of output row arrays.''' 
+        order = 3
+        o = np.zeros(shape=(len(df), 4))
+        o[0:5,0:3] = 1 # add 1s in columns that matter
+        # o = [
+        #     [1, 1, 0, 0],
+        #     [1, 1, 0, 0],
+        #     [1, 1, 0, 0],
+        #     [1, 1, 0, 0],
+        #     [1, 1, 0, 0],
+        #     [0, 0, 0, 0]
+        # ]
+        # duration_fx(gt(x, 1)~f(x>1), order=3) -> fx
         fx = duration_fx(comparison_fx('>', 1, None, None), order)
         self.assertTrue(np.all(fx(df, o) == np.array([1, 1, 1, 1, 1, 0])))
     #endregion

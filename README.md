@@ -119,6 +119,3 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 ``
 
 > This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file.
-
-
-

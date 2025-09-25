@@ -19,8 +19,8 @@ from dateutil.relativedelta import relativedelta
 
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib import gridspec
 
 def first_day_of_water_year(day: int, month: int, yr: int = 1900) -> int:
@@ -64,8 +64,10 @@ class Timeseries:
             lambda x: to_day_of_water_year(x, self.first_day_of_water_year))
         if self.first_day_of_water_year < 1 or self.first_day_of_water_year > 365:
             raise ValueError('first_day_of_water_year must be between 1 and 365.')
-        if not Path(self.file_path).exists():
-            raise ValueError('File path does not exist.')
+        if self.file_path:
+            # If a file path is provided, check that it exists.
+            if not Path(self.file_path).exists():
+                raise ValueError('File path does not exist.')
 
     @staticmethod
     def validate_dataframe(data: pd.DataFrame) -> None:
@@ -181,7 +183,8 @@ class Timeseries:
         '''
         Expands data to specfied start and end time window, filling missing values with NaN.
         '''
-        return df.apply(lambda x: x.reindex(pd.date_range(start, end, freq=df.index.freq,
+        datetime_index = df.index if isinstance(df.index, pd.DatetimeIndex) else pd.DatetimeIndex(df.index) # pylint: disable=line-too-long
+        return df.apply(lambda x: x.reindex(pd.date_range(start, end, freq=datetime_index.freq,
                                                           name='time'), fill_value=np.nan))
 
     @staticmethod
@@ -286,9 +289,9 @@ class Timeseries:
             if broken_axis_ranges is None:
                 divisions = self._order_of_magnitude_divisions(_dfs)[::-1]
             else:
-                divisions = self._parse_divisions(divisions)[::-1]
+                divisions = self._parse_divisions(broken_axis_ranges)[::-1]
         else:
-            divisions = self._global_min_max(_dfs)
+            divisions = [self._global_min_max(_dfs)]
 
         # plot
         # https://stackoverflow.com/questions/34933905/adding-subplots-to-a-subplot
@@ -303,64 +306,87 @@ class Timeseries:
             max_row_date = min_plot_date + relativedelta(years=yrs_per_row) - dt
         for i in range(nrows):
             dfs_period = [df.loc[min_row_date:max_row_date] for df in dfs]
-            inner = gridspec.GridSpecFromSubplotSpec(nrows=len(divisions), ncols=1,
-                                                     subplot_spec=outer[i], wspace=0.1, hspace=0.1)
-            axs = [plt.Subplot(fig, inner[j]) for j in range(len(divisions))] # subplot_spec kw
+            if broken_axis:
+                # Use broken axis layout with multiple divisions
+                inner = gridspec.GridSpecFromSubplotSpec(nrows=len(divisions), ncols=1,
+                                                         subplot_spec=outer[i],
+                                                         wspace=0.1, hspace=0.1)
+                axs = [fig.add_subplot(inner[j]) for j in range(len(divisions))]
+            else:
+                # Use single continuous axis
+                axs = [fig.add_subplot(outer[i])]
             # https://matplotlib.org/stable/gallery/subplots_axes_and_figures/broken_axis.html
             for j, ax in enumerate(axs):
                 d = 0.5
-                kwargs = dict(
+                break_kwargs: dict = dict(
                     marker=[(-1, -d), (1, d)], markersize=5,
                     linestyle="none", color='k', mec='k', mew=1, clip_on=False)
 
                 for col in data_columns:
                     if isinstance(col, str):
                         idx = self.data.columns.get_loc(col)
+                        col_name = col
                     else:
                         idx = col
-                        col = self.data.columns[idx]
-                    ax.plot(dfs_period[0].index, dfs_period[0].iloc[:,idx],
-                            label=col)
+                        col_name = self.data.columns[idx]
+                    # Use column-based indexing instead of iloc to help mypy
+                    series = dfs_period[0][col_name]
+                    ax.plot(dfs_period[0].index, series, label=col_name)
                 if comparision_series is not None:
                     # extra = self._fillnan(extra_timeseries.to_df(), min_row_date, max_row_date
                     #                       ).loc[min_row_date:max_row_date]
                     # ax.plot(extra.index, extra.iloc[:,0], label=extra_timeseries.name)
                     ax.plot(dfs_period[1].index, dfs_period[1].iloc[:,0],
                             label=comparision_series.name)
-                ax.set_xlim(min_row_date, max_row_date)
-                ax.set_ylim(divisions[j][0], divisions[j][1])
+                ax.set_xlim(mdates.date2num(min_row_date), mdates.date2num(max_row_date))
 
-                if j == 0: # top division
+                if broken_axis:
+                    # Set y-limits for broken axis divisions
+                    ax.set_ylim(divisions[j][0], divisions[j][1])
+                else:
+                    # Set y-limits for continuous axis using the min/max values
+                    ax.set_ylim(divisions[0][0], divisions[0][1])
+
+                if broken_axis and j == 0: # top division of broken axis
                     ax.spines['bottom'].set_visible(False)
                     ax.xaxis.tick_top()
-                    ax.xaxis.set_minor_locator(mpl.dates.YearLocator())
+                    ax.xaxis.set_minor_locator(mdates.YearLocator())
                     ax.tick_params(labeltop=False)
-                    ax.plot([0, 1], [0, 0], transform=ax.transAxes, **kwargs)
+                    ax.plot([0, 1], [0, 0], transform=ax.transAxes,
+                            **break_kwargs)  # type: ignore[misc]
                     if i == 0:
                         ax.legend(frameon=False)
-                elif j == len(divisions) - 1: # bottom division
+                elif broken_axis and j == len(divisions) - 1: # bottom division of broken axis
                     ax.spines['top'].set_visible(False)
-                    ax.xaxis.set_major_locator(mpl.dates.YearLocator())
-                    ax.xaxis.set_minor_locator(mpl.dates.MonthLocator(bymonth=[1, 3, 6, 9, 12]))
+                    ax.xaxis.set_major_locator(mdates.YearLocator())
+                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[1, 3, 6, 9, 12]))
                     ax.xaxis.tick_bottom()
                     ax.tick_params(axis='x', which='both', top=False, labeltop=False)
-                    ax.plot([0, 1], [1, 1], transform=ax.transAxes, **kwargs)
-                else: # middle division
+                    ax.plot([0, 1], [1, 1], transform=ax.transAxes,
+                            **break_kwargs)  # type: ignore[misc]
+                elif broken_axis: # middle division of broken axis
                     ax.spines['top'].set_visible(False)
                     ax.spines['bottom'].set_visible(False)
                     ax.tick_params(axis='x', which='both',
                                    bottom=False, labelbottom=False, top=False, labeltop=False)
-                    ax.plot([0, 0], [0, 1], transform=ax.transAxes, **kwargs)
-                    ax.plot([1, 1], [1, 0], transform=ax.transAxes, **kwargs)
-                fig.add_subplot(ax)
+                    ax.plot([0, 0], [0, 1], transform=ax.transAxes,
+                            **break_kwargs)  # type: ignore[misc]
+                    ax.plot([1, 1], [1, 0], transform=ax.transAxes,
+                            **break_kwargs)  # type: ignore[misc]
+                else:
+                    # Normal continuous axis - no special formatting needed
+                    ax.xaxis.set_major_locator(mdates.YearLocator())
+                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[1, 3, 6, 9, 12]))
+                    if i == 0:
+                        ax.legend(frameon=False)
 
             if i + 1 < nrows:
                 min_row_date = max_row_date + dt
-                max_row_date = min_row_date + relativedelta(years=yrs_per_row) - dt
+                max_row_date = min_row_date + relativedelta(years=yrs_per_row or 1) - dt
         if output_path:
             plt.savefig(output_path)
         else:
-            output_path = self.file_path.replace('.csv', '.png')
+            output_path = self.file_path.replace('.csv', '.png') if self.file_path else 'output.png'
             plt.savefig(output_path)
         plt.show()
 
