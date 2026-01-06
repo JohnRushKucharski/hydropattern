@@ -1,0 +1,36 @@
+# TOML file specifically designed to test key order preservation
+# Keys are deliberately NOT in alphabetical order to verify preservation
+
+[z_section]
+zebra = "should be first"
+apple = "should be second"
+banana = "should be third"
+
+[a_section]  
+third = 3
+first = 1
+second = 2
+
+[middle_section]
+z_key = "last key first"
+a_key = "first key second"  
+m_key = "middle key third"
+
+# Nested structure with mixed ordering
+[order_test]
+omega = "end of alphabet first"
+alpha = "start of alphabet second"
+beta = "second letter third"
+
+[order_test.nested]
+nine = 9
+one = 1
+five = 5
+three = 3
+
+# Test numbers as keys (should preserve order)
+[numeric_keys]  
+key_100 = "hundred first"
+key_1 = "one second"
+key_50 = "fifty third"
+key_10 = "ten fourth"

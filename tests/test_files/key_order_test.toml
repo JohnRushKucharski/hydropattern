@@ -1,0 +1,28 @@
+# Test TOML file for key order preservation
+[timeseries]
+first_key = "first_value"
+second_key = "second_value"
+third_key = "third_value"
+path = "test_data.csv"
+date_format = "%Y-%m-%d"
+first_day_of_water_year = 274
+
+[components]
+alpha_component = "first_alphabetically"
+zebra_component = "last_alphabetically"  
+middle_component = "middle_value"
+
+[components.test_section]
+z_key = 1
+a_key = 2
+m_key = 3
+b_key = 4
+
+[nested_table]
+level1_first = "value1"
+level1_last = "value2"
+
+[nested_table.deeper]
+deep_first = 10
+deep_middle = 20
+deep_last = 30

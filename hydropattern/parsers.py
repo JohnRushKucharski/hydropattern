@@ -2,7 +2,8 @@
 from enum import Enum
 from typing import Callable, Any
 
-import hydropattern.patterns as patterns
+from hydropattern import patterns
+#import hydropattern.patterns as patterns
 
 def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
     '''Build components.'''

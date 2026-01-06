@@ -14,6 +14,7 @@ Example:
     ...
 '''
 from pathlib import Path
+from calendar import month_abbr
 from dataclasses import dataclass
 from dateutil.relativedelta import relativedelta
 
@@ -21,6 +22,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.ticker import FuncFormatter
 from matplotlib import gridspec
 
 def first_day_of_water_year(day: int, month: int, yr: int = 1900) -> int:
@@ -50,6 +52,30 @@ def to_day_of_water_year(date: pd.Timestamp, first_day_of_wy: int = 1):
     doy = date.dayofyear - 1 if date.is_leap_year and date.dayofyear > 59 else date.dayofyear
     return doy + (end - start) + 1 if doy < start else doy - (start - 1)
 
+def to_doy_from_dowy(dowy: int, first_day_of_wy: int = 1, yr: int = 1900) -> int:
+    '''
+    Converts day of water year to day of year.
+    
+    Args:
+         dowy (int): day of water year (WY).
+        first_day_of_wy (int): first day of water year (1-365).
+        yr (int): year. Default 1900.            
+    '''
+    if first_day_of_wy < 1 or first_day_of_wy > 365:
+        raise ValueError('first_day_of_water_year must be between 1 and 365.')
+    days_to_new_year = 365 - first_day_of_wy + 1
+    # dowy is after start of new CY, so substract WY days in previous CY.
+    if dowy > days_to_new_year:
+        doy = dowy - days_to_new_year
+    # dowy is before start of new CY, so add CY days before the WY started.
+    else:
+        doy = dowy + first_day_of_wy - 1
+    # check for leap year effects
+    if pd.to_datetime(f'{yr}-01-01').is_leap_year and doy > 59:
+        # remove leap year effect if after Feb 28.
+        doy -= 1
+    return doy
+
 @dataclass
 class Timeseries:
     '''Class for holding time series of hydrology data.'''
@@ -65,6 +91,10 @@ class Timeseries:
         if self.first_day_of_water_year < 1 or self.first_day_of_water_year > 365:
             raise ValueError('first_day_of_water_year must be between 1 and 365.')
         if self.file_path:
+            # When using .from_csv this can sneak in as a Path.
+            # This causes issues later, for ex: when saving plots.
+            if isinstance(self.file_path, Path):
+                self.file_path = str(self.file_path)
             # If a file path is provided, check that it exists.
             if not Path(self.file_path).exists():
                 raise ValueError('File path does not exist.')
@@ -87,7 +117,8 @@ class Timeseries:
             raise ValueError('Data frame must have at least one column.')
 
     @staticmethod
-    def from_dataframe(data: pd.DataFrame, first_dowy: int = 1) -> 'Timeseries':
+    def from_dataframe(data: pd.DataFrame,
+                       first_dowy: int = 1, path: str|None = None) -> 'Timeseries':
         '''
         Returns a Timeseries object from a pandas DataFrame.
         
@@ -96,7 +127,7 @@ class Timeseries:
             - time column is datetime index.
             - second to N column: values for each time series.
         '''
-        return Timeseries(data=data,
+        return Timeseries(file_path=path, data=data,
                           first_day_of_water_year=first_dowy)
 
     @staticmethod
@@ -135,6 +166,13 @@ class Timeseries:
         # doy is after start of WY (but before new CY), so subtract days in CY before WY started.
         return doy - (self.first_day_of_water_year - 1)
 
+    def month_day_year_to_day_of_water_year(self, month: int, day: int, year: int = 1900) -> int:
+        '''
+        Converts month, day, year to day of water year.
+        '''
+        date = pd.Timestamp(f'{year}-{month}-{day}')
+        return self.date_to_day_of_water_year(date)
+
     def day_of_water_year_to_date(self, dowy: int, year: int = 1900) -> pd.Timestamp:
         '''
         Converts day of water year to date.
@@ -156,6 +194,19 @@ class Timeseries:
             doy -= 1
         return pd.to_datetime(f'{year}-{doy}', format='%Y-%j')
 
+    def day_of_water_year_to_day_month(self, dowy: int) -> tuple[int, int]:
+        '''
+        Converts day of water year to day and month.
+        '''
+        return (self.day_of_water_year_to_date(dowy=dowy).day,
+                self.day_of_water_year_to_date(dowy=dowy).month)
+
+    def day_of_water_year_to_day_of_year(self, dowy: int) -> int:
+        '''
+        Converts day of water year to day of year.
+        '''
+        return to_doy_from_dowy(dowy=dowy, first_day_of_wy=self.first_day_of_water_year)
+
     def _min_plot_date(self, date: pd.Timestamp) -> pd.Timestamp:
         '''
         Returns the minimum date for plotting.
@@ -174,7 +225,8 @@ class Timeseries:
         dowy = self.date_to_day_of_water_year(date)
         # dowy is in CY that WY started in, last dowy is in next CY.
         if dowy < (365 - self.first_day_of_water_year):
-            return self.day_of_water_year_to_date(dowy=365, year=date.year + 1)
+            # TODO: removed -1 here, check this is correct, remove IF if so.
+            return self.day_of_water_year_to_date(dowy=365, year=date.year)
         # dowy is in last CY of WY.
         return self.day_of_water_year_to_date(dowy=365, year=date.year)
 
@@ -210,8 +262,8 @@ class Timeseries:
         # find global min and max
         min_, max_ = Timeseries._global_min_max(dfs)
         # number of orders of magnitude (oom)s
-        min_oom = int(np.log10(min_)) if min_ > 0 else 0
-        max_oom = int(np.log10(max_)) if max_ > 0 else 0
+        min_oom = int(np.log10(min_)) if min_ > 1 else 0
+        max_oom = int(np.log10(max_)) if max_ > 1 else 0
         bins = max_oom - min_oom + 1
         # find divisions
         local_min = min_
@@ -359,7 +411,7 @@ class Timeseries:
                 elif broken_axis and j == len(divisions) - 1: # bottom division of broken axis
                     ax.spines['top'].set_visible(False)
                     ax.xaxis.set_major_locator(mdates.YearLocator())
-                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[1, 3, 6, 9, 12]))
+                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[3, 5, 7, 9, 11]))
                     ax.xaxis.tick_bottom()
                     ax.tick_params(axis='x', which='both', top=False, labeltop=False)
                     ax.plot([0, 1], [1, 1], transform=ax.transAxes,
@@ -376,7 +428,7 @@ class Timeseries:
                 else:
                     # Normal continuous axis - no special formatting needed
                     ax.xaxis.set_major_locator(mdates.YearLocator())
-                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[1, 3, 6, 9, 12]))
+                    ax.xaxis.set_minor_locator(mdates.MonthLocator(bymonth=[4, 7, 10]))
                     if i == 0:
                         ax.legend(frameon=False)
 
@@ -390,4 +442,71 @@ class Timeseries:
             plt.savefig(output_path)
         plt.show()
 
+    def plot_hydrograph_quantiles(self, col: int|str = 0,
+                                  rolling_periods: int = 1, min_periods: int = 1,
+                                  quantiles: None|list[float] = None,
+                                  output_path: None|str = None) -> None:
+        '''
+        Plots the hydrograph quantiles for a specified column.
+        
+        Args:
+            col (int|str): column index or name to plot.
+                Default 1 (second column).
+            rolling_periods (int): number of periods for rolling mean.
+                Default 1 (no rolling mean).
+            min_periods (int): minimum number of periods for rolling mean.
+                Default 1.
+            quantiles (list[float]): list of quantiles to plot.
+                Default [0.25, 0.50, 0.75].
+            output_path (str): path to save plot.
+                Default None saves plot in same name and directory as timeseries file path,
+                with '_quantiles.png' suffix.
+                
+        Returns:
+            None
+            Places plot in output_path if specified.
+        '''
+        def q(quantile: float):
+            '''
+            Builds quantile closure functions for pandas groupby.agg.
+            '''
+            def closure(x):
+                return x.quantile(quantile)
+            closure.__name__ = f'q{int(quantile*100)}'
+            return closure
+        if quantiles is None:
+            quantiles = [0.25, 0.50, 0.75]
+        quantiles = sorted(quantiles)
+        col = col if isinstance(col, str) else self.data.columns[col]
+        roll = self.data[col].rolling(rolling_periods, min_periods=min_periods, center=True).mean()
+        df = pd.DataFrame({
+            'dowy': self.data.dowy.values,
+            col: roll.values
+        }).groupby('dowy').agg({col: [q(qt) for qt in quantiles]})
+
+        n = len(quantiles)
+        pairs, is_odd = n // 2, n % 2 == 1
+        _, ax = plt.subplots(figsize=(15, 7))
+        for i in range(pairs):
+            low = df.columns[i]
+            high = df.columns[-i-1]
+            ax.fill_between(df.index, df[low], df[high], alpha=0.3, label=f'{low[0]} {low[1][-2:]}-{high[1][-2:]}th percentile') # type: ignore[misc] # pylint: disable=line-too-long
+        if is_odd:
+            median = df[df.columns[pairs]]
+            ax.plot(df.index, median, color='k', label='Median')
+
+        def date_format(day_month: tuple[int, int]) -> str:
+            return f'{day_month[0]:02d}-{month_abbr[day_month[1]]}'
+        formatter = FuncFormatter(
+            lambda x, pos: date_format(self.day_of_water_year_to_day_month(int(x))))
+        ax.xaxis.set_major_formatter(formatter)
+
+        ax.legend(frameon=False)
+        if output_path:
+            plt.savefig(output_path)
+        else:
+            output_path = self.file_path.replace(
+                '.csv', '_quantiles.png') if self.file_path else 'output_quantiles.png'
+            plt.savefig(output_path)
+        plt.show()
 #todo: quantile hydrograph support (port from functional flows)

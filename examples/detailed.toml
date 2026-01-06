@@ -43,12 +43,17 @@ date_format = "%Y-%m-%d"        # datetime format code.
 
 # -------------------DEFINE COMPONENTS------------------- #
 # first component.
-[components.november_pulse_flow]           # name of the component.
+[components.november_pulse_flow]# name of the component.
 
 # component compute options:
-# verbose = true                # evaluate characteristics (in order) if component can be met, defaults to true.
 # success_pattern = true        # component is present if all characteristics are met, defaults to true.
-# note: verbose option must be set before characteristics.
+# verbose = false               # evaluate characteristics indepedently when possible*, defaults to false.**
+
+# *note: only possible for timing, magnitude, and rate_of_change characteristics.
+# **note: characteristics are evaluated in the order they are provided below,
+# but when verbose is set to the default value (false), all characteristics 
+# after the first characteristic in the provided order are evaluated only in time periods
+# where the antecedent characteristics (earlier in the order) conditions are satisfied.
 
 # characteristics:
 timing = [305, 335]             # 1 November - 1 December.
@@ -74,7 +79,7 @@ frequency = [">=", 1, 5]         # at least once every 5 years.
 # -------------Timeseries Parameter Notes---------------- #
 # Path: must be path to *.csv file, with following header row:
 #   time, <column_name_1>, ..., <column_name_n>
-# Time_format: string datetime formate code
+# Time_format: string datetime format code
 #   ex: use "%Y-%m-%d" for date in format "1900-01-31" (i.e., 31 Jan 1900).
 #   see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior 
 # First_day_of_water_year: day of year associated with start of water year.  
