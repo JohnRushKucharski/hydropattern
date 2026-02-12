@@ -11,7 +11,7 @@ from climate_canvas.plots_utilities import plot_response_surface
 
 from hydropattern.timeseries import Timeseries
 from hydropattern.parsers import parse_components
-from hydropattern.patterns import Component, evaluate_patterns
+from hydropattern.patterns import Component, Result, evaluate_components
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -44,8 +44,8 @@ def run(path: str = typer.Argument(...,
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
-    output = evaluate_patterns(timeseries.data, components)
-    write_output(output, path, output_directory, write_to_excel)
+    results = evaluate_components(timeseries.data, components)
+    write_output(results, path, output_directory, write_to_excel)
 
     if plot:
         xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
@@ -76,7 +76,7 @@ def load_components(data: dict[str, Any]) -> list[Component]:
         raise ValueError('No components data in configuration file.')
     return parse_components(data['components'])
 
-def write_output(dfs: list[pd.DataFrame],
+def write_output(results: list[Result],
                  input_path: str, output_directory: str, write_to_excel: bool):
     '''Write output to .csv files or an Excel file.'''
     if output_directory:
@@ -90,12 +90,12 @@ def write_output(dfs: list[pd.DataFrame],
     if write_to_excel:
         output_filename = Path(input_path).stem + '_output.xlsx'
         writer = pd.ExcelWriter(output_path/output_filename)
-        for _, df in enumerate(dfs):
-            df.to_excel(writer, sheet_name=df.columns[0])
+        for _, result in enumerate(results):
+            result.df.to_excel(writer, sheet_name=result.component.name)
         writer.close()
         typer.echo(f'Output written to: {output_path}{chr(92)}{output_filename}.')
     else:
-        for _, df in enumerate(dfs):
-            output_filename = f'{df.columns[0]}.csv'
-            df.to_csv(output_path/output_filename)
+        for _, result in enumerate(results):
+            output_filename = f'{result.df.columns[0]}.csv'
+            result.df.to_csv(output_path/output_filename)
         typer.echo(f'Output written to: {output_path}.')

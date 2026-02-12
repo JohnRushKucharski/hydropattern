@@ -179,32 +179,48 @@ def is_dowy_timeseries(data: np.ndarray) -> bool:
 
 def moving_average(data: np.ndarray,
                    period: int, min_periods: None|int = None) -> np.ndarray:
-    '''Calculates moving average over timeseries data.'''
-    if min_periods:
-        if period < min_periods or min_periods < 1:
-            raise ValueError(f'''min_periods: {min_periods} must be greater than or equal to 1
-                             and less than or equal to the moving average period: {period}.''')
+    '''
+    Calculates moving average over timeseries data.
+    
+    Parameters
+    ----------
+    data (np.ndarray): timeseries data to average.
+    period (int): window (in timesteps) over which to average.
+    min_periods (None|int): minimum number of timesteps before average is computed.
+    Defaults to period, i.e. average is computed after 'period' number of timesteps.
+    
+    Returns
+    -------
+    np.ndarray: moving average of data, with same shape as input data.
+    '''
     if period < 1:
-        raise ValueError(f'The moving average period: {period} must be greater than or equal to 1.')
-    # adjust values to account for 0-based index
+        raise ValueError(
+            f'moving average period: {period} must be at least 1.')
+    if min_periods and (period < min_periods or min_periods < 1):
+        raise ValueError(
+            f'''min_periods: {min_periods} must be at least 1 and
+            less than or equal to the moving average period: {period}.''')
+
+    # adjust to account for 0-based idx
     periods = period - 1
     min_periods = min_periods - 1 if min_periods else periods
-    # convolve does  this faster but is less clear and harder to debug
+
+    # convolve approach: faster but less clear...
+    # ma = np.convolve(data, np.ones(period), 'valid') / period
+    # return np.pad(ma, (len(data)-len(ma), 0), 'constant', constant_values=np.nan)
+
     ma = np.zeros(len(data))
     for t in range(len(data)):
         if t < min_periods:
             ma[t] = np.nan
         else:
             if t < periods:
+                # t+1 bc max of slice is exclusive
                 ma[t] = np.mean(data[:t+1])
             else:
+                # t+1 bc max of slice is exclusive
                 ma[t] = np.mean(data[t-periods:t+1])
-            # average over min_periods or period depending on t
-            # t+1 because max of range is exclusive
-            #ma[t] = np.mean(data[:t+1]) if t < period else np.mean(data[t-period-1:t+1])
     return ma
-    # ma = np.convolve(data, np.ones(period), 'valid') / period
-    # return np.pad(ma, (len(data)-len(ma), 0), 'constant', constant_values=np.nan)
 
 def eval_order_1_characteristic(f: Callable[[float], bool], data: np.ndarray) -> np.ndarray:
     '''Evaluates eligble order 1 characteristic, returning array of [0, 1] values.'''
@@ -489,42 +505,64 @@ def rate_of_change_fx(f: Callable[[float], bool],
                       look_back: int = 1, minimum: float = 0.0) -> CharacteristicFx:
     '''
     Creates function to evaluate rate of change characteristics.
-
+    
     Parameters
     ----------
-        f (Callable[[float], bool]): Comparision function.
+        f (Callable[[Real], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics.
-    Returns
-    -------
-        Characteristic_fx: evaluates characteristic over timeseries.
+            within list of component characteristics. 
+            Defaults to 1 for rate of change characteristics.
+        ma_periods (int): window (in timesteps) over which to average data before evaluating f.
+            Defaults to 1 for no moving average.
+        look_back (int): number of time periods back to compare for rate of change calculation.
+            Defaults to 1 for comparing to previous time period.
+        minimum (float): minimum value to consider in rate of change calculations.
+            Defaults to 0.0, i.e. values must be positive to avoid divide by 0s.
     '''
-    def closure(df: pd.DataFrame,
-                output: None|np.ndarray) -> np.ndarray:
+    if look_back < 1:
+        raise ValueError(
+            f'rate of change look_back must be at least 1 time period, got {look_back}.')
+    if minimum < 0:
+        raise ValueError(
+            f'minimum must be non-negative to avoid divide by 0s, got {minimum}.')
+    def closure(df: pd.DataFrame, output: None|np.ndarray=None) -> np.ndarray:
         # uses hydrologic data (1st) df column
-        data = np.asarray(df.iloc[:, 0].values)
+        data = np.asarray(df.iloc[:, 0].values).astype(float)
         data = data if ma_periods == 1 else moving_average(data, ma_periods)
-        validate_order(order, output, CharacteristicType.RATE_OF_CHANGE)
-        assert output is not None or order == 1 # for mypy: checked by validate_order
 
-        n = len(data)
-        result = np.zeros(n)
-        # restrict t to moving average
-        for t in range(ma_periods-1, n):
-            if order == 1:
-                if t-look_back >= 0:
-                    if data[t-look_back] > minimum:
-                        result[t] = 1 if f(data[t] / data[t-look_back]) else 0
-            else: # is valid order > 1
-                if output is None:
-                    raise ValueError("Output cannot be None for order > 1")
-                # 1st order-1 values are 1
-                if np.all(output[t][-order+1:]==1):
-                    if t-look_back >= 0:
-                        if data[t-look_back] > minimum:
-                            result[t] = 1 if f(data[t] / data[t-look_back]) else 0
-        return result
+        validate_order(order, output, CharacteristicType.RATE_OF_CHANGE)
+        if look_back > len(data):
+            raise ValueError(
+                f'''rate of change look_back: {look_back} must be
+                less than or equal to the length of the timeseries: {len(data)}.''')
+        # compute rates of change
+        data[data <= minimum] = np.nan  # avoid divide by 0s, excludes values <= minimum
+        data[look_back:] = data[look_back:] / data[:-look_back]
+        data[:look_back] = np.nan  # not in look back window
+        # send along for value comparison and eligibility checking
+        return (eval_order_1_characteristic(f, data) if order == 1 else
+                eval_order_n_characteristic(f, data, output, order)) # type: ignore
     return closure
+        # assert output is not None or order == 1 # for mypy: checked by validate_order
+
+        # n = len(data)
+        # result = np.zeros(n)
+        # # restrict t to moving average
+        # for t in range(ma_periods-1, n):
+        #     if order == 1:
+        #         if t-look_back >= 0:
+        #             if data[t-look_back] > minimum:
+        #                 result[t] = 1 if f(data[t] / data[t-look_back]) else 0
+        #     else: # is valid order > 1
+        #         if output is None:
+        #             raise ValueError("Output cannot be None for order > 1")
+        #         # 1st order-1 values are 1
+        #         if np.all(output[t][-order+1:]==1):
+        #             if t-look_back >= 0:
+        #                 if data[t-look_back] > minimum:
+        #                     result[t] = 1 if f(data[t] / data[t-look_back]) else 0
+    #     return result
+    # return closure
 #endregion
 #endregion
 
@@ -660,9 +698,9 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
                    ).set_index('time')
     return Result(df, component)
 
-# def evaluate_patterns(timeseries: pd.DataFrame, components: list[Component]) -> pd.DataFrame:
-#     '''
-#     Evaluate the components.
+def evaluate_components(df: pd.DataFrame, components: list[Component]) -> list[Result]:
+    ''''Evaluates a list of components on a single timeseries.'''
+    return [evaluate_component(df, component) for component in components]
 
 #     Parameters
 #     ----------
