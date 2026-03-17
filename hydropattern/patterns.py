@@ -625,7 +625,7 @@ class Result:
                     data[f'{characteristic.name}(%)'].append((n_wy / T) * 100)
                 n_wy = df_wy[self.component.name].sum()
                 data[self.component.name].append(n_wy)
-                data[f'{self.component.name}(%)'].append((n_wy / T) * 100)
+    out            data[f'{self.component.name}(%)'].append((n_wy / T) * 100)
             indexs = ['total'] + [str(int(wy)) for wy in wys]
             return pd.DataFrame(data, index=indexs)
         return pd.DataFrame(data)
