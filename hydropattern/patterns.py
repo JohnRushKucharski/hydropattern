@@ -224,20 +224,17 @@ def moving_average(data: np.ndarray,
 
 def eval_order_1_characteristic(f: Callable[[float], bool], data: np.ndarray) -> np.ndarray:
     '''Evaluates eligble order 1 characteristic, returning array of [0, 1] values.'''
-    @np.vectorize
-    def fx(value: float) -> int:
-        return 1 if f(value) else 0
-    return fx(data)
+    return np.array([1 if f(value) else 0 for value in data], dtype=int)
 
 def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
                                 output: np.ndarray, order: int) -> np.ndarray:
     '''Evaluates eligble order n characteristic, returning array of [0, 1] values.'''
     precedents = output[:, :order-1]
     eligible = (precedents == 1).all(axis=1)
-    @np.vectorize
-    def eligible_fx(data: float, is_eligible: bool) -> int:
-        return 1 if is_eligible and f(data) else 0
-    return eligible_fx(data, eligible)
+    return np.array([
+        1 if is_eligible and f(value) else 0
+        for value, is_eligible in zip(data, eligible)
+    ], dtype=int)
 #endregion
 
 #region timing

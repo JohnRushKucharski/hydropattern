@@ -440,7 +440,9 @@ class Timeseries:
         else:
             output_path = self.file_path.replace('.csv', '.png') if self.file_path else 'output.png'
             plt.savefig(output_path)
-        plt.show()
+        # Avoid warnings in non-interactive environments (e.g., test runners using Agg backend).
+        if 'agg' not in plt.get_backend().lower():
+            plt.show()
 
     def plot_hydrograph_quantiles(self, col: int|str = 0,
                                   rolling_periods: int = 1, min_periods: int = 1,

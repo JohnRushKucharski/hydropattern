@@ -42,31 +42,31 @@ The hydropattern source code can be found here: https://github.com/JohnRushKucha
 It can be cloned or forked by following the normal cloning or forking instructions, which are available here: https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository and here: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo.
 
 
-#### Installation with Poetry
+#### Installation with uv
 
-hydropattern is developed with Poetry, which can be used to simply the installation process.
+hydropattern is developed with uv, which simplifies dependency management and virtual environment setup.
 
-To install Poetry, follow the instructions here: https://python-poetry.org/docs/.
+To install uv, follow the instructions here: https://docs.astral.sh/uv/getting-started/installation/.
 
-Once Poetry is installed, use your favorite shell to go to the location of the local hydropattern repository, e.g.
+Once uv is installed, use your favorite shell to go to the location of the local hydropattern repository, e.g.
 
-``
+```
 cd <PATH_TO_LOCAL>\hydropattern
-``
+```
 
 Next run:
 
-``
-poetry install
-``
+```
+uv sync --group test --group dev
+```
 
-This will create a python virtual environment containing all the required hydropattern dependencies, without affecting your system's global python environment.
+This will create or update a project virtual environment containing all required hydropattern dependencies, without affecting your system's global Python environment.
 
-The hydropattern program should now be ready for use as either a python package or command line utility. To test the command line interface (CLI) type the following command into your shell:
+The hydropattern program should now be ready for use as either a Python package or command line utility. To test the command line interface (CLI), run:
 
-``
-poetry run python hydropattern
-``
+```
+uv run python -m hydropattern --help
+```
 
 This should return help instructions for the hydropattern CLI.
 
@@ -94,28 +94,28 @@ t_m     | value_0,m     | value_1,m | ... | value_n-1,m | value_n,m     |
 where the 'time' column contains a datetimestring that can be parsed as a pandas datetime index. By default pandas will, with a warning message and possible error, attempt to guess format of this string. However, the format of this string can be specified in the toml file, described above. Example time series are provided in the .\examples directory on the project's GiHub repository.
 
 ## CLI Basic Usage
-The program can be run on a timeseries of input data, given a valid .toml file configuration (see inputs section above). Using the **run** command. For example, using poetry in a terminal the run command has the following syntax:
+The program can be run on a timeseries of input data, given a valid .toml file configuration (see inputs section above), using the **run** command. For example, using uv in a terminal the run command has the following syntax:
 
-``
-poetry python hydropattern run "path_to_toml_file"
-``
+```
+uv run python -m hydropattern run "path_to_toml_file"
+```
 
 where "path_to_toml_file" is replaced with a valid path to the input .toml file. The following **optional arguments**, can be appended to the end of the run command above:
 
-``
+```
 --output-dir "path_to_output_csv_or_xlsx_files"
-``
+```
 
 > Output file are placed in the same directory as the timeseries specified in the .toml file by default. Providing a valid path to this optinal argument will store the outputs in a different location.
 
-``
+```
 --plot
-``
+```
 
 > This plots a response surface of with the output data.
 
-``
+```
 --excel
-``
+```
 
 > This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file.

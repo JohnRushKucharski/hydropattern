@@ -1,0 +1,6 @@
+[timeseries]
+path = "tests/test_files/cli_smoke_input.csv"
+date_format = "%Y-%m-%d"
+
+[components.single_characteristic]
+magnitude = [">", 1.0]

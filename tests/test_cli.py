@@ -1,9 +1,23 @@
 '''Tests for CLI module functionality.'''
 
 import unittest
+import tempfile
 from pathlib import Path
 
-from hydropattern.cli import load_config_file
+import pandas as pd
+from typer.testing import CliRunner
+
+from hydropattern.cli import (
+    app,
+    load_components,
+    load_config_file,
+    load_timeseries,
+    write_output,
+)
+from hydropattern.patterns import Component, Result
+
+
+RUNNER = CliRunner()
 
 
 class TestCLI(unittest.TestCase):
@@ -14,6 +28,7 @@ class TestCLI(unittest.TestCase):
         self.test_files_dir = Path(__file__).parent / "test_files"
         self.test_toml_path = self.test_files_dir / "key_order_test.toml"
         self.reverse_order_path = self.test_files_dir / "reverse_order_test.toml"
+        self.cli_smoke_config_path = self.test_files_dir / "cli_smoke_config.toml"
 
     def test_toml_key_order_preservation_top_level(self):
         '''Test that key order is preserved in top-level TOML tables.'''
@@ -201,3 +216,103 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(config['order_test']['nested']['one'], 1)
         self.assertEqual(config['order_test']['nested']['five'], 5)
         self.assertEqual(config['order_test']['nested']['three'], 3)
+
+
+class TestCLICommand(unittest.TestCase):
+    '''Command-level tests for Typer CLI behavior.'''
+
+    def setUp(self):
+        '''Set up command-level fixture paths.'''
+        self.test_files_dir = Path(__file__).parent / "test_files"
+        self.cli_smoke_config_path = self.test_files_dir / "cli_smoke_config.toml"
+
+    def test_cli_without_args_shows_help(self):
+        '''Invoking the app with no args should show help text.'''
+        result = RUNNER.invoke(app, [])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn('Usage', result.stdout)
+        self.assertIn('run', result.stdout)
+
+    def test_run_command_smoke_with_temp_files(self):
+        '''Run command succeeds with fixture input files and temporary output.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.cli_smoke_config_path), '--output-dir', str(output_dir)],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            self.assertIn('Output written to:', result.stdout)
+            self.assertTrue(output_dir.exists())
+            self.assertTrue(any(output_dir.glob('*.csv')))
+
+
+class TestCLIValidationErrors(unittest.TestCase):
+    '''Validation error tests for CLI configuration parsing.'''
+
+    def test_load_timeseries_raises_when_missing_timeseries_section(self):
+        '''Missing top-level timeseries section should raise ValueError.'''
+        with self.assertRaisesRegex(ValueError, 'No timeseries data in configuration file'):
+            load_timeseries({'components': {'single_characteristic': {'magnitude': ['>', 1.0]}}})
+
+    def test_load_timeseries_raises_when_missing_path(self):
+        '''Missing timeseries path should raise ValueError.'''
+        with self.assertRaisesRegex(ValueError, 'No path in timeseries data'):
+            load_timeseries({'timeseries': {'date_format': '%Y-%m-%d'}})
+
+    def test_load_components_raises_when_missing_components_section(self):
+        '''Missing top-level components section should raise ValueError.'''
+        with self.assertRaisesRegex(ValueError, 'No components data in configuration file'):
+            load_components({'timeseries': {'path': 'tests/test_files/cli_smoke_input.csv'}})
+
+
+class TestCLIOutputModes(unittest.TestCase):
+    '''Output mode tests for csv and excel behavior.'''
+
+    def _sample_result(self) -> Result:
+        '''Create a minimal Result object for output writing tests.'''
+        component = Component(name='sample_component', characteristics=[], is_success_pattern=True)
+        df = pd.DataFrame({'flow': [1.0, 2.0, 3.0]})
+        return Result(df=df, component=component)
+
+    def test_write_output_default_csv_creates_stem_output_dir(self):
+        '''Default csv mode should create <input_stem>_output and write a csv file.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            write_output([self._sample_result()], str(input_path), None, False)
+
+            expected_output_dir = temp_path / 'config_output'
+            self.assertTrue(expected_output_dir.exists())
+            self.assertTrue((expected_output_dir / 'dv.csv').exists())
+
+    def test_write_output_default_excel_creates_single_file(self):
+        '''Default excel mode should write a single xlsx in the input directory.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            write_output([self._sample_result()], str(input_path), None, True)
+
+            self.assertTrue((temp_path / 'config_output.xlsx').exists())
+            self.assertFalse((temp_path / 'config_output').exists())
+
+    def test_write_output_custom_directory_overrides_default(self):
+        '''Provided output directory should be used instead of any default path logic.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            custom_output_dir = temp_path / 'custom_out'
+            input_path.write_text('', encoding='utf-8')
+
+            write_output([self._sample_result()], str(input_path), str(custom_output_dir), False)
+
+            self.assertTrue(custom_output_dir.exists())
+            self.assertTrue((custom_output_dir / 'dv.csv').exists())
+            self.assertFalse((temp_path / 'config_output').exists())
