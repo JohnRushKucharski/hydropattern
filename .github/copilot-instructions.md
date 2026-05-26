@@ -14,7 +14,7 @@ This document provides comprehensive onboarding information for coding agents wo
 
 ### Key Technologies
 - **Python 3.12+** (strict requirement)
-- **Poetry 1.8.3** for dependency management
+- **uv** for dependency and environment management
 - **typer** for CLI framework
 - **pandas/matplotlib** for data processing and visualization
 - **TOML** configuration files with preserved key ordering
@@ -23,38 +23,35 @@ This document provides comprehensive onboarding information for coding agents wo
 
 ### Environment Setup
 ```bash
-# Verify Poetry is installed
-poetry --version  # Should show 1.8.3+
+# Verify uv is installed
+uv --version
 
 # Install dependencies (creates virtual environment automatically)
-poetry install
-
-# Activate shell (optional, poetry run handles this)
-poetry shell
+uv sync --group test --group dev
 ```
 
 ### Build and Test
 ```bash
-# Run all tests (47 tests total)
-poetry run pytest
+# Run all tests (54 tests total)
+uv run pytest
 
 # Run tests with verbose output
-poetry run pytest -v
+uv run pytest -v
 
 # Run specific test file
-poetry run pytest tests/test_patterns.py
+uv run pytest tests/test_patterns.py
 
 # Run CLI help
-poetry run python -m hydropattern --help
+uv run python -m hydropattern --help
 
 # Test CLI with example
-poetry run python -m hydropattern run examples/minimal.toml
+uv run python -m hydropattern run examples/minimal.toml
 ```
 
 ### Code Quality
 ```bash
-# Type checking (has 3 known errors, see Known Issues)
-poetry run mypy hydropattern/
+# Type checking (has 2 known errors, see Known Issues)
+uv run mypy hydropattern/
 
 # No other linters (ruff, pylint, flake8) currently installed
 ```
@@ -69,7 +66,7 @@ hydropattern/
 │   ├── patterns.py        # Core pattern evaluation logic
 │   ├── timeseries.py      # Time series processing and plotting
 │   └── parsers.py         # Configuration file parsing
-├── tests/                 # Test suite (47 tests)
+├── tests/                 # Test suite (54 tests)
 │   ├── test_cli.py        # CLI functionality tests
 │   ├── test_patterns.py   # Pattern evaluation tests
 │   └── test_timeseries.py # Time series processing tests
@@ -94,7 +91,7 @@ hydropattern/
 - **`hydropattern/parsers.py`**: TOML configuration parsing
 
 ### Configuration
-- **`pyproject.toml`**: Poetry configuration, Python 3.12+ requirement
+- **`pyproject.toml`**: Project metadata and dependencies, Python 3.12+ requirement
 - **`examples/*.toml`**: Working example configurations
 
 ## CLI Interface
@@ -103,16 +100,16 @@ The main interface is through the CLI:
 
 ```bash
 # Basic usage
-poetry run python -m hydropattern run <config.toml>
+uv run python -m hydropattern run <config.toml>
 
 # With plotting
-poetry run python -m hydropattern run <config.toml> --plot
+uv run python -m hydropattern run <config.toml> --plot
 
 # With custom output directory  
-poetry run python -m hydropattern run <config.toml> --output-dir <path>
+uv run python -m hydropattern run <config.toml> --output-dir <path>
 
 # Generate Excel output
-poetry run python -m hydropattern run <config.toml> --excel
+uv run python -m hydropattern run <config.toml> --excel
 ```
 
 ### Working Examples
@@ -124,7 +121,7 @@ poetry run python -m hydropattern run <config.toml> --excel
 
 ### Python Requirements
 - **Python 3.12+** (strict requirement in pyproject.toml)
-- Managed via Poetry virtual environment
+- Managed via uv virtual environment (`.venv`)
 
 ### Key Dependencies
 ```toml
@@ -146,10 +143,9 @@ jupyter = "*"
 
 ## Known Issues and Workarounds
 
-### mypy Type Errors (3 current)
-1. **`patterns.py:394`** - Return type mismatch in `evaluate_patterns()`
-2. **`cli.py:28`** - Import error with `climate_canvas`  
-3. **`cli.py:145`** - Type mismatch in return statement
+### mypy Type Errors (2 current)
+1. **`patterns.py:643`** - Dict entry contains `None` where the inferred type does not allow it
+2. **`patterns.py:647`** - Dict entry contains `None` where the inferred type does not allow it
 
 **Workaround**: These are known issues, PRs should not break builds due to existing mypy errors.
 
@@ -161,9 +157,9 @@ jupyter = "*"
 **Implication**: Only mypy type checking is available. Consider adding ruff for comprehensive linting.
 
 ### VS Code Configuration
-If working in VS Code, ensure Python interpreter points to Poetry virtual environment:
+If working in VS Code, ensure Python interpreter points to the project's `.venv` virtual environment:
 ```
-.vscode/settings.json should reference Poetry's Python path
+.vscode/settings.json should reference `.venv\\Scripts\\python.exe` on Windows
 ```
 
 ## Configuration File Format
@@ -188,32 +184,32 @@ prefix = "results"
 ## Testing Strategy
 
 ### Test Coverage
-- **47 tests total** across 3 test files
+- **54 tests total** across 3 test files
 - Comprehensive coverage of CLI, patterns, and timeseries modules
 - All tests currently passing
 
 ### Running Tests
 ```bash
 # Full test suite
-poetry run pytest
+uv run pytest
 
 # Specific test categories
-poetry run pytest tests/test_cli.py      # CLI functionality
-poetry run pytest tests/test_patterns.py # Pattern evaluation  
-poetry run pytest tests/test_timeseries.py # Time series processing
+uv run pytest tests/test_cli.py      # CLI functionality
+uv run pytest tests/test_patterns.py # Pattern evaluation
+uv run pytest tests/test_timeseries.py # Time series processing
 
 # Verbose output for debugging
-poetry run pytest -v -s
+uv run pytest -v -s
 ```
 
 ## Development Workflow
 
 ### Standard Development Cycle
-1. **Environment**: `poetry install` (if dependencies changed)
+1. **Environment**: `uv sync --group test --group dev` (if dependencies changed)
 2. **Code Changes**: Edit source files in `hydropattern/`
-3. **Testing**: `poetry run pytest` (ensure all pass)
-4. **Type Check**: `poetry run mypy hydropattern/` (aware of known errors)
-5. **Manual Testing**: `poetry run python -m hydropattern run examples/minimal.toml`
+3. **Testing**: `uv run pytest` (ensure all pass)
+4. **Type Check**: `uv run mypy hydropattern/` (aware of known errors)
+5. **Manual Testing**: `uv run python -m hydropattern run examples/minimal.toml`
 
 ### Adding New Features
 - Update relevant module in `hydropattern/`
@@ -224,7 +220,7 @@ poetry run pytest -v -s
 ### Configuration Changes
 - Modify `pyproject.toml` for dependencies
 - Update example TOML files in `examples/`
-- Test with `poetry run python -m hydropattern run examples/minimal.toml`
+- Test with `uv run python -m hydropattern run examples/minimal.toml`
 
 ## Common Patterns
 
@@ -248,8 +244,8 @@ poetry run pytest -v -s
 
 ### Build Failures
 - Check Python version: `python --version` (must be 3.12+)
-- Verify Poetry environment: `poetry env info`
-- Reinstall dependencies: `poetry install --verbose`
+- Verify uv environment: `uv python list`
+- Reinstall dependencies: `uv sync --reinstall --group test --group dev`
 
 ### Runtime Issues  
 - Test with known-good config: `examples/minimal.toml`
@@ -257,7 +253,7 @@ poetry run pytest -v -s
 - Verify time series data format (CSV expected)
 
 ### Type Checking
-- Known mypy errors are acceptable (3 current)
+- Known mypy errors are acceptable (2 current)
 - New type errors should be addressed
 - Use type stubs for external dependencies
 
@@ -271,11 +267,11 @@ poetry run pytest -v -s
 ## Security and Dependencies
 
 - No known security issues
-- External dependencies managed via Poetry lock file
+- External dependencies managed via `uv.lock`
 - climate-canvas is external dependency (not on PyPI standard channels)
 
 ---
 
-**Last Updated**: Based on repository state with Poetry 1.8.3, Python 3.12.4, 47 passing tests, and 3 known mypy errors.
+**Last Updated**: Based on repository state with uv-managed dependencies, Python 3.12.4, 54 passing tests, and 2 known mypy errors.
 
 **For Issues**: Check existing tests and examples first. Most functionality is well-tested and examples are verified working.
