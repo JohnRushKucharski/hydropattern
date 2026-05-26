@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from climate_canvas.plots_utilities import plot_response_surface
 
+from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.timeseries import Timeseries
 from hydropattern.parsers import parse_components
 from hydropattern.patterns import Component, Result, evaluate_components
@@ -61,10 +62,19 @@ def load_timeseries(data: dict[str, Any]) -> Timeseries:
     '''Parse a timeseries from the configuration file.'''
     # todo: test inputs improve error handling
     if 'timeseries' not in data:
-        raise ValueError('No timeseries data in configuration file.')
+        raise_parser_error(
+            ParserErrorCode.MISSING_SECTION,
+            'No timeseries data in configuration file.',
+            section='timeseries',
+        )
     ts_data = data['timeseries']
     if 'path' not in ts_data:
-        raise ValueError('No path in timeseries data.')
+        raise_parser_error(
+            ParserErrorCode.MISSING_FIELD,
+            'No path in timeseries data.',
+            section='timeseries',
+            field='path',
+        )
     path = ts_data['path']
     date_format = ts_data['date_format'] if 'date_format' in ts_data else ''
     first_day_of_water_year = ts_data['first_day_of_water_year'] if 'first_day_of_water_year' in ts_data else 1 # pylint: disable=line-too-long
@@ -73,7 +83,11 @@ def load_timeseries(data: dict[str, Any]) -> Timeseries:
 def load_components(data: dict[str, Any]) -> list[Component]:
     '''Parse components from the configuration file.'''
     if 'components' not in data:
-        raise ValueError('No components data in configuration file.')
+        raise_parser_error(
+            ParserErrorCode.MISSING_SECTION,
+            'No components data in configuration file.',
+            section='components',
+        )
     return parse_components(data['components'])
 
 def write_output(results: list[Result],
