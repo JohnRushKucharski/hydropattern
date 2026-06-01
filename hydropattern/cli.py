@@ -6,10 +6,10 @@ from pathlib import Path
 
 import typer
 import numpy as np
-import pandas as pd
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.formatters import write_results
 from hydropattern.timeseries import Timeseries
 from hydropattern.parsers import parse_components
 from hydropattern.patterns import Component, Result, evaluate_components
@@ -90,25 +90,11 @@ def load_components(data: dict[str, Any]) -> list[Component]:
     return parse_components(data['components'])
 
 def write_output(results: list[Result],
-                 input_path: str, output_directory: str, write_to_excel: bool):
-    '''Write output to .csv files or an Excel file.'''
-    if output_directory:
-        output_path = Path(output_directory)
-        output_path.mkdir(parents=True, exist_ok=True)
-    else:
-        output_path = Path(input_path).parent
-        if not write_to_excel:
-            output_path = Path(input_path).parent/(Path(input_path).stem + '_output')
-            output_path.mkdir(parents=True, exist_ok=True)
+                 input_path: str, output_directory: str|None, write_to_excel: bool):
+    '''Write output using the formatter entrypoint.'''
+    output_path = write_results(results, input_path, output_directory, write_to_excel)
     if write_to_excel:
         output_filename = Path(input_path).stem + '_output.xlsx'
-        writer = pd.ExcelWriter(output_path/output_filename)
-        for _, result in enumerate(results):
-            result.df.to_excel(writer, sheet_name=result.component.name)
-        writer.close()
         typer.echo(f'Output written to: {output_path}{chr(92)}{output_filename}.')
-    else:
-        for _, result in enumerate(results):
-            output_filename = f'{result.df.columns[0]}.csv'
-            result.df.to_csv(output_path/output_filename)
-        typer.echo(f'Output written to: {output_path}.')
+        return
+    typer.echo(f'Output written to: {output_path}.')

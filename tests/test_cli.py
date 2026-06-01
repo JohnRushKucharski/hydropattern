@@ -307,9 +307,9 @@ class TestCLIValidationErrors(unittest.TestCase):
 class TestCLIOutputModes(unittest.TestCase):
     '''Output mode tests for csv and excel behavior.'''
 
-    def _sample_result(self) -> Result:
+    def _sample_result(self, component_name: str = 'sample_component') -> Result:
         '''Create a minimal Result object for output writing tests.'''
-        component = Component(name='sample_component', characteristics=[], is_success_pattern=True)
+        component = Component(name=component_name, characteristics=[], is_success_pattern=True)
         df = pd.DataFrame({'flow': [1.0, 2.0, 3.0]})
         return Result(df=df, component=component)
 
@@ -324,7 +324,7 @@ class TestCLIOutputModes(unittest.TestCase):
 
             expected_output_dir = temp_path / 'config_output'
             self.assertTrue(expected_output_dir.exists())
-            self.assertTrue((expected_output_dir / 'dv.csv').exists())
+            self.assertTrue((expected_output_dir / '000_flow_sample_component.csv').exists())
 
     def test_write_output_default_excel_creates_single_file(self):
         '''Default excel mode should write a single xlsx in the input directory.'''
@@ -349,5 +349,43 @@ class TestCLIOutputModes(unittest.TestCase):
             write_output([self._sample_result()], str(input_path), str(custom_output_dir), False)
 
             self.assertTrue(custom_output_dir.exists())
-            self.assertTrue((custom_output_dir / 'dv.csv').exists())
+            self.assertTrue((custom_output_dir / '000_flow_sample_component.csv').exists())
             self.assertFalse((temp_path / 'config_output').exists())
+
+    def test_write_output_csv_filenames_are_deterministic_for_multiple_results(self):
+        '''CSV filenames should be stable and include order, series, and component context.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            results = [
+                self._sample_result('alpha component'),
+                self._sample_result('beta_component'),
+            ]
+            write_output(results, str(input_path), None, False)
+
+            expected_output_dir = temp_path / 'config_output'
+            filenames = sorted(path.name for path in expected_output_dir.glob('*.csv'))
+            self.assertEqual(
+                filenames,
+                [
+                    '000_flow_alpha_component.csv',
+                    '001_flow_beta_component.csv',
+                ],
+            )
+
+    def test_write_output_csv_is_collision_free_across_repeated_runs(self):
+        '''Repeated runs should not overwrite existing CSV outputs.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            result = self._sample_result('alpha component')
+            write_output([result], str(input_path), None, False)
+            write_output([result], str(input_path), None, False)
+
+            expected_output_dir = temp_path / 'config_output'
+            self.assertTrue((expected_output_dir / '000_flow_alpha_component.csv').exists())
+            self.assertTrue((expected_output_dir / '000_flow_alpha_component__1.csv').exists())
