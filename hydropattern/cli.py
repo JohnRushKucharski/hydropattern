@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 import numpy as np
 import pandas as pd
-from climate_canvas.plots_utilities import plot_response_surface
+from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.timeseries import Timeseries
@@ -60,7 +60,6 @@ def load_config_file(path: str) -> dict[str, Any]:
 
 def load_timeseries(data: dict[str, Any]) -> Timeseries:
     '''Parse a timeseries from the configuration file.'''
-    # todo: test inputs improve error handling
     if 'timeseries' not in data:
         raise_parser_error(
             ParserErrorCode.MISSING_SECTION,

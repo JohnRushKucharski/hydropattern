@@ -2,7 +2,7 @@
 
 ## What changed
 
-- Parser and CLI validation failures now raise a canonical hydropattern error envelope instead of plain `ValueError`/`NotImplementedError` strings for the covered parser paths.
+- Parser and CLI validation failures now raise a shared hydropattern error envelope instead of plain `ValueError`/`NotImplementedError` strings for the covered parser paths.
 - The envelope carries stable fields: `code`, `message`, `context`, and `source`.
 - Representative invalid inputs now map deterministically to stable codes such as `PARSER_MISSING_SECTION`, `PARSER_MISSING_FIELD`, `PARSER_INVALID_TYPE`, `PARSER_INVALID_VALUE`, `PARSER_UNKNOWN_CHARACTERISTIC`, and `PARSER_UNKNOWN_COMPARISON_SYMBOL`.
 
@@ -19,7 +19,7 @@ Rationale:
 ## Focused synthetic test case
 
 - Input: configuration missing the top-level `timeseries` section.
-- Expected outcome: `CanonicalHydropatternError` with `code = PARSER_MISSING_SECTION` and `context.section = timeseries`.
+- Expected outcome: `HydropatternError` with `code = PARSER_MISSING_SECTION` and `context.section = timeseries`.
 
 ## Regression risk
 

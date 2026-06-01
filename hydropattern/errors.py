@@ -1,8 +1,8 @@
-'''Canonical error envelope definitions for hydropattern parser/service failures.'''
+'''Shared error envelope definitions for hydropattern parser/service failures.'''
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, NoReturn
 
 
 class ParserErrorCode(StrEnum):
@@ -17,8 +17,8 @@ class ParserErrorCode(StrEnum):
 
 
 @dataclass(frozen=True)
-class CanonicalErrorEnvelope:
-    '''Machine-readable canonical error payload.'''
+class ErrorEnvelope:
+    '''Machine-readable shared error payload.'''
 
     code: str
     message: str
@@ -35,16 +35,16 @@ class CanonicalErrorEnvelope:
         }
 
 
-class CanonicalHydropatternError(ValueError):
-    '''ValueError subclass that carries a canonical error envelope.'''
+class HydropatternError(ValueError):
+    '''ValueError subclass that carries the shared error envelope.'''
 
-    def __init__(self, envelope: CanonicalErrorEnvelope):
+    def __init__(self, envelope: ErrorEnvelope):
         super().__init__(envelope.message)
         self.envelope = envelope
 
 
-def raise_parser_error(code: ParserErrorCode | str, message: str, **context: Any) -> None:
-    '''Raise a canonical parser error with stable code and machine-readable context.'''
-    raise CanonicalHydropatternError(
-        CanonicalErrorEnvelope(code=str(code), message=message, context=context),
+def raise_parser_error(code: ParserErrorCode | str, message: str, **context: Any) -> NoReturn:
+    '''Raise a shared parser error with stable code and machine-readable context.'''
+    raise HydropatternError(
+        ErrorEnvelope(code=str(code), message=message, context=context),
     )

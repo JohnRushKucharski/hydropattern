@@ -79,8 +79,7 @@ def between_parser(metrics: list[Any], inclusive=True) -> Callable[[float], bool
         )
     if inclusive:
         return patterns.comparison_fx('<=', metrics[0], '<=', metrics[1])
-    else:
-        return patterns.comparison_fx('<', metrics[0], '<', metrics[1])
+    return patterns.comparison_fx('<', metrics[0], '<', metrics[1])
 #endregion
 
 #region: validation utilities
@@ -269,7 +268,7 @@ def validate_magnitude_metrics(metrics: list[Any]) -> ComparisionType:
                 [minimum(Real), maximum(Real), (optional)ma_periods(int)].
                 '''
     nentries = len(metrics)
-    if nentries != 2 and nentries != 3:
+    if nentries not in (2, 3):
         raise_parser_error(
             ParserErrorCode.INVALID_VALUE,
             error_msg,
