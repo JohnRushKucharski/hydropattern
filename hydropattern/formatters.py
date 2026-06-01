@@ -23,10 +23,9 @@ def write_results(
     output_path = _resolve_output_path(input_path, output_directory, write_to_excel)
     if write_to_excel:
         output_filename = Path(input_path).stem + "_output.xlsx"
-        writer = pd.ExcelWriter(output_path / output_filename)
-        for result in results:
-            result.df.to_excel(writer, sheet_name=result.component.name)
-        writer.close()
+        with pd.ExcelWriter(output_path / output_filename) as writer:
+            for result in results:
+                result.df.to_excel(writer, sheet_name=result.component.name)
         return output_path
 
     for index, result in enumerate(results):
@@ -56,13 +55,13 @@ def _resolve_output_path(
 
 
 def _build_result_filename(result: Result, index: int) -> str:
-    dv_name = _sanitize_token(result.dv_name)
-    component_name = _sanitize_token(result.component.name)
+    dv_name = _clean_variable_name(result.dv_name)
+    component_name = _clean_variable_name(result.component.name)
     return f"{index:03d}_{dv_name}_{component_name}.csv"
 
 
-def _sanitize_token(token: str) -> str:
-    normalized = re.sub(r"[^A-Za-z0-9]+", "_", token.strip().lower())
+def _clean_variable_name(name: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9]+", "_", name.strip().lower())
     normalized = normalized.strip("_")
     return normalized or "result"
 

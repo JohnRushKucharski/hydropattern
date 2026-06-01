@@ -90,11 +90,11 @@ def load_components(data: dict[str, Any]) -> list[Component]:
     return parse_components(data['components'])
 
 def write_output(results: list[Result],
-                 input_path: str, output_directory: str|None, write_to_excel: bool):
+                 input_path: str, output_directory: str | None, write_to_excel: bool):
     '''Write output using the formatter entrypoint.'''
     output_path = write_results(results, input_path, output_directory, write_to_excel)
     if write_to_excel:
-        output_filename = Path(input_path).stem + '_output.xlsx'
-        typer.echo(f'Output written to: {output_path}{chr(92)}{output_filename}.')
+        output_file = output_path / (Path(input_path).stem + '_output.xlsx')
+        typer.echo(f'Output written to: {output_file}.')
         return
     typer.echo(f'Output written to: {output_path}.')
