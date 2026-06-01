@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Callable, Any
 
 from hydropattern import patterns
+from hydropattern.errors import ParserErrorCode, raise_parser_error
 #import hydropattern.patterns as patterns
 
 def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
@@ -38,7 +39,12 @@ def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
                     validate_boolean(name, metrics)
                     success = metrics
                 case _:
-                    raise NotImplementedError(f'Characteristic {name} not found.')
+                    raise_parser_error(
+                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
+                        f'Characteristic {name} not found.',
+                        component=component_name,
+                        characteristic=name,
+                    )
             order += 1
         components.append(patterns.Component(component_name, characteristics, success))
     return components
@@ -60,13 +66,20 @@ def symbol_to_string(symbol: str) -> str:
 def between_parser(metrics: list[Any], inclusive=True) -> Callable[[float], bool]:
     '''Generates comparision function for between metrics (i.e., [minimum, maximum]).'''
     if len(metrics) != 2 or not all(isinstance(i, (int, float)) for i in metrics):
-        raise ValueError('Between metrics must have two numeric values.')
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            'Between metrics must have two numeric values.',
+            metrics=metrics,
+        )
     if metrics[0] >= metrics[1]:
-        raise ValueError('Between metrics must have values in ascending order.')
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            'Between metrics must have values in ascending order.',
+            metrics=metrics,
+        )
     if inclusive:
         return patterns.comparison_fx('<=', metrics[0], '<=', metrics[1])
-    else:
-        return patterns.comparison_fx('<', metrics[0], '<', metrics[1])
+    return patterns.comparison_fx('<', metrics[0], '<', metrics[1])
 #endregion
 
 #region: validation utilities
@@ -74,25 +87,41 @@ def validate_symbol(symbol: str) -> str:
     '''Validate symbol.'''
     try:
         symbol_to_string(symbol)
-    except KeyError as e:
-        raise NotImplementedError(f'Invalid comparision symbol: {symbol}.') from e
+    except KeyError:
+        raise_parser_error(
+            ParserErrorCode.UNKNOWN_COMPARISON_SYMBOL,
+            f'Invalid comparision symbol: {symbol}.',
+            symbol=symbol,
+        )
     return symbol
 
 def validate_simple_comparision_pair(metrics: list[Any]) -> None:
     '''Validate comparision pair.'''
     validate_symbol(metrics[0])
     if not isinstance(metrics[1], (int, float)):
-        raise ValueError(f'''Comparision requires a symbol, threshold value pair,
-                          ({metrics[0]}, {metrics[1]}) found.''')
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'''Comparision requires a symbol, threshold value pair,
+                          ({metrics[0]}, {metrics[1]}) found.''',
+            metrics=metrics,
+        )
 
 def validate_between_comparision_pair(metrics: list[Any]) -> None:
     '''Validate between comparision pair.'''
     if not isinstance(metrics[1], (int, float)):
-        raise ValueError(f'''Between comparision requires two threshold values,
-                          [{metrics[0]}, {metrics[1]}] found.''')
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'''Between comparision requires two threshold values,
+                          [{metrics[0]}, {metrics[1]}] found.''',
+            metrics=metrics,
+        )
     if metrics[0] >= metrics[1]:
-        raise ValueError(f'''Between comparsion requires two threshold values in accending order,
-                         [{metrics[0]}, {metrics[1]}] found.''')
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            f'''Between comparsion requires two threshold values in accending order,
+                         [{metrics[0]}, {metrics[1]}] found.''',
+            metrics=metrics,
+        )
 
 def validate_comparison_metrics(metrics: list[Any]) -> ComparisionType:
     '''Validate magnitude and duration comparison metrics.'''
@@ -102,7 +131,11 @@ def validate_comparison_metrics(metrics: list[Any]) -> ComparisionType:
     if isinstance(metrics[0], (int, float)):
         validate_between_comparision_pair(metrics)
         return ComparisionType.BETWEEN
-    raise ValueError(f'Invalid comparision metrics: {metrics}.')
+    raise_parser_error(
+        ParserErrorCode.INVALID_TYPE,
+        f'Invalid comparision metrics: {metrics}.',
+        metrics=metrics,
+    )
 
 def validate_ma_period(metrics: list[Any]) -> None:
     '''Validate moving average period.'''
@@ -111,12 +144,21 @@ def validate_ma_period(metrics: list[Any]) -> None:
                 must be an integer, representing the timesteps over which values are averaged.
                 '''
     if not isinstance(metrics[2], int):
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            error_msg,
+            metrics=metrics,
+        )
 
 def validate_boolean(name: str, metrics: Any) -> None:
     '''Validate boolean.'''
     if not isinstance(metrics, bool):
-        raise ValueError(f'Boolean value expected for {name}, {metrics} found.')
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'Boolean value expected for {name}, {metrics} found.',
+            name=name,
+            value=metrics,
+        )
 
 def validate_verbose(order: int, metrics: Any) -> None:
     '''Validate verbose.'''
@@ -135,7 +177,11 @@ def validate_look_back(metrics: list[Any]) -> None:
                 must be an integer, representing the number of timesteps back from the current timestep to evaluate rate of change.
                 '''
     if not isinstance(metrics[3], int):
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            error_msg,
+            metrics=metrics,
+        )
 #endregion
 
 #region: timing parser
@@ -158,9 +204,17 @@ def validate_timing_metrics(metrics: list[Any])-> None:
                 [start(int), end(int)].
                 '''
     if len(metrics) != 2:
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            error_msg,
+            metrics=metrics,
+        )
     if not all(isinstance(i, int) for i in metrics):
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            error_msg,
+            metrics=metrics,
+        )
 #endregion
 def timing_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse timing metrics.
@@ -214,8 +268,12 @@ def validate_magnitude_metrics(metrics: list[Any]) -> ComparisionType:
                 [minimum(Real), maximum(Real), (optional)ma_periods(int)].
                 '''
     nentries = len(metrics)
-    if nentries != 2 and nentries != 3:
-        raise ValueError(error_msg)
+    if nentries not in (2, 3):
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            error_msg,
+            metrics=metrics,
+        )
     if nentries == 3:
         validate_ma_period(metrics)
     return validate_comparison_metrics(metrics)
@@ -250,7 +308,11 @@ def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             name=f'{label}_{metrics[0]}-{metrics[1]}'
             comparison_fx=between_parser(metrics[0:2], inclusive=False)
         case _:
-            raise NotImplementedError('Invalid comparision type.')
+            raise_parser_error(
+                ParserErrorCode.INVALID_VALUE,
+                'Invalid comparision type.',
+                metrics=metrics,
+            )
     return patterns.Characteristic(
         name=name,
         fx=patterns.magnitude_fx(comparison_fx, order, ma_periods),
@@ -284,7 +346,11 @@ def validate_duration_metrics(metrics: list[Any]) -> ComparisionType:
                 '''
     nentries = len(metrics)
     if nentries != 2:
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            error_msg,
+            metrics=metrics,
+        )
     return validate_comparison_metrics(metrics)
 #endregion
 
@@ -316,7 +382,11 @@ def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             name=f'{label}_{metrics[0]}-{metrics[1]}'
             comparison_fx=patterns.comparison_fx('<', metrics[0], '>', metrics[1])
         case _:
-            raise NotImplementedError('Invalid comparision type.')
+            raise_parser_error(
+                ParserErrorCode.INVALID_VALUE,
+                'Invalid comparision type.',
+                metrics=metrics,
+            )
     return patterns.Characteristic(
         name=name,
         fx=patterns.duration_fx(comparison_fx, order),
@@ -352,7 +422,11 @@ def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
                 '''
     nentries = len(metrics)
     if nentries < 2 or nentries > 4:
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            error_msg,
+            metrics=metrics,
+        )
     if nentries > 2:
         validate_ma_period(metrics)
     if nentries > 3:
@@ -404,7 +478,11 @@ def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteri
             name=f'{label}_{metrics[0]}-{metrics[1]}'
             comparison_fx=between_parser(metrics[0:2], inclusive=False)
         case _:
-            raise NotImplementedError('Invalid comparision type.')
+            raise_parser_error(
+                ParserErrorCode.INVALID_VALUE,
+                'Invalid comparision type.',
+                metrics=metrics,
+            )
     return patterns.Characteristic(
         name=name,
         fx=patterns.rate_of_change_fx(comparison_fx, order, ma_periods, look_back, min_val),
@@ -422,7 +500,11 @@ def validate_frequency_metrics(metrics: list[Any]) -> ComparisionType:
                 [minimum(Real), maximum(Real), ma_period(int)].
                 '''
     if len(metrics) != 3:
-        raise ValueError(error_msg)
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            error_msg,
+            metrics=metrics,
+        )
     validate_ma_period(metrics)
     return validate_comparison_metrics(metrics)
 #endregion
@@ -457,7 +539,11 @@ def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             name=f'{label}_{metrics[0]}-{metrics[1]}in{metrics[2]}yrs'
             comparison_fx=between_parser(metrics[0:2], inclusive=False)
         case _:
-            raise NotImplementedError('Invalid comparision type.')
+            raise_parser_error(
+                ParserErrorCode.INVALID_VALUE,
+                'Invalid comparision type.',
+                metrics=metrics,
+            )
     return patterns.Characteristic(
         name=name,
         fx=patterns.frequency_fx(comparison_fx, order, metrics[2]),

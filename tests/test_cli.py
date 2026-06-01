@@ -14,6 +14,7 @@ from hydropattern.cli import (
     load_timeseries,
     write_output,
 )
+from hydropattern.errors import HydropatternError, ParserErrorCode
 from hydropattern.patterns import Component, Result
 
 
@@ -255,18 +256,52 @@ class TestCLIValidationErrors(unittest.TestCase):
 
     def test_load_timeseries_raises_when_missing_timeseries_section(self):
         '''Missing top-level timeseries section should raise ValueError.'''
-        with self.assertRaisesRegex(ValueError, 'No timeseries data in configuration file'):
+        with self.assertRaises(HydropatternError) as context:
             load_timeseries({'components': {'single_characteristic': {'magnitude': ['>', 1.0]}}})
+
+        self.assertEqual(context.exception.envelope.code, ParserErrorCode.MISSING_SECTION)
+        self.assertEqual(context.exception.envelope.context['section'], 'timeseries')
+        self.assertEqual(context.exception.envelope.source, 'parser')
+        self.assertEqual(
+            context.exception.envelope.message,
+            'No timeseries data in configuration file.',
+        )
 
     def test_load_timeseries_raises_when_missing_path(self):
         '''Missing timeseries path should raise ValueError.'''
-        with self.assertRaisesRegex(ValueError, 'No path in timeseries data'):
+        with self.assertRaises(HydropatternError) as context:
             load_timeseries({'timeseries': {'date_format': '%Y-%m-%d'}})
+
+        self.assertEqual(context.exception.envelope.code, ParserErrorCode.MISSING_FIELD)
+        self.assertEqual(context.exception.envelope.context['section'], 'timeseries')
+        self.assertEqual(context.exception.envelope.context['field'], 'path')
 
     def test_load_components_raises_when_missing_components_section(self):
         '''Missing top-level components section should raise ValueError.'''
-        with self.assertRaisesRegex(ValueError, 'No components data in configuration file'):
+        with self.assertRaises(HydropatternError) as context:
             load_components({'timeseries': {'path': 'tests/test_files/cli_smoke_input.csv'}})
+
+        self.assertEqual(context.exception.envelope.code, ParserErrorCode.MISSING_SECTION)
+        self.assertEqual(context.exception.envelope.context['section'], 'components')
+
+    def test_load_components_raises_error_for_unknown_characteristic(self):
+        '''Unknown characteristic names should use the shared error envelope.''' 
+        with self.assertRaises(HydropatternError) as context:
+            load_components({
+                'timeseries': {'path': 'tests/test_files/cli_smoke_input.csv'},
+                'components': {
+                    'single_characteristic': {
+                        'unsupported_characteristic': [1, 2]
+                    }
+                },
+            })
+
+        self.assertEqual(context.exception.envelope.code, ParserErrorCode.UNKNOWN_CHARACTERISTIC)
+        self.assertEqual(context.exception.envelope.context['component'], 'single_characteristic')
+        self.assertEqual(
+            context.exception.envelope.context['characteristic'],
+            'unsupported_characteristic',
+        )
 
 
 class TestCLIOutputModes(unittest.TestCase):
