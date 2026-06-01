@@ -10,7 +10,7 @@ The following characteristics are evaluated:
 '''
 from enum import StrEnum
 from typing import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections import namedtuple
 
 import numpy as np
@@ -576,6 +576,7 @@ class Result:
     '''Result of evaluating a component on a timeseries.'''
     df: pd.DataFrame
     component: Component
+    dv_name: str = field(init=False)
 
     def __post_init__(self):
         self.dv_name = self.df.columns[0]
