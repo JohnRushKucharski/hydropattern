@@ -8,14 +8,15 @@ The following characteristics are evaluated:
     - rate of change
     - frequency
 '''
+from collections import namedtuple
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Callable
-from dataclasses import dataclass, field
-from collections import namedtuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+
 
 #region comparision functions
 def lt(a: float, b: float) -> bool:
@@ -41,16 +42,16 @@ def comparison_fx(symbol1: str, bound1: float,
                   symbol2: str|None = None, bound2: float|None = None) -> Callable[[float], bool]:
     '''
     Returns the corresponding operator function for the given symbol.
-    
+
     Examples:
     - comparison_fx('>', 1) -> lambda x: x > 1
     - comparison_fx('<', 1, '>', 0) -> lambda x: 0 < x < 1
     '''
     def closure(s: str, bound: float, is_bound_b: bool = True) -> Callable[[float], bool]:
         '''
-        Returns a partially constructed comparison function 
+        Returns a partially constructed comparison function
         (i.e. built-in python gt(a, b) operator function) for a single bound.
-        
+
         Parameters
         ----------
             s (str): Comparison symbol (i.e., <, <=, >, >=, =, !=).
@@ -60,16 +61,16 @@ def comparison_fx(symbol1: str, bound1: float,
                                Defaults to True.
         Returns
         -------
-            Callable[[Real], bool]: Partially constructed comparison function. 
+            Callable[[Real], bool]: Partially constructed comparison function.
         Raises
         -------
             KeyError: For invalid symbol.
         Examples
         -------
-            [1] closure('>', 1, True) -> lambda x: 1 > x 
+            [1] closure('>', 1, True) -> lambda x: 1 > x
                                       -> lt(x, 1) (same as lambda x: x < 1)
                 This saves the "lt" function so a value "x" can be compared to the bound 1
-                at a later time.      
+                at a later time.
         '''
         symbols = {
             '<': lt,    # a < b
@@ -147,7 +148,7 @@ Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type'])
 def validate_order(order: int, output: None|np.ndarray,
                    characteristic_type: CharacteristicType) -> None:
     '''Validates order and output for characteristics.
-    
+
     Returns
     -------
         bool: True if order is valid, False otherwise.
@@ -181,14 +182,14 @@ def moving_average(data: np.ndarray,
                    period: int, min_periods: None|int = None) -> np.ndarray:
     '''
     Calculates moving average over timeseries data.
-    
+
     Parameters
     ----------
     data (np.ndarray): timeseries data to average.
     period (int): window (in timesteps) over which to average.
     min_periods (None|int): minimum number of timesteps before average is computed.
     Defaults to period, i.e. average is computed after 'period' number of timesteps.
-    
+
     Returns
     -------
     np.ndarray: moving average of data, with same shape as input data.
@@ -246,7 +247,7 @@ def timing_fx(f: Callable[[float], bool],
     ----------
         f (Callable[[Real], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics. 
+            within list of component characteristics.
             Defaults to 1 for timing characteristics.
     Returns
     -------
@@ -298,7 +299,7 @@ def magnitude_fx(f: Callable[[float], bool],
     ----------
         f (Callable[[Real], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics. 
+            within list of component characteristics.
             Defaults to 1 for magnitude characteristics.
     Returns
     -------
@@ -371,7 +372,7 @@ def duration_fx(f: Callable[[float], bool],
     ----------
         f (Callable[[float], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics. 
+            within list of component characteristics.
             Must be greater than 1 for duration characteristics.
     Returns
     -------
@@ -421,7 +422,7 @@ def frequency_fx(f: Callable[[float], bool],
         f (Callable[[float], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
             within list of component characteristics.
-        ma_period (int): window (in years) over which f is evaluated. 
+        ma_period (int): window (in years) over which f is evaluated.
     Returns
     -------
         Characteristic_fx: evaluates characteristic over timeseries.
@@ -502,12 +503,12 @@ def rate_of_change_fx(f: Callable[[float], bool],
                       look_back: int = 1, minimum: float = 0.0) -> CharacteristicFx:
     '''
     Creates function to evaluate rate of change characteristics.
-    
+
     Parameters
     ----------
         f (Callable[[Real], bool]): Comparision function.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics. 
+            within list of component characteristics.
             Defaults to 1 for rate of change characteristics.
         ma_periods (int): window (in timesteps) over which to average data before evaluating f.
             Defaults to 1 for no moving average.
@@ -668,7 +669,7 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
         df (pd.DataFrame): assumes a dataframe in the form:
             | idx  | flows | dowy |
             |------|-------|------|
-            | ...  | ...   | ...  |  
+            | ...  | ...   | ...  |
         component (Component): a component to evaluate.
 
     Returns:

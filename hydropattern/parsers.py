@@ -1,9 +1,10 @@
 '''Parses data from configuration file.'''
 from enum import Enum
-from typing import Callable, Any
+from typing import Any, Callable
 
 from hydropattern import patterns
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+
 #import hydropattern.patterns as patterns
 
 def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
@@ -183,7 +184,8 @@ def validate_look_back(metrics: list[Any]) -> None:
     '''Validate look back period.'''
     error_msg = f'''
                 Look back parameter: {metrics[3]} in characteristic metrics: {metrics}
-                must be an integer, representing the number of timesteps back from the current timestep to evaluate rate of change.
+                must be an integer, representing the number of timesteps back
+                from the current timestep to evaluate rate of change.
                 '''
     if not isinstance(metrics[3], int):
         raise_parser_error(
@@ -197,16 +199,16 @@ def validate_look_back(metrics: list[Any]) -> None:
 #region: timing validation
 def validate_timing_metrics(metrics: list[Any])-> None:
     '''Validate timing metrics.
-    
+
     Parameters
     ----------
         metrics (list[int]): in the form...
             [start(int), end(int)]
-            where start and end are first and last day of the water year 
+            where start and end are first and last day of the water year
             over which the characteristic is evaluated.
     Raises
     ------
-        ValueError: if metrics are not in the correct form.    
+        ValueError: if metrics are not in the correct form.
     '''
     error_msg = f'''
                 Provided timing metrics: {metrics} must be in the form:
@@ -227,7 +229,7 @@ def validate_timing_metrics(metrics: list[Any])-> None:
 #endregion
 def timing_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse timing metrics.
-    
+
     Parameters
     ----------
         metrics (list[int]): in the form...
@@ -255,7 +257,7 @@ def timing_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
 #region: magnitude validation
 def validate_magnitude_metrics(metrics: list[Any]) -> ComparisionType:
     '''Validate magnitude metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -289,7 +291,7 @@ def validate_magnitude_metrics(metrics: list[Any]) -> ComparisionType:
 #endregion
 def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse magnitude metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -333,7 +335,7 @@ def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
 #region: duration validation
 def validate_duration_metrics(metrics: list[Any]) -> ComparisionType:
     '''Validate duration metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -365,7 +367,7 @@ def validate_duration_metrics(metrics: list[Any]) -> ComparisionType:
 
 def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse duration metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -407,7 +409,7 @@ def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
 #region: rate_of_change validation
 def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
     '''Validate rate of change metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -426,8 +428,9 @@ def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
     '''
     error_msg = f'''
                 Provided metrics: {metrics} must be in the form:
-                [symbol(str), threshold(Real), (optional)ma_periods(int), (optional)look_back(int)] or
-                [minimum(Real), maximum(Real), (optional)ma_periods(int), (optional)look_back(int)].
+                [symbol(str), threshold(Real), (optional)ma_periods(int), (optional)look_back(int)]
+                or [minimum(Real), maximum(Real), (optional)ma_periods(int),
+                (optional)look_back(int)].
                 '''
     nentries = len(metrics)
     if nentries < 2 or nentries > 4:
@@ -446,7 +449,7 @@ def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
 
 def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse rate of change metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
@@ -520,7 +523,7 @@ def validate_frequency_metrics(metrics: list[Any]) -> ComparisionType:
 
 def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''Parse frequency metrics.
-    
+
     Parameters
     ----------
         metrics (list[Any]): in the form...
