@@ -1,7 +1,7 @@
 '''Tests for CLI module functionality.'''
 
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +16,6 @@ from hydropattern.cli import (
 )
 from hydropattern.errors import HydropatternError, ParserErrorCode
 from hydropattern.patterns import Component, Result
-
 
 RUNNER = CliRunner()
 
@@ -38,7 +37,7 @@ class TestCLI(unittest.TestCase):
         # Check timeseries section key order
         timeseries_keys = list(config['timeseries'].keys())
         expected_timeseries_order = [
-            'first_key', 'second_key', 'third_key', 
+            'first_key', 'second_key', 'third_key',
             'path', 'date_format', 'first_day_of_water_year'
         ]
 
@@ -285,7 +284,7 @@ class TestCLIValidationErrors(unittest.TestCase):
         self.assertEqual(context.exception.envelope.context['section'], 'components')
 
     def test_load_components_raises_error_for_unknown_characteristic(self):
-        '''Unknown characteristic names should use the shared error envelope.''' 
+        '''Unknown characteristic names should use the shared error envelope.'''
         with self.assertRaises(HydropatternError) as context:
             load_components({
                 'timeseries': {'path': 'tests/test_files/cli_smoke_input.csv'},

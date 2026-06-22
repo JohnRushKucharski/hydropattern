@@ -5,9 +5,15 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from hydropattern.patterns import (comparison_fx,
-                                   moving_average, is_dowy_timeseries,
-                                   timing_fx, magnitude_fx, duration_fx, rate_of_change_fx)
+from hydropattern.patterns import (
+    comparison_fx,
+    duration_fx,
+    is_dowy_timeseries,
+    magnitude_fx,
+    moving_average,
+    rate_of_change_fx,
+    timing_fx,
+)
 
 # used in some simple characteristic function tests.
 df = pd.DataFrame({'col1': [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
@@ -27,41 +33,41 @@ class TestPatterns(unittest.TestCase):
     #region: comparison_fx tests
     #region: single symbol
     def test_comparison_fx_lt(self):
-        '''Test comparison_fx function.'''       
+        '''Test comparison_fx function.'''
         fx = comparison_fx('<', 5, None, None)
         self.assertTrue(fx(4))
         self.assertFalse(fx(5))
         self.assertFalse(fx(6))
 
     def test_comparison_fx_le(self):
-        '''Test comparison_fx function.''' 
+        '''Test comparison_fx function.'''
         fx = comparison_fx('<=', 5, None, None)
         self.assertTrue(fx(4))
         self.assertTrue(fx(5))
         self.assertFalse(fx(6))
 
     def test_comparison_fx_gt(self):
-        '''Test comparison_fx function.''' 
+        '''Test comparison_fx function.'''
         fx = comparison_fx('>', 5, None, None)
         self.assertFalse(fx(4))
         self.assertFalse(fx(5))
         self.assertTrue(fx(6))
 
     def test_comparison_fx_ge(self):
-        '''Test comparison_fx function.''' 
+        '''Test comparison_fx function.'''
         fx = comparison_fx('>=', 5, None, None)
         self.assertFalse(fx(4))
         self.assertTrue(fx(5))
         self.assertTrue(fx(6))
 
     def test_comparison_fx_eq(self):
-        '''Test comparison_fx function.''' 
+        '''Test comparison_fx function.'''
         fx = comparison_fx('=', 5, None, None)
         self.assertFalse(fx(4))
         self.assertTrue(fx(5))
 
     def test_comparison_fx_ne(self):
-        '''Test comparison_fx function.''' 
+        '''Test comparison_fx function.'''
         fx = comparison_fx('!=', 5, None, None)
         self.assertTrue(fx(4))
         self.assertFalse(fx(5))
@@ -203,7 +209,7 @@ class TestPatterns(unittest.TestCase):
         self.assertTrue(np.all(fx(df, o) == np.array([0, 0, 0, 0, 0, 0])))
 
     def test_duration_fx_start_order_not_mismatched(self):
-        '''Test duration check performed on start of output row arrays.''' 
+        '''Test duration check performed on start of output row arrays.'''
         order = 3
         o = np.zeros(shape=(len(df), 4))
         o[0:5,0:3] = 1 # add 1s in columns that matter

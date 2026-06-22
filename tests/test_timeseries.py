@@ -3,8 +3,8 @@ import unittest
 
 import pandas as pd
 
-from hydropattern.timeseries import (first_day_of_water_year, to_day_of_water_year,
-                                     Timeseries)
+from hydropattern.timeseries import Timeseries, first_day_of_water_year, to_day_of_water_year
+
 
 class TestTimeseries(unittest.TestCase):
     '''Tests for the Timeseries module.'''
@@ -86,49 +86,52 @@ class TestTimeseries(unittest.TestCase):
     #region: plot_timeseries tests
     def test_plot_timeseries_with_broken_axis_ranges(self, show_plot: bool = False):
         '''Tests plot_timeseries with custom broken_axis_ranges.
-        
+
         Args:
             show_plot (bool): If True, displays the plot window. Default False.
         '''
         #pylint: disable-all
+        import os
+        import tempfile
+
         import matplotlib
         import matplotlib.pyplot as plt
-        import tempfile
-        import os
-        
+
         # Use non-interactive backend to prevent window from spawning (unless requested)
         original_backend = matplotlib.get_backend()
         if not show_plot:
             matplotlib.use('Agg')
-        
+
         try:
             # Create test data
-            df = pd.DataFrame({'time': pd.date_range(start='1/1/1900', periods=10, freq='D'),
-                               'value': [1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000]}).set_index('time')
+            df = pd.DataFrame({
+                'time': pd.date_range(start='1/1/1900', periods=10, freq='D'),
+                'value': [1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000],
+            }).set_index('time')
             ts = Timeseries.from_dataframe(df)
-            
+
             # Test with custom broken axis ranges (should trigger _parse_divisions)
             # Using even number of ranges: [min1, max1, min2, max2]
             broken_axis_ranges = [0.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0]
-            
+
             # Create temporary file for output
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
                 temp_path = tmp.name
-            
+
             ts.plot_timeseries(
                 data_columns=[0],
                 output_path=temp_path,
                 broken_axis=True,
                 broken_axis_ranges=broken_axis_ranges
             )
-            
+
             # Clean up the temporary file
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
-                
+
             # Close any open figures to prevent memory leaks
             plt.close('all')
-                
+
         except Exception as e:
             self.fail(f"plot_timeseries with broken_axis_ranges raised an exception: {e}")
         finally:
@@ -137,45 +140,48 @@ class TestTimeseries(unittest.TestCase):
 
     def test_plot_timeseries_without_broken_axis(self, show_plot: bool = False):
         '''Tests plot_timeseries with broken_axis=False.
-        
+
         Args:
             show_plot (bool): If True, displays the plot window. Default False.
         '''
         #pylint: disable-all
+        import os
+        import tempfile
+
         import matplotlib
         import matplotlib.pyplot as plt
-        import tempfile
-        import os
-        
+
         # Use non-interactive backend to prevent window from spawning (unless requested)
         original_backend = matplotlib.get_backend()
         if not show_plot:
             matplotlib.use('Agg')
-        
+
         try:
             # Create test data with a range of values
-            df = pd.DataFrame({'time': pd.date_range(start='1/1/1900', periods=15, freq='D'),
-                               'value': [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]}).set_index('time')
+            df = pd.DataFrame({
+                'time': pd.date_range(start='1/1/1900', periods=15, freq='D'),
+                'value': [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+            }).set_index('time')
             ts = Timeseries.from_dataframe(df)
-            
+
             # Create temporary file for output
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
                 temp_path = tmp.name
-            
+
             # Test with broken_axis=False (should trigger _global_min_max wrapped in list)
             ts.plot_timeseries(
                 data_columns=[0],
                 output_path=temp_path,
                 broken_axis=False  # This is the key part we're testing
             )
-            
+
             # Clean up the temporary file
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
-                
+
             # Close any open figures to prevent memory leaks
             plt.close('all')
-                
+
         except Exception as e:
             self.fail(f"plot_timeseries with broken_axis=False raised an exception: {e}")
         finally:

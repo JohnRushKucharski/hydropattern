@@ -13,23 +13,24 @@ Example:
     1900-01-02,13
     ...
 '''
-from pathlib import Path
 from calendar import month_abbr
 from dataclasses import dataclass
-from dateutil.relativedelta import relativedelta
+from pathlib import Path
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.ticker import FuncFormatter
+from dateutil.relativedelta import relativedelta
 from matplotlib import gridspec
+from matplotlib.ticker import FuncFormatter
+
 
 def first_day_of_water_year(day: int, month: int, yr: int = 1900) -> int:
     '''
     Returns the day of the year that is the first day of the water year.
-    
-    Note: 
+
+    Note:
         Feb 29 recoded as Feb 28 for non-leap years.
         Days after Feb 28 in leap years recorded as previous day.
         Default year 1900 was not a leap year.
@@ -42,7 +43,7 @@ def first_day_of_water_year(day: int, month: int, yr: int = 1900) -> int:
 def to_day_of_water_year(date: pd.Timestamp, first_day_of_wy: int = 1):
     '''
     Returns the day of the water year for the date.
-    
+
     Note: water year only has 365 days, even in leap years.
     '''
     if first_day_of_wy < 1 or first_day_of_wy > 365:
@@ -55,11 +56,11 @@ def to_day_of_water_year(date: pd.Timestamp, first_day_of_wy: int = 1):
 def to_doy_from_dowy(dowy: int, first_day_of_wy: int = 1, yr: int = 1900) -> int:
     '''
     Converts day of water year to day of year.
-    
+
     Args:
          dowy (int): day of water year (WY).
         first_day_of_wy (int): first day of water year (1-365).
-        yr (int): year. Default 1900.            
+        yr (int): year. Default 1900.
     '''
     if first_day_of_wy < 1 or first_day_of_wy > 365:
         raise ValueError('first_day_of_water_year must be between 1 and 365.')
@@ -103,7 +104,7 @@ class Timeseries:
     def validate_dataframe(data: pd.DataFrame) -> None:
         '''
         Validates the data frame.
-        
+
         Expects:
             - columns: ['time', ...]
             - 'time' is datetime index.
@@ -121,7 +122,7 @@ class Timeseries:
                        first_dowy: int = 1, path: str|None = None) -> 'Timeseries':
         '''
         Returns a Timeseries object from a pandas DataFrame.
-        
+
         Expects:
             - columns: ['time', ...]
             - time column is datetime index.
@@ -134,7 +135,7 @@ class Timeseries:
     def from_csv(path: str, first_dowy: int = 1,  date_format: str = '') -> 'Timeseries':
         '''
         Returns a Timeseries object, with file_path.
-        
+
         Expects:
             - *.csv file
             - columns: ['time', ...]
@@ -154,7 +155,7 @@ class Timeseries:
     def date_to_day_of_water_year(self, date: pd.Timestamp) -> int:
         '''
         Returns the day of the water year for the date.
-    
+
         Note: water year only has 365 days, even in leap years.
         '''
         days_to_new_year = 365 - self.first_day_of_water_year
@@ -176,10 +177,10 @@ class Timeseries:
     def day_of_water_year_to_date(self, dowy: int, year: int = 1900) -> pd.Timestamp:
         '''
         Converts day of water year to date.
-        
+
         Args:
              dowy (int): day of water year (WY).
-            yr (int): year. Default 1900.            
+            yr (int): year. Default 1900.
         '''
         days_to_new_year = 365 - self.first_day_of_water_year + 1
         # dowy is after start of new CY, so substract WY days in previous CY.
@@ -235,7 +236,9 @@ class Timeseries:
         '''
         Expands data to specfied start and end time window, filling missing values with NaN.
         '''
-        datetime_index = df.index if isinstance(df.index, pd.DatetimeIndex) else pd.DatetimeIndex(df.index) # pylint: disable=line-too-long
+        datetime_index = (
+            df.index if isinstance(df.index, pd.DatetimeIndex) else pd.DatetimeIndex(df.index)
+        )
         return df.apply(lambda x: x.reindex(pd.date_range(start, end, freq=datetime_index.freq,
                                                           name='time'), fill_value=np.nan))
 
@@ -293,7 +296,7 @@ class Timeseries:
         Plots the data, if specified:
         breaks x-axis into subplot rows based on number of years per row, and
         breaks y-axis based on broken axis data ranges. Saves plot to output path.
-        
+
         Args:
             data_columns (list[str]): column names to plot.
                 Default None plots the first column (i.e. [0]).
@@ -303,15 +306,15 @@ class Timeseries:
                 Default None.
             yrs_per_row (int): The plot can be broken along the x-axis
                 into a number of equal length rows. Use this option to select
-                the number of years to plot in each row of the plot. 
+                the number of years to plot in each row of the plot.
                 Default None does not break x-axis.
             broken_axis (bool): whether to break the y axis.
                 ex: https://matplotlib.org/stable/gallery/subplots_axes_and_figures/broken_axis.html
                 Default True.
-            broken_axis_ranges (list[float]): even number list of float values that 
-                specify min, max value for division of values on broken axis. 
+            broken_axis_ranges (list[float]): even number list of float values that
+                specify min, max value for division of values on broken axis.
                 Default None breaks y-axis with order of magnitude divisions.
-        
+
         Returns:
             None
             Places plot in output_path if specified.
@@ -450,7 +453,7 @@ class Timeseries:
                                   output_path: None|str = None) -> None:
         '''
         Plots the hydrograph quantiles for a specified column.
-        
+
         Args:
             col (int|str): column index or name to plot.
                 Default 1 (second column).
@@ -463,7 +466,7 @@ class Timeseries:
             output_path (str): path to save plot.
                 Default None saves plot in same name and directory as timeseries file path,
                 with '_quantiles.png' suffix.
-                
+
         Returns:
             None
             Places plot in output_path if specified.
@@ -492,7 +495,8 @@ class Timeseries:
         for i in range(pairs):
             low = df.columns[i]
             high = df.columns[-i-1]
-            ax.fill_between(df.index, df[low], df[high], alpha=0.3, label=f'{low[0]} {low[1][-2:]}-{high[1][-2:]}th percentile') # type: ignore[misc] # pylint: disable=line-too-long
+            label = f'{low[0]} {low[1][-2:]}-{high[1][-2:]}th percentile'
+            ax.fill_between(df.index, df[low], df[high], alpha=0.3, label=label)  # type: ignore[misc]
         if is_odd:
             median = df[df.columns[pairs]]
             ax.plot(df.index, median, color='k', label='Median')

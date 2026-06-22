@@ -27,6 +27,7 @@ test = [
 ]
 dev = [
 	"mypy>=1.18.2,<2.0.0",
+	"ruff>=0.9.0",
 	"types-python-dateutil>=2.9.0.20250822,<3.0.0",
 	"pandas-stubs>=2.3.2.250827,<3.0.0",
 	"ipykernel>=6.29.5,<7.0.0",
@@ -41,3 +42,10 @@ packages = ["hydropattern"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

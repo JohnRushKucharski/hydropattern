@@ -1,18 +1,18 @@
 '''Entry point for the hydropattern command line interface.'''
 
 import tomllib
-from typing import Any
 from pathlib import Path
+from typing import Any
 
-import typer
 import numpy as np
+import typer
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.formatters import write_results
-from hydropattern.timeseries import Timeseries
 from hydropattern.parsers import parse_components
 from hydropattern.patterns import Component, Result, evaluate_components
+from hydropattern.timeseries import Timeseries
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -27,14 +27,14 @@ def run(path: str = typer.Argument(...,
                                   help='Plot response surface.'),
         output_directory: str = typer.Option(None, "--output-dir",
                                              help='''Directory for output .csvs.
-                                             If write_to_excel is False, 
+                                             If write_to_excel is False,
                                              by default
                                             '_output' is appended to the path file name,
-                                             and a directory with that name is created in 
+                                             and a directory with that name is created in
                                              the path directory.
                                              If write_to_excel is True,
                                              by default the output file is written
-                                             to the path directory 
+                                             to the path directory
                                              and no output directory is created.'''),
         write_to_excel: bool = typer.Option(False, "--excel",
                                             help='''If true, all outputs are written
@@ -76,7 +76,9 @@ def load_timeseries(data: dict[str, Any]) -> Timeseries:
         )
     path = ts_data['path']
     date_format = ts_data['date_format'] if 'date_format' in ts_data else ''
-    first_day_of_water_year = ts_data['first_day_of_water_year'] if 'first_day_of_water_year' in ts_data else 1 # pylint: disable=line-too-long
+    first_day_of_water_year = (
+        ts_data['first_day_of_water_year'] if 'first_day_of_water_year' in ts_data else 1
+    )
     return Timeseries.from_csv(path, first_day_of_water_year, date_format)
 
 def load_components(data: dict[str, Any]) -> list[Component]:

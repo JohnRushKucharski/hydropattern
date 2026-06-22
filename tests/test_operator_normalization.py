@@ -8,12 +8,12 @@ import unittest
 
 from hydropattern.errors import HydropatternError, ParserErrorCode
 from hydropattern.parsers import (
-    normalize_operator,
-    validate_symbol,
-    magnitude_parser,
     duration_parser,
-    rate_of_change_parser,
     frequency_parser,
+    magnitude_parser,
+    normalize_operator,
+    rate_of_change_parser,
+    validate_symbol,
 )
 
 
