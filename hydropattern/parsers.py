@@ -52,8 +52,25 @@ def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
 ComparisionType = Enum('ComparisionType', ['SIMPLE', 'BETWEEN'])
 
 #region: utility parsers
+_VALID_SYMBOLS: frozenset[str] = frozenset({'<', '<=', '>', '>=', '=', '!='})
+
+def normalize_operator(raw: str) -> str:
+    '''Strip whitespace and validate a comparison symbol.
+
+    Raises HydropatternError (UNKNOWN_COMPARISON_SYMBOL) for unrecognized symbols.
+    Returns the stripped symbol string.
+    '''
+    stripped = raw.strip()
+    if stripped not in _VALID_SYMBOLS:
+        raise_parser_error(
+            ParserErrorCode.UNKNOWN_COMPARISON_SYMBOL,
+            f'Invalid comparison symbol: {raw!r}. Valid symbols: {sorted(_VALID_SYMBOLS)}.',
+            symbol=raw,
+        )
+    return stripped
+
 def symbol_to_string(symbol: str) -> str:
-    '''Convert symbol to string.'''
+    '''Convert symbol to string name.'''
     return {
         '<': 'lt',
         '<=': 'le',
@@ -84,20 +101,12 @@ def between_parser(metrics: list[Any], inclusive=True) -> Callable[[float], bool
 
 #region: validation utilities
 def validate_symbol(symbol: str) -> str:
-    '''Validate symbol.'''
-    try:
-        symbol_to_string(symbol)
-    except KeyError:
-        raise_parser_error(
-            ParserErrorCode.UNKNOWN_COMPARISON_SYMBOL,
-            f'Invalid comparision symbol: {symbol}.',
-            symbol=symbol,
-        )
-    return symbol
+    '''Normalize and validate a comparison symbol. Returns the stripped symbol.'''
+    return normalize_operator(symbol)
 
 def validate_simple_comparision_pair(metrics: list[Any]) -> None:
-    '''Validate comparision pair.'''
-    validate_symbol(metrics[0])
+    '''Validate comparision pair. Normalizes metrics[0] in place.'''
+    metrics[0] = validate_symbol(metrics[0])
     if not isinstance(metrics[1], (int, float)):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
