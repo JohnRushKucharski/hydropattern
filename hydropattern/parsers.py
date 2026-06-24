@@ -1,9 +1,49 @@
 '''Parses data from configuration file.'''
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable
 
 from hydropattern import patterns
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.patterns import CharacteristicType
+
+
+# ---------------------------------------------------------------------------
+# Normalized request shape (pure data — no executable closures)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CharacteristicSpec:
+    '''Pure-data specification for a single characteristic.
+
+    All fields are plain values; no executable closures.
+    Comparable via == for equivalent input detection.
+    '''
+    type: CharacteristicType
+    operator: str | None          # None for between/timing form; stripped symbol e.g. ">"
+    values: tuple[float | int, ...] # one value for simple; two for between/timing
+    ma_periods: int = 1           # moving-average window (magnitude, rate_of_change, frequency)
+    look_back: int = 1            # look-back periods (rate_of_change only)
+    min_val: float = 0.0          # minimum denominator value (rate_of_change only)
+    order: int = 1                # position in evaluation sequence
+
+
+@dataclass(frozen=True)
+class ComponentSpec:
+    '''Pure-data specification for a flow regime component.'''
+    name: str
+    characteristics: tuple[CharacteristicSpec, ...]
+    is_success_pattern: bool = True
+    verbose: bool = True
+
+
+@dataclass(frozen=True)
+class Request:
+    '''Stable normalized internal request shape produced by parser normalization.
+
+    Use build_components to convert to executable Component objects.
+    '''
+    components: tuple[ComponentSpec, ...]
 
 
 def validate_metrics_not_empty(metrics: list[Any], characteristic: str) -> None:
@@ -18,47 +58,8 @@ def validate_metrics_not_empty(metrics: list[Any], characteristic: str) -> None:
 #import hydropattern.patterns as patterns
 
 def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
-    '''Build components.'''
-    components = []
-    for component_name, elements in data.items():
-        characteristics: list[patterns.Characteristic] = []
-        # since python 3.7 dictionaries are ordered
-        # so the order of the elements is preserved
-        verbose, success, order = True, True, 1
-        # verbose, success set to defaults to start
-        for name, metrics in elements.items():
-            match name:
-                case 'timing':
-                    order = 1 if verbose else order
-                    characteristics.append(timing_parser(metrics, order))
-                case 'magnitude':
-                    order = 1 if verbose else order
-                    characteristics.append(magnitude_parser(metrics, order))
-                case 'duration':
-                    # order must be incremented value for duration.
-                    characteristics.append(duration_parser(metrics, order))
-                case 'rate_of_change':
-                    order = 1 if verbose else order
-                    characteristics.append(rate_of_change_parser(metrics, order))
-                case 'frequency':
-                    # order must be incremented value for frequency.
-                    characteristics.append(frequency_parser(metrics, order))
-                case 'verbose':
-                    validate_verbose(order, metrics)
-                    verbose = metrics
-                case 'success_pattern':
-                    validate_boolean(name, metrics)
-                    success = metrics
-                case _:
-                    raise_parser_error(
-                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
-                        f'Characteristic {name} not found.',
-                        component=component_name,
-                        characteristic=name,
-                    )
-            order += 1
-        components.append(patterns.Component(component_name, characteristics, success))
-    return components
+    '''Build components. Delegates to parse_request + build_components.'''
+    return build_components(parse_request(data))
 
 ComparisionType = Enum('ComparisionType', ['SIMPLE', 'BETWEEN'])
 
@@ -671,3 +672,239 @@ def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
         type=patterns.CharacteristicType.FREQUENCY
     )
 #endregion
+
+
+# ---------------------------------------------------------------------------
+# Spec-builder functions (validated input → CharacteristicSpec pure data)
+# ---------------------------------------------------------------------------
+
+def _timing_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
+    validate_timing_metrics(metrics)
+    return CharacteristicSpec(
+        type=CharacteristicType.TIMING,
+        operator=None,
+        values=(metrics[0], metrics[1]),
+        order=order,
+    )
+
+
+def _magnitude_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
+    comp_type = validate_magnitude_metrics(metrics)
+    ma_periods = metrics[2] if len(metrics) == 3 else 1
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE,
+            operator=metrics[0],  # normalized in-place by validate_magnitude_metrics
+            values=(metrics[1],),
+            ma_periods=ma_periods,
+            order=order,
+        )
+    return CharacteristicSpec(
+        type=CharacteristicType.MAGNITUDE,
+        operator=None,
+        values=(metrics[0], metrics[1]),
+        ma_periods=ma_periods,
+        order=order,
+    )
+
+
+def _duration_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
+    comp_type = validate_duration_metrics(metrics)
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.DURATION,
+            operator=metrics[0],  # normalized in-place
+            values=(metrics[1],),
+            order=order,
+        )
+    return CharacteristicSpec(
+        type=CharacteristicType.DURATION,
+        operator=None,
+        values=(metrics[0], metrics[1]),
+        order=order,
+    )
+
+
+def _rate_of_change_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
+    comp_type = validate_rate_of_change_metrics(metrics)
+    ma_periods = metrics[2] if len(metrics) > 2 else 1
+    look_back = metrics[3] if len(metrics) > 3 else 1
+    min_val = float(metrics[4]) if len(metrics) > 4 else 0.0
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.RATE_OF_CHANGE,
+            operator=metrics[0],  # normalized in-place
+            values=(metrics[1],),
+            ma_periods=ma_periods,
+            look_back=look_back,
+            min_val=min_val,
+            order=order,
+        )
+    return CharacteristicSpec(
+        type=CharacteristicType.RATE_OF_CHANGE,
+        operator=None,
+        values=(metrics[0], metrics[1]),
+        ma_periods=ma_periods,
+        look_back=look_back,
+        min_val=min_val,
+        order=order,
+    )
+
+
+def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
+    comp_type = validate_frequency_metrics(metrics)
+    ma_periods = int(metrics[2])
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.FREQUENCY,
+            operator=metrics[0],  # normalized in-place
+            values=(metrics[1],),
+            ma_periods=ma_periods,
+            order=order,
+        )
+    return CharacteristicSpec(
+        type=CharacteristicType.FREQUENCY,
+        operator=None,
+        values=(metrics[0], metrics[1]),
+        ma_periods=ma_periods,
+        order=order,
+    )
+
+
+# ---------------------------------------------------------------------------
+# parse_request — stable normalized output
+# ---------------------------------------------------------------------------
+
+def parse_request(data: dict[str, Any]) -> Request:
+    '''Parse component configuration data into a stable normalized Request.
+
+    Produces pure-data ComponentSpec / CharacteristicSpec objects with no
+    executable closures. Equivalent valid inputs (e.g. whitespace-padded
+    operators) produce equal Request objects (comparable via ==).
+
+    Use build_components to convert the returned Request to executable
+    Component objects for evaluation.
+    '''
+    component_specs: list[ComponentSpec] = []
+    for component_name, elements in data.items():
+        char_specs: list[CharacteristicSpec] = []
+        verbose, success, order = True, True, 1
+        for name, metrics in elements.items():
+            match name:
+                case 'timing':
+                    order = 1 if verbose else order
+                    char_specs.append(_timing_spec(metrics, order))
+                case 'magnitude':
+                    order = 1 if verbose else order
+                    char_specs.append(_magnitude_spec(metrics, order))
+                case 'duration':
+                    char_specs.append(_duration_spec(metrics, order))
+                case 'rate_of_change':
+                    order = 1 if verbose else order
+                    char_specs.append(_rate_of_change_spec(metrics, order))
+                case 'frequency':
+                    char_specs.append(_frequency_spec(metrics, order))
+                case 'verbose':
+                    validate_verbose(order, metrics)
+                    verbose = metrics
+                case 'success_pattern':
+                    validate_boolean(name, metrics)
+                    success = metrics
+                case _:
+                    raise_parser_error(
+                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
+                        f'Characteristic {name} not found.',
+                        component=component_name,
+                        characteristic=name,
+                    )
+            order += 1
+        component_specs.append(ComponentSpec(
+            name=component_name,
+            characteristics=tuple(char_specs),
+            is_success_pattern=success,
+            verbose=verbose,
+        ))
+    return Request(components=tuple(component_specs))
+
+
+# ---------------------------------------------------------------------------
+# build_components — builder: Request → list[Component] (executable)
+# ---------------------------------------------------------------------------
+
+def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
+    '''Convert a CharacteristicSpec to an executable Characteristic.'''
+    label = spec.type.name.lower()
+    match spec.type:
+        case CharacteristicType.TIMING:
+            first, last = int(spec.values[0]), int(spec.values[1])
+            return patterns.Characteristic(
+                name=f'{label}_{first}-{last}',
+                fx=patterns.timing_fx(timing_window_fx(first, last), spec.order),
+                type=spec.type,
+            )
+        case CharacteristicType.MAGNITUDE:
+            if spec.operator is None:
+                comp_fx = patterns.comparison_fx('<', spec.values[0], '<', spec.values[1])
+                name = f'{label}_{spec.values[0]}-{spec.values[1]}'
+            else:
+                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
+                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
+            return patterns.Characteristic(
+                name=name,
+                fx=patterns.magnitude_fx(comp_fx, spec.order, spec.ma_periods),
+                type=spec.type,
+            )
+        case CharacteristicType.DURATION:
+            if spec.operator is None:
+                comp_fx = patterns.comparison_fx('<', spec.values[0], '>', spec.values[1])
+                name = f'{label}_{spec.values[0]}-{spec.values[1]}'
+            else:
+                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
+                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
+            return patterns.Characteristic(
+                name=name,
+                fx=patterns.duration_fx(comp_fx, spec.order),
+                type=spec.type,
+            )
+        case CharacteristicType.RATE_OF_CHANGE:
+            if spec.operator is None:
+                comp_fx = patterns.comparison_fx('<', spec.values[0], '<', spec.values[1])
+                name = f'{label}_{spec.values[0]}-{spec.values[1]}'
+            else:
+                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
+                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
+            return patterns.Characteristic(
+                name=name,
+                fx=patterns.rate_of_change_fx(
+                    comp_fx, spec.order, spec.ma_periods, spec.look_back, spec.min_val
+                ),
+                type=spec.type,
+            )
+        case CharacteristicType.FREQUENCY:
+            if spec.operator is None:
+                comp_fx = patterns.comparison_fx('<', spec.values[0], '<', spec.values[1])
+                name = f'{label}_{spec.values[0]}-{spec.values[1]}in{spec.ma_periods}yrs'
+            else:
+                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
+                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}in{spec.ma_periods}yrs'
+            return patterns.Characteristic(
+                name=name,
+                fx=patterns.frequency_fx(comp_fx, spec.order, spec.ma_periods),
+                type=spec.type,
+            )
+    raise ValueError(f'Unknown characteristic type: {spec.type}')  # unreachable
+
+
+def build_components(request: Request) -> list[patterns.Component]:
+    '''Convert a Request to a list of executable Component objects.
+
+    This is the builder step: Request (pure data) → list[Component] (executable).
+    '''
+    return [
+        patterns.Component(
+            name=spec.name,
+            characteristics=[_build_characteristic(cs) for cs in spec.characteristics],
+            is_success_pattern=spec.is_success_pattern,
+        )
+        for spec in request.components
+    ]

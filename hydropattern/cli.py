@@ -10,7 +10,7 @@ from climate_canvas.plots_utilities import plot_response_surface  # type: ignore
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.formatters import write_results
-from hydropattern.parsers import parse_components
+from hydropattern.parsers import build_components, parse_request
 from hydropattern.patterns import Component, Result, evaluate_components
 from hydropattern.timeseries import Timeseries
 
@@ -89,7 +89,7 @@ def load_components(data: dict[str, Any]) -> list[Component]:
             'No components data in configuration file.',
             section='components',
         )
-    return parse_components(data['components'])
+    return build_components(parse_request(data['components']))
 
 def write_output(results: list[Result],
                  input_path: str, output_directory: str | None, write_to_excel: bool):
