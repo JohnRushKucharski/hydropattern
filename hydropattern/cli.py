@@ -11,7 +11,7 @@ from climate_canvas.plots_utilities import plot_response_surface  # type: ignore
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.formatters import write_results
-from hydropattern.parsers import build_components, parse_request
+from hydropattern.parsers import MetricOptions, build_components, parse_metric_options, parse_request
 from hydropattern.patterns import Component, Result, evaluate_components
 from hydropattern.timeseries import Timeseries
 
@@ -51,11 +51,12 @@ def run(path: str = typer.Argument(...,
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
+    metric_options = load_metric_options(data)
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {name: evaluate_components(df, components)
                         for name, df in scenarios.items()}
     write_output(scenario_results, path, output_directory, write_to_excel, overwrite,
-                 timeseries.first_day_of_water_year)
+                 timeseries.first_day_of_water_year, metric_options)
 
     if plot:
         xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
@@ -118,13 +119,22 @@ def load_components(data: dict[str, Any]) -> list[Component]:
         )
     return build_components(parse_request(data['components']))
 
+def load_metric_options(data: dict[str, Any]) -> MetricOptions:
+    '''Parse the optional [metric] section from the configuration file.
+
+    Absent [metric] section -> MetricOptions() (default mode: portion).
+    '''
+    return parse_metric_options(data)
+
 def write_output(scenario_results: dict[str, list[Result]],
                  input_path: str, output_directory: str | None,
                  write_to_excel: bool, overwrite: bool = True,
-                 first_day_of_wy: int = 1):
+                 first_day_of_wy: int = 1,
+                 metric_options: MetricOptions = MetricOptions()):
     '''Write output using the formatter entrypoint.'''
     output_path = write_results(scenario_results, input_path, output_directory,
-                                write_to_excel, overwrite, first_day_of_wy)
+                                write_to_excel, overwrite, first_day_of_wy,
+                                metric_options.mode)
     if write_to_excel:
         output_file = output_path / (Path(input_path).stem + '_output.xlsx')
         typer.echo(f'Output written to: {output_file}.')

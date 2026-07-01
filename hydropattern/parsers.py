@@ -44,6 +44,24 @@ class Request:
     components: tuple[ComponentSpec, ...]
 
 
+class MetricMode(Enum):
+    '''Supported formatter summary metric modes.
+
+    PORTION:        fraction of timesteps in [0.0, 1.0] where the condition holds.
+    PERCENTAGE:      portion expressed on a 0-100 scale (portion * 100).
+    RETURN_PERIOD:   1 / portion; undefined (NA) when portion is 0 or NA.
+    '''
+    PORTION = 'portion'
+    PERCENTAGE = 'percentage'
+    RETURN_PERIOD = 'return_period'
+
+
+@dataclass(frozen=True)
+class MetricOptions:
+    '''Pure-data specification for formatter/metric behavior options.'''
+    mode: MetricMode = MetricMode.PORTION
+
+
 def validate_metrics_not_empty(metrics: list[Any], characteristic: str) -> None:
     '''Raise PARSER_MISSING_FIELD when metrics list is empty or absent.'''
     if not metrics:
@@ -722,6 +740,60 @@ def parse_request(data: dict[str, Any]) -> Request:
             verbose=verbose,
         ))
     return Request(components=tuple(component_specs))
+#endregion
+
+#region metric/formatter options
+_VALID_METRIC_MODES: frozenset[str] = frozenset(m.value for m in MetricMode)
+
+def parse_metric_options(data: dict[str, Any]) -> MetricOptions:
+    '''Parse the optional top-level [metric] section into a MetricOptions spec.
+
+    Contract
+    --------
+        - Section is optional. Absent [metric] -> MetricOptions(mode=MetricMode.PORTION).
+        - 'mode' key is optional within [metric]. Absent -> defaults to 'portion'.
+        - 'mode' must be one of: 'portion', 'percentage', 'return_period'.
+        - Unrecognized keys within [metric] raise PARSER_UNKNOWN_OPTION.
+
+    Raises
+    ------
+        HydropatternError: PARSER_INVALID_TYPE if [metric] is not a table (dict).
+        HydropatternError: PARSER_INVALID_VALUE if 'mode' is not a recognized value.
+        HydropatternError: PARSER_UNKNOWN_OPTION if an unrecognized key is present.
+    '''
+    if 'metric' not in data:
+        return MetricOptions()
+
+    section = data['metric']
+    if not isinstance(section, dict):
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'[metric] section must be a table, got: {section!r}.',
+            section='metric',
+        )
+
+    mode = MetricMode.PORTION
+    for key, value in section.items():
+        match key:
+            case 'mode':
+                if not isinstance(value, str) or value not in _VALID_METRIC_MODES:
+                    raise_parser_error(
+                        ParserErrorCode.INVALID_VALUE,
+                        f'metric.mode must be one of {sorted(_VALID_METRIC_MODES)}, '
+                        f'got: {value!r}.',
+                        section='metric',
+                        field='mode',
+                        value=value,
+                    )
+                mode = MetricMode(value)
+            case _:
+                raise_parser_error(
+                    ParserErrorCode.UNKNOWN_OPTION,
+                    f'Unrecognized [metric] option: {key!r}.',
+                    section='metric',
+                    field=key,
+                )
+    return MetricOptions(mode=mode)
 #endregion
 
 #region characteristic specification object (class) building functions

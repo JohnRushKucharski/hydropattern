@@ -6,7 +6,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from hydropattern.formatters import build_summary_sheet, compute_portion_series, write_summary
+from hydropattern.formatters import (
+    build_summary_sheet,
+    compute_metric_series,
+    compute_portion_series,
+    write_summary,
+)
+from hydropattern.parsers import MetricMode
 from hydropattern.patterns import CharacteristicType, Component, Characteristic, Result
 
 
@@ -149,6 +155,53 @@ class TestComputePortionSeriesWaterYear(unittest.TestCase):
         self.assertIn(2001, s.index)
 
 
+class TestComputeMetricSeries(unittest.TestCase):
+    '''Tests for compute_metric_series() — metric-mode transform on top of portion.'''
+
+    def test_portion_mode_matches_compute_portion_series(self):
+        '''PORTION mode is a passthrough of compute_portion_series.'''
+        result = _make_result([1, 0, 1, 0], [2000, 2000, 2001, 2001])
+        expected = compute_portion_series(result, 'magnitude')
+        actual = compute_metric_series(result, 'magnitude', MetricMode.PORTION)
+        pd.testing.assert_series_equal(actual, expected)
+
+    def test_default_mode_is_portion(self):
+        '''Default mode argument behaves like PORTION.'''
+        result = _make_result([1, 1, 0, 0], [2000, 2000, 2001, 2001])
+        s = compute_metric_series(result, 'magnitude')
+        self.assertAlmostEqual(s['total'], 0.5)
+
+    def test_percentage_mode_scales_by_100(self):
+        '''PERCENTAGE mode = portion * 100.'''
+        result = _make_result([1, 0, 1, 0], [2000, 2000, 2001, 2001])
+        s = compute_metric_series(result, 'magnitude', MetricMode.PERCENTAGE)
+        self.assertAlmostEqual(s['total'], 50.0)
+
+    def test_percentage_mode_zero_success_is_zero(self):
+        '''PERCENTAGE mode: zero successes -> 0.0, not NA.'''
+        result = _make_result([0, 0, 0, 0], [2000, 2000, 2001, 2001])
+        s = compute_metric_series(result, 'magnitude', MetricMode.PERCENTAGE)
+        self.assertAlmostEqual(s['total'], 0.0)
+
+    def test_return_period_mode_is_inverse_of_portion(self):
+        '''RETURN_PERIOD mode = 1 / portion.'''
+        result = _make_result([1, 0, 0, 0], [2000, 2000, 2001, 2001])
+        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
+        self.assertAlmostEqual(s['total'], 4.0)
+
+    def test_return_period_mode_zero_portion_is_na_not_inf(self):
+        '''RETURN_PERIOD mode: zero-success portion -> NA, never inf (NA/zero policy).'''
+        result = _make_result([0, 0, 0, 0], [2000, 2000, 2001, 2001])
+        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
+        self.assertTrue(pd.isna(s['total']))
+
+    def test_return_period_mode_preserves_existing_na(self):
+        '''RETURN_PERIOD mode: an already-NA portion (T=0 group) stays NA.'''
+        result = _make_result([1, 1], [2000, 2000])
+        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
+        self.assertTrue(pd.isna(s.get(2001, pd.NA)))
+
+
 class TestBuildSummarySheet(unittest.TestCase):
     '''Tests for build_summary_sheet().
 
@@ -209,6 +262,12 @@ class TestBuildSummarySheet(unittest.TestCase):
         r = _make_result([1, 0, 1, 0], [2000, 2000, 2001, 2001])
         df = build_summary_sheet({'s': [r]}, 'comp', 'comp')
         self.assertAlmostEqual(df.loc['total', 's'], 0.5)
+
+    def test_metric_mode_is_threaded_through(self):
+        '''mode parameter controls the metric computed for the whole sheet.'''
+        r = _make_result([1, 0, 1, 0], [2000, 2000, 2001, 2001])
+        df = build_summary_sheet({'s': [r]}, 'comp', 'magnitude', mode=MetricMode.PERCENTAGE)
+        self.assertAlmostEqual(df.loc['total', 's'], 50.0)
 
     def test_non_default_water_year(self):
         '''first_day_of_wy is passed through to compute_portion_series.'''

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from hydropattern.parsers import MetricMode
 from hydropattern.patterns import Result
 
 
@@ -62,28 +63,56 @@ def compute_portion_series(
     return (n / t).where(t > 0, other=pd.NA)
 
 
+def compute_metric_series(
+    result: Result,
+    column: str,
+    mode: MetricMode = MetricMode.PORTION,
+    first_day_of_wy: int = 1,
+) -> pd.Series:
+    '''Compute the configured summary metric for one column of a Result.
+
+    Always starts from the underlying portion series (see compute_portion_series)
+    and applies the metric mode transform. NA/zero policy:
+        - PORTION:        unchanged; zero-success -> 0.0, NA (no timesteps) -> pd.NA.
+        - PERCENTAGE:      portion * 100; same NA/zero policy as portion.
+        - RETURN_PERIOD:   1 / portion; zero-success (undefined, i.e. infinite) and
+                           NA portions both -> pd.NA (never inf).
+    '''
+    portion = compute_portion_series(result, column, first_day_of_wy)
+    match mode:
+        case MetricMode.PORTION:
+            return portion
+        case MetricMode.PERCENTAGE:
+            return portion * 100
+        case MetricMode.RETURN_PERIOD:
+            return (1 / portion).where(portion > 0, other=pd.NA)  # type: ignore[call-overload]
+    raise ValueError(f'Unsupported metric mode: {mode!r}.')
+
+
 def build_summary_sheet(
     scenario_results: dict[str, list[Result]],
     component_name: str,
     column: str,
     first_day_of_wy: int = 1,
+    mode: MetricMode = MetricMode.PORTION,
 ) -> pd.DataFrame:
     '''Build one summary sheet for a single column (characteristic or component).
 
     Columns = scenario names (from scenario_results keys, in insertion order).
     Index   = ['total', wy1, wy2, ...] (water year labels, ending-year convention).
-    Values  = portion (0.0–1.0); zero-success -> 0.0; NA year -> blank.
+    Values  = configured metric (see compute_metric_series); default portion (0.0-1.0).
 
     Args:
         scenario_results: {scenario_name: [Result, ...]} for all scenarios.
         component_name:   name of the component whose Results to use.
         column:           characteristic or component column to compute metric for.
         first_day_of_wy:  first day of water year (1–365, default 1 = Jan 1).
+        mode:             metric mode to compute (default MetricMode.PORTION).
     '''
     series: dict[str, pd.Series] = {}
     for scenario_name, results in scenario_results.items():
         result = next(r for r in results if r.component.name == component_name)
-        series[scenario_name] = compute_portion_series(result, column, first_day_of_wy)
+        series[scenario_name] = compute_metric_series(result, column, mode, first_day_of_wy)
     return pd.DataFrame(series)
 
 
@@ -94,6 +123,7 @@ def write_results(
     write_to_excel: bool,
     overwrite: bool = True,
     first_day_of_wy: int = 1,
+    metric_mode: MetricMode = MetricMode.PORTION,
 ) -> Path:
     """Write per-scenario results to csv files or a single Excel file,
     and always write a per-component summary Excel file.
@@ -105,6 +135,7 @@ def write_results(
         overwrite:        When True (default), existing files are replaced.
             When False, a numeric suffix (__1, __2, …) is appended.
         first_day_of_wy: First day of water year (1–365). Used for summary WY grouping.
+        metric_mode:     Summary metric mode (portion/percentage/return_period).
 
     Returns the directory (or file parent) that received output files.
     """
@@ -130,7 +161,7 @@ def write_results(
             result = next(r for r in results if r.component.name == component_name)
             result.df.to_csv(csv_path)
 
-    write_summary(scenario_results, output_path, first_day_of_wy, overwrite)
+    write_summary(scenario_results, output_path, first_day_of_wy, overwrite, metric_mode)
     return output_path
 
 
@@ -139,6 +170,7 @@ def write_summary(
     output_path: Path,
     first_day_of_wy: int = 1,
     overwrite: bool = True,
+    metric_mode: MetricMode = MetricMode.PORTION,
 ) -> None:
     """Write one {component}_summary.xlsx per component to output_path.
 
@@ -157,14 +189,15 @@ def write_summary(
             for char in component.characteristics:
                 sheet_name = _clean_variable_name(char.name)[:31]
                 sheet_df = build_summary_sheet(
-                    scenario_results, component.name, char.name, first_day_of_wy
+                    scenario_results, component.name, char.name, first_day_of_wy, metric_mode
                 )
                 sheet_df.to_excel(writer, sheet_name=sheet_name)
             comp_sheet = _clean_variable_name(component.name)[:31]
             comp_df = build_summary_sheet(
-                scenario_results, component.name, component.name, first_day_of_wy
+                scenario_results, component.name, component.name, first_day_of_wy, metric_mode
             )
             comp_df.to_excel(writer, sheet_name=comp_sheet)
+
 
 
 def _build_all_filenames(

@@ -11,10 +11,12 @@ from hydropattern.cli import (
     app,
     load_components,
     load_config_file,
+    load_metric_options,
     load_timeseries,
     write_output,
 )
 from hydropattern.errors import HydropatternError, ParserErrorCode
+from hydropattern.parsers import MetricMode, MetricOptions
 from hydropattern.patterns import Component, Result
 
 RUNNER = CliRunner()
@@ -316,6 +318,23 @@ class TestCLIValidationErrors(unittest.TestCase):
             'unsupported_characteristic',
         )
 
+    def test_load_metric_options_defaults_to_portion(self):
+        '''Missing [metric] section should default to MetricOptions(mode=PORTION).'''
+        options = load_metric_options({'timeseries': {'path': 'x.csv'}})
+        self.assertEqual(options, MetricOptions(mode=MetricMode.PORTION))
+
+    def test_load_metric_options_reads_configured_mode(self):
+        '''Configured [metric].mode should be reflected in the returned options.'''
+        options = load_metric_options({'metric': {'mode': 'percentage'}})
+        self.assertEqual(options.mode, MetricMode.PERCENTAGE)
+
+    def test_load_metric_options_raises_for_invalid_mode(self):
+        '''Invalid [metric].mode should raise the shared parser error envelope.'''
+        with self.assertRaises(HydropatternError) as context:
+            load_metric_options({'metric': {'mode': 'invalid'}})
+
+        self.assertEqual(context.exception.envelope.code, ParserErrorCode.INVALID_VALUE)
+
 
 class TestCLIOutputModes(unittest.TestCase):
     '''Output mode tests for csv and excel behavior.'''
@@ -455,3 +474,26 @@ class TestCLIOutputModes(unittest.TestCase):
             expected_output_dir = temp_path / 'config_output'
             self.assertTrue((expected_output_dir / 'flow_alpha_component.csv').exists())
             self.assertTrue((expected_output_dir / 'flow_alpha_component__1.csv').exists())
+
+    def test_write_output_metric_options_wired_to_summary(self):
+        '''metric_options.mode should control the computed summary values.'''
+        import pandas as pd  # noqa: PLC0415 - local import matches existing test style
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            result = self._sample_result('sample_component')
+            write_output(
+                {'flow': [result]}, str(input_path), None, False,
+                metric_options=MetricOptions(mode=MetricMode.PERCENTAGE),
+            )
+
+            expected_output_dir = temp_path / 'config_output'
+            summary_df = pd.read_excel(
+                expected_output_dir / 'sample_component_summary.xlsx',
+                sheet_name='sample_component', index_col=0,
+            )
+            # 2 of 3 timesteps succeed -> portion 2/3 -> percentage ~66.67.
+            self.assertAlmostEqual(summary_df.loc['total', 'flow'], 200 / 3)

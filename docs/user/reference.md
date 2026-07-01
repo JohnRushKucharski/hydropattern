@@ -203,6 +203,46 @@ success_pattern = true   # Present = all characteristics met? Defaults to true.
 
 ---
 
+## Metric options
+
+```toml
+[metric]
+mode = "portion"  # "portion" (default) | "percentage" | "return_period"
+```
+
+Controls the metric computed in the `{component}_summary.xlsx` summary sheets written by
+the formatter (see `hydropattern/formatters.py`). The `[metric]` section is optional; when
+absent, or when `mode` is omitted, the default is `"portion"`. This option only affects the
+adapter/reporting layer — core compute contracts (`Result`, `evaluate_component(s)`) are
+unchanged.
+
+| Value            | Description | NA/zero policy |
+|------------------|-------------|----------------|
+| `"portion"`      | Fraction of timesteps in `[0.0, 1.0]` where the condition holds. | Zero successes → `0.0`. No timesteps in a water year → blank (NA). |
+| `"percentage"`   | `portion * 100`, on a `[0, 100]` scale. | Same as portion. |
+| `"return_period"`| `1 / portion` — average recurrence interval in water years. | Zero-success (undefined/infinite) and NA portions both → blank (NA), never `inf`. |
+
+**Examples**
+```toml
+[metric]
+mode = "percentage"
+
+[metric]
+mode = "return_period"
+```
+
+**Invalid configuration**
+```toml
+[metric]
+mode = "average"     # PARSER_INVALID_VALUE: not one of portion/percentage/return_period
+mode = 1              # PARSER_INVALID_TYPE-adjacent: PARSER_INVALID_VALUE, non-string mode
+
+[metric]
+threshold = 0.5       # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized [metric] key
+```
+
+---
+
 ## Parser error codes
 
 These codes appear in the `code` field of a `HydropatternError` envelope.
@@ -215,6 +255,7 @@ These codes appear in the `code` field of a `HydropatternError` envelope.
 | `PARSER_INVALID_VALUE` | A parameter has the right type but is out of range or has an illegal value. | `first_doy = 0`; `ma_periods = 0`; negative magnitude threshold. |
 | `PARSER_UNKNOWN_CHARACTERISTIC` | A characteristic key is not recognised. | Typo in characteristic name, e.g. `magntiude`. |
 | `PARSER_UNKNOWN_COMPARISON_SYMBOL` | An operator string is not in the valid set. | `"gt"` instead of `">"`. |
+| `PARSER_UNKNOWN_OPTION` | A key in an options section (e.g. `[metric]`) is not recognised. | `[metric]` table has a typo'd or unsupported key. |
 
 ### Accessing error details programmatically
 
