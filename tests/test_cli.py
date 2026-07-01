@@ -370,8 +370,8 @@ class TestCLIOutputModes(unittest.TestCase):
             self.assertTrue(expected_output_dir.exists())
             self.assertTrue((expected_output_dir / 'flow_sample_component.csv').exists())
 
-    def test_write_output_default_excel_creates_single_file(self):
-        '''Default excel mode should write a single xlsx in the input directory.'''
+    def test_write_output_default_excel_creates_file_in_stem_output_dir(self):
+        '''Default excel mode should write the xlsx inside <input_stem>_output.'''
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_path = temp_path / 'config.toml'
@@ -379,8 +379,10 @@ class TestCLIOutputModes(unittest.TestCase):
 
             write_output({'flow': [self._sample_result()]}, str(input_path), None, True)
 
-            self.assertTrue((temp_path / 'config_output.xlsx').exists())
-            self.assertFalse((temp_path / 'config_output').exists())
+            expected_output_dir = temp_path / 'config_output'
+            self.assertTrue(expected_output_dir.exists())
+            self.assertTrue((expected_output_dir / 'config_output.xlsx').exists())
+            self.assertFalse((temp_path / 'config_output.xlsx').exists())
 
     def test_write_output_custom_directory_overrides_default(self):
         '''Provided output directory should be used instead of any default path logic.'''

@@ -11,7 +11,12 @@ from climate_canvas.plots_utilities import plot_response_surface  # type: ignore
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.formatters import write_results
-from hydropattern.parsers import MetricOptions, build_components, parse_metric_options, parse_request
+from hydropattern.parsers import (
+    MetricOptions,
+    build_components,
+    parse_metric_options,
+    parse_request,
+)
 from hydropattern.patterns import Component, Result, evaluate_components
 from hydropattern.timeseries import Timeseries
 
@@ -27,16 +32,11 @@ def run(path: str = typer.Argument(...,
         plot: bool = typer.Option(False, "--plot",
                                   help='Plot response surface.'),
         output_directory: str = typer.Option(None, "--output-dir",
-                                             help='''Directory for output .csvs.
-                                             If write_to_excel is False,
-                                             by default
-                                            '_output' is appended to the path file name,
-                                             and a directory with that name is created in
-                                             the path directory.
-                                             If write_to_excel is True,
-                                             by default the output file is written
-                                             to the path directory
-                                             and no output directory is created.'''),
+                                             help='''Directory for output files.
+                                             By default, '_output' is appended to the path
+                                             file name, and a directory with that name is
+                                             created in the path directory (used for both
+                                             Excel and csv output).'''),
         write_to_excel: bool = typer.Option(True, "--excel/--no-excel",
                                             help='''If true (default), all outputs are written
                                             to Excel files.

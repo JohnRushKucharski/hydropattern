@@ -139,7 +139,7 @@ def write_results(
 
     Returns the directory (or file parent) that received output files.
     """
-    output_path = _resolve_output_path(input_path, output_directory, write_to_excel)
+    output_path = _resolve_output_path(input_path, output_directory)
     filename_map = _build_all_filenames(scenario_results)
 
     if write_to_excel:
@@ -232,7 +232,6 @@ def _build_all_filenames(
 def _resolve_output_path(
     input_path: str,
     output_directory: str | None,
-    write_to_excel: bool,
 ) -> Path:
     if output_directory:
         output_path = Path(output_directory)
@@ -240,9 +239,6 @@ def _resolve_output_path(
         return output_path
 
     input_parent = Path(input_path).parent
-    if write_to_excel:
-        return input_parent
-
     output_path = input_parent / (Path(input_path).stem + "_output")
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path

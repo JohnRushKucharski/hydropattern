@@ -106,7 +106,10 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 --output-dir "path_to_output_csv_or_xlsx_files"
 ```
 
-> Output file are placed in the same directory as the timeseries specified in the .toml file by default. Providing a valid path to this optinal argument will store the outputs in a different location.
+> By default, a `{config_stem}_output` directory is created next to the .toml
+> configuration file, and both the per-scenario results and the component summary
+> files are written there. Providing a valid path to this optional argument will
+> store the outputs in a different location instead.
 
 ```
 --plot
