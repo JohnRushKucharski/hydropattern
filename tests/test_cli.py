@@ -235,7 +235,7 @@ class TestCLICommand(unittest.TestCase):
         self.assertIn('run', result.stdout)
 
     def test_run_command_smoke_with_temp_files(self):
-        '''Run command succeeds with fixture input files and temporary output.'''
+        '''Default run (Excel) succeeds and writes an xlsx file.'''
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / 'out'
 
@@ -247,6 +247,20 @@ class TestCLICommand(unittest.TestCase):
             self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertIn('Output written to:', result.stdout)
             self.assertTrue(output_dir.exists())
+            self.assertTrue(any(output_dir.glob('*.xlsx')))
+
+    def test_run_command_no_excel_writes_csv(self):
+        '''--no-excel flag produces per-scenario csv files instead of xlsx.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.cli_smoke_config_path),
+                 '--output-dir', str(output_dir), '--no-excel'],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertTrue(any(output_dir.glob('*.csv')))
 
 
@@ -307,9 +321,21 @@ class TestCLIOutputModes(unittest.TestCase):
     '''Output mode tests for csv and excel behavior.'''
 
     def _sample_result(self, component_name: str = 'sample_component') -> Result:
-        '''Create a minimal Result object for output writing tests.'''
+        '''Create a minimal Result object for output writing tests.
+
+        Uses a DatetimeIndex and includes the component column so that
+        write_summary can compute portions correctly.
+        '''
         component = Component(name=component_name, characteristics=[], is_success_pattern=True)
-        df = pd.DataFrame({'flow': [1.0, 2.0, 3.0]})
+        index = pd.DatetimeIndex([
+            pd.Timestamp('2000-01-01'),
+            pd.Timestamp('2000-02-01'),
+            pd.Timestamp('2000-03-01'),
+        ], name='time')
+        df = pd.DataFrame({
+            'flow': [1.0, 2.0, 3.0],
+            component_name: [1, 0, 1],
+        }, index=index)
         return Result(df=df, component=component)
 
     def test_write_output_default_csv_creates_stem_output_dir(self):

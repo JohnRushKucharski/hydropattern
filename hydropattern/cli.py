@@ -37,11 +37,11 @@ def run(path: str = typer.Argument(...,
                                              by default the output file is written
                                              to the path directory
                                              and no output directory is created.'''),
-        write_to_excel: bool = typer.Option(False, "--excel",
-                                            help='''If true, all outputs are written
-                                            to a single Excel file.
-                                            If false, each time series output is written
-                                            to a separate .csv file.'''),
+        write_to_excel: bool = typer.Option(True, "--excel/--no-excel",
+                                            help='''If true (default), all outputs are written
+                                            to Excel files.
+                                            Use --no-excel to write per-scenario csv files
+                                            instead.'''),
         overwrite: bool = typer.Option(True, "--overwrite/--no-overwrite",
                                        help='''If true (default), existing output files
                                        are replaced on each run.
@@ -54,7 +54,8 @@ def run(path: str = typer.Argument(...,
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {name: evaluate_components(df, components)
                         for name, df in scenarios.items()}
-    write_output(scenario_results, path, output_directory, write_to_excel, overwrite)
+    write_output(scenario_results, path, output_directory, write_to_excel, overwrite,
+                 timeseries.first_day_of_water_year)
 
     if plot:
         xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
@@ -119,10 +120,11 @@ def load_components(data: dict[str, Any]) -> list[Component]:
 
 def write_output(scenario_results: dict[str, list[Result]],
                  input_path: str, output_directory: str | None,
-                 write_to_excel: bool, overwrite: bool = True):
+                 write_to_excel: bool, overwrite: bool = True,
+                 first_day_of_wy: int = 1):
     '''Write output using the formatter entrypoint.'''
     output_path = write_results(scenario_results, input_path, output_directory,
-                                write_to_excel, overwrite)
+                                write_to_excel, overwrite, first_day_of_wy)
     if write_to_excel:
         output_file = output_path / (Path(input_path).stem + '_output.xlsx')
         typer.echo(f'Output written to: {output_file}.')

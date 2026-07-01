@@ -11,22 +11,100 @@ import pandas as pd
 from hydropattern.patterns import Result
 
 
+def _water_year_label(date: pd.Timestamp, first_day_of_wy: int) -> int:
+    '''Returns the water year label (ending-year convention) for a given date.
+
+    WY starting Jan 1 -> label = calendar year.
+    WY starting Oct 1 (doy 274): Oct 1 1970 -> WY 1971; Jan 1 1971 -> WY 1971.
+    '''
+    if first_day_of_wy == 1:
+        return date.year
+    doy = date.dayofyear - 1 if date.is_leap_year and date.dayofyear > 59 else date.dayofyear
+    return date.year + 1 if doy >= first_day_of_wy else date.year
+
+
+def _group_by_water_year(
+    result: Result, column: str, first_day_of_wy: int
+) -> pd.DataFrame:
+    '''Group result column by water year, returning n (successes) and T (count).
+
+    Returns a DataFrame with index ['total', wy1, wy2, ...] and columns ['n', 'T'].
+    All values are floats; zero-success years have n=0.0 (not NA).
+    '''
+    df = result.df[[column]].copy()
+    df['_wy'] = [_water_year_label(ts, first_day_of_wy) for ts in df.index]
+
+    total_n = float(df[column].sum())
+    total_t = float(len(df))
+    rows: dict[str | int, dict[str, float]] = {
+        'total': {'n': total_n, 'T': total_t}
+    }
+    for wy, group in df.groupby('_wy'):
+        rows[int(wy)] = {'n': float(group[column].sum()), 'T': float(len(group))}
+
+    return pd.DataFrame(rows).T
+
+
+def compute_portion_series(
+    result: Result, column: str, first_day_of_wy: int = 1
+) -> pd.Series:
+    '''Compute portion (n/T) for one column of a Result, broken down by water year.
+
+    Returns a Series with index = ['total', wy1, wy2, ...] and float values
+    representing the fraction of time steps where the column value is 1.
+
+    Zero successes -> 0.0. NA (T=0 for a group) -> pd.NA.
+    WY label uses ending-year convention (US standard).
+    '''
+    groups = _group_by_water_year(result, column, first_day_of_wy)
+    t = groups['T']
+    n = groups['n']
+    return (n / t).where(t > 0, other=pd.NA)
+
+
+def build_summary_sheet(
+    scenario_results: dict[str, list[Result]],
+    component_name: str,
+    column: str,
+    first_day_of_wy: int = 1,
+) -> pd.DataFrame:
+    '''Build one summary sheet for a single column (characteristic or component).
+
+    Columns = scenario names (from scenario_results keys, in insertion order).
+    Index   = ['total', wy1, wy2, ...] (water year labels, ending-year convention).
+    Values  = portion (0.0–1.0); zero-success -> 0.0; NA year -> blank.
+
+    Args:
+        scenario_results: {scenario_name: [Result, ...]} for all scenarios.
+        component_name:   name of the component whose Results to use.
+        column:           characteristic or component column to compute metric for.
+        first_day_of_wy:  first day of water year (1–365, default 1 = Jan 1).
+    '''
+    series: dict[str, pd.Series] = {}
+    for scenario_name, results in scenario_results.items():
+        result = next(r for r in results if r.component.name == component_name)
+        series[scenario_name] = compute_portion_series(result, column, first_day_of_wy)
+    return pd.DataFrame(series)
+
+
 def write_results(
     scenario_results: dict[str, list[Result]],
     input_path: str,
     output_directory: str | None,
     write_to_excel: bool,
     overwrite: bool = True,
+    first_day_of_wy: int = 1,
 ) -> Path:
-    """Write per-scenario results to csv files or a single Excel file.
+    """Write per-scenario results to csv files or a single Excel file,
+    and always write a per-component summary Excel file.
 
     Each key in scenario_results is a scenario name (timeseries column header).
     Each value is the list of within-scenario component Results for that scenario.
 
     Args:
-        overwrite: When True (default), existing output files are replaced.
-            When False, a numeric suffix (__1, __2, …) is appended to avoid
-            overwriting existing files.
+        overwrite:        When True (default), existing files are replaced.
+            When False, a numeric suffix (__1, __2, …) is appended.
+        first_day_of_wy: First day of water year (1–365). Used for summary WY grouping.
 
     Returns the directory (or file parent) that received output files.
     """
@@ -43,17 +121,50 @@ def write_results(
                 for result in results:
                     sheet = _build_sheet_name(scenario_name, result.component.name)
                     result.df.to_excel(writer, sheet_name=sheet)
-        return output_path
+    else:
+        for (scenario_name, component_name), base_name in filename_map.items():
+            csv_path = output_path / (base_name + ".csv")
+            if not overwrite:
+                csv_path = _next_available_path(csv_path)
+            results = scenario_results[scenario_name]
+            result = next(r for r in results if r.component.name == component_name)
+            result.df.to_csv(csv_path)
 
-    for (scenario_name, component_name), base_name in filename_map.items():
-        csv_path = output_path / (base_name + ".csv")
-        if not overwrite:
-            csv_path = _next_available_path(csv_path)
-        # find the matching result
-        results = scenario_results[scenario_name]
-        result = next(r for r in results if r.component.name == component_name)
-        result.df.to_csv(csv_path)
+    write_summary(scenario_results, output_path, first_day_of_wy, overwrite)
     return output_path
+
+
+def write_summary(
+    scenario_results: dict[str, list[Result]],
+    output_path: Path,
+    first_day_of_wy: int = 1,
+    overwrite: bool = True,
+) -> None:
+    """Write one {component}_summary.xlsx per component to output_path.
+
+    Each file has one sheet per characteristic + one sheet for the component itself.
+    Columns = scenario names; index = ['total', wy1, wy2, ...].
+    Always written as Excel regardless of raw-data format.
+    """
+    first_scenario_results = next(iter(scenario_results.values()))
+    for result in first_scenario_results:
+        component = result.component
+        filename = _clean_variable_name(component.name) + '_summary.xlsx'
+        target = output_path / filename
+        if not overwrite:
+            target = _next_available_path(target)
+        with pd.ExcelWriter(target) as writer:
+            for char in component.characteristics:
+                sheet_name = _clean_variable_name(char.name)[:31]
+                sheet_df = build_summary_sheet(
+                    scenario_results, component.name, char.name, first_day_of_wy
+                )
+                sheet_df.to_excel(writer, sheet_name=sheet_name)
+            comp_sheet = _clean_variable_name(component.name)[:31]
+            comp_df = build_summary_sheet(
+                scenario_results, component.name, component.name, first_day_of_wy
+            )
+            comp_df.to_excel(writer, sheet_name=comp_sheet)
 
 
 def _build_all_filenames(
