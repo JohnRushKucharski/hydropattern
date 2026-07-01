@@ -152,6 +152,42 @@ class Timeseries:
         return Timeseries(file_path=path, data=df.apply(pd.to_numeric, errors='raise').sort_index(),
                           first_day_of_water_year=first_dowy)
 
+    @staticmethod
+    def from_excel(path: str, first_dowy: int = 1, date_format: str = '',
+                   sheet_name: int | str = 0) -> 'Timeseries':
+        '''
+        Returns a Timeseries object from an Excel file.
+
+        Expects:
+            - *.xlsx or *.xls file
+            - first column: datetime values (index)
+            - second to N columns: numeric time series values
+
+        Note:
+            Dates are normalised to datetime64[s] resolution so that years
+            beyond 2262 (which overflow nanosecond precision) are supported.
+            date_format is used when index cells are strings rather than
+            native Excel datetime values.
+        '''
+        df = pd.read_excel(path, header=0, index_col=0,
+                           sheet_name=sheet_name).rename_axis('time', axis=0)
+        # Index cells may be Python datetime objects (native Excel dates) or
+        # strings. Parse strings with date_format when provided.
+        import datetime as _dt
+        if df.index.dtype == object and not isinstance(df.index[0], _dt.datetime):
+            fmt = date_format or None
+            idx_parsed = pd.to_datetime(df.index, format=fmt)
+        else:
+            # datetime objects: convert via ISO strings → datetime64[D] so
+            # years > 2262 (nanosecond overflow) are handled correctly.
+            idx_parsed = pd.DatetimeIndex(
+                np.array([x.strftime('%Y-%m-%d') for x in df.index], dtype='datetime64[D]')
+            )
+        df.index = idx_parsed
+        df.index.name = 'time'
+        return Timeseries(file_path=path, data=df.apply(pd.to_numeric, errors='raise').sort_index(),
+                          first_day_of_water_year=first_dowy)
+
     def date_to_day_of_water_year(self, date: pd.Timestamp) -> int:
         '''
         Returns the day of the water year for the date.

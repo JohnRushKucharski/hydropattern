@@ -8,10 +8,8 @@ from hydropattern.errors import ParserErrorCode, raise_parser_error
 from hydropattern.patterns import CharacteristicType
 
 
-# ---------------------------------------------------------------------------
-# Normalized request shape (pure data — no executable closures)
-# ---------------------------------------------------------------------------
-
+#region Specification classes
+# validated raw toml like data.
 @dataclass(frozen=True)
 class CharacteristicSpec:
     '''Pure-data specification for a single characteristic.
@@ -54,8 +52,7 @@ def validate_metrics_not_empty(metrics: list[Any], characteristic: str) -> None:
             f'{characteristic} metrics are required but missing or empty.',
             characteristic=characteristic,
         )
-
-#import hydropattern.patterns as patterns
+#endregion
 
 def parse_components(data: dict[str, Any]) -> list[patterns.Component]:
     '''Build components. Delegates to parse_request + build_components.'''
@@ -674,9 +671,61 @@ def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
 #endregion
 
 
-# ---------------------------------------------------------------------------
-# Spec-builder functions (validated input → CharacteristicSpec pure data)
-# ---------------------------------------------------------------------------
+#region parse toml file like data into "normalized" data used to build specification objects.
+def parse_request(data: dict[str, Any]) -> Request:
+    '''Parse component configuration data into a stable normalized Request.
+
+    Produces pure-data ComponentSpec / CharacteristicSpec objects with no
+    executable closures. Equivalent valid inputs (e.g. whitespace-padded
+    operators) produce equal Request objects (comparable via ==).
+
+    Use build_components to convert the returned Request to executable
+    Component objects for evaluation.
+    '''
+    component_specs: list[ComponentSpec] = []
+    for component_name, elements in data.items():
+        char_specs: list[CharacteristicSpec] = []
+        verbose, success, order = True, True, 1
+        for name, metrics in elements.items():
+            match name:
+                case 'timing':
+                    order = 1 if verbose else order
+                    char_specs.append(_timing_spec(metrics, order))
+                case 'magnitude':
+                    order = 1 if verbose else order
+                    char_specs.append(_magnitude_spec(metrics, order))
+                case 'duration':
+                    char_specs.append(_duration_spec(metrics, order))
+                case 'rate_of_change':
+                    order = 1 if verbose else order
+                    char_specs.append(_rate_of_change_spec(metrics, order))
+                case 'frequency':
+                    char_specs.append(_frequency_spec(metrics, order))
+                case 'verbose':
+                    validate_verbose(order, metrics)
+                    verbose = metrics
+                case 'success_pattern':
+                    validate_boolean(name, metrics)
+                    success = metrics
+                case _:
+                    raise_parser_error(
+                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
+                        f'Characteristic {name} not found.',
+                        component=component_name,
+                        characteristic=name,
+                    )
+            order += 1
+        component_specs.append(ComponentSpec(
+            name=component_name,
+            characteristics=tuple(char_specs),
+            is_success_pattern=success,
+            verbose=verbose,
+        ))
+    return Request(components=tuple(component_specs))
+#endregion
+
+#region characteristic specification object (class) building functions
+# These functions build CharacteristicSpecification objects from validated metrics.
 
 def _timing_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     validate_timing_metrics(metrics)
@@ -769,68 +818,9 @@ def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
         ma_periods=ma_periods,
         order=order,
     )
+#endregion
 
-
-# ---------------------------------------------------------------------------
-# parse_request — stable normalized output
-# ---------------------------------------------------------------------------
-
-def parse_request(data: dict[str, Any]) -> Request:
-    '''Parse component configuration data into a stable normalized Request.
-
-    Produces pure-data ComponentSpec / CharacteristicSpec objects with no
-    executable closures. Equivalent valid inputs (e.g. whitespace-padded
-    operators) produce equal Request objects (comparable via ==).
-
-    Use build_components to convert the returned Request to executable
-    Component objects for evaluation.
-    '''
-    component_specs: list[ComponentSpec] = []
-    for component_name, elements in data.items():
-        char_specs: list[CharacteristicSpec] = []
-        verbose, success, order = True, True, 1
-        for name, metrics in elements.items():
-            match name:
-                case 'timing':
-                    order = 1 if verbose else order
-                    char_specs.append(_timing_spec(metrics, order))
-                case 'magnitude':
-                    order = 1 if verbose else order
-                    char_specs.append(_magnitude_spec(metrics, order))
-                case 'duration':
-                    char_specs.append(_duration_spec(metrics, order))
-                case 'rate_of_change':
-                    order = 1 if verbose else order
-                    char_specs.append(_rate_of_change_spec(metrics, order))
-                case 'frequency':
-                    char_specs.append(_frequency_spec(metrics, order))
-                case 'verbose':
-                    validate_verbose(order, metrics)
-                    verbose = metrics
-                case 'success_pattern':
-                    validate_boolean(name, metrics)
-                    success = metrics
-                case _:
-                    raise_parser_error(
-                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
-                        f'Characteristic {name} not found.',
-                        component=component_name,
-                        characteristic=name,
-                    )
-            order += 1
-        component_specs.append(ComponentSpec(
-            name=component_name,
-            characteristics=tuple(char_specs),
-            is_success_pattern=success,
-            verbose=verbose,
-        ))
-    return Request(components=tuple(component_specs))
-
-
-# ---------------------------------------------------------------------------
-# build_components — builder: Request → list[Component] (executable)
-# ---------------------------------------------------------------------------
-
+#region characteristic building function - from CharacteristicSpecification objects.
 def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
     '''Convert a CharacteristicSpec to an executable Characteristic.'''
     label = spec.type.name.lower()
@@ -893,8 +883,9 @@ def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
                 type=spec.type,
             )
     raise ValueError(f'Unknown characteristic type: {spec.type}')  # unreachable
+#endregion
 
-
+#region component building function - from ComponentSpecification objects.
 def build_components(request: Request) -> list[patterns.Component]:
     '''Convert a Request to a list of executable Component objects.
 
@@ -908,3 +899,4 @@ def build_components(request: Request) -> list[patterns.Component]:
         )
         for spec in request.components
     ]
+#endregion

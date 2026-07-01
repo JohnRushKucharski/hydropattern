@@ -319,11 +319,11 @@ class TestCLIOutputModes(unittest.TestCase):
             input_path = temp_path / 'config.toml'
             input_path.write_text('', encoding='utf-8')
 
-            write_output([self._sample_result()], str(input_path), None, False)
+            write_output({'flow': [self._sample_result()]}, str(input_path), None, False)
 
             expected_output_dir = temp_path / 'config_output'
             self.assertTrue(expected_output_dir.exists())
-            self.assertTrue((expected_output_dir / '000_flow_sample_component.csv').exists())
+            self.assertTrue((expected_output_dir / 'flow_sample_component.csv').exists())
 
     def test_write_output_default_excel_creates_single_file(self):
         '''Default excel mode should write a single xlsx in the input directory.'''
@@ -332,7 +332,7 @@ class TestCLIOutputModes(unittest.TestCase):
             input_path = temp_path / 'config.toml'
             input_path.write_text('', encoding='utf-8')
 
-            write_output([self._sample_result()], str(input_path), None, True)
+            write_output({'flow': [self._sample_result()]}, str(input_path), None, True)
 
             self.assertTrue((temp_path / 'config_output.xlsx').exists())
             self.assertFalse((temp_path / 'config_output').exists())
@@ -345,46 +345,87 @@ class TestCLIOutputModes(unittest.TestCase):
             custom_output_dir = temp_path / 'custom_out'
             input_path.write_text('', encoding='utf-8')
 
-            write_output([self._sample_result()], str(input_path), str(custom_output_dir), False)
+            write_output({'flow': [self._sample_result()]}, str(input_path), str(custom_output_dir), False)
 
             self.assertTrue(custom_output_dir.exists())
-            self.assertTrue((custom_output_dir / '000_flow_sample_component.csv').exists())
+            self.assertTrue((custom_output_dir / 'flow_sample_component.csv').exists())
             self.assertFalse((temp_path / 'config_output').exists())
 
     def test_write_output_csv_filenames_are_deterministic_for_multiple_results(self):
-        '''CSV filenames should be stable and include order, series, and component context.'''
+        '''CSV filenames should be stable and include scenario and component context.'''
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_path = temp_path / 'config.toml'
             input_path.write_text('', encoding='utf-8')
 
-            results = [
-                self._sample_result('alpha component'),
-                self._sample_result('beta_component'),
-            ]
-            write_output(results, str(input_path), None, False)
+            scenario_results = {
+                'flow': [
+                    self._sample_result('alpha component'),
+                    self._sample_result('beta_component'),
+                ]
+            }
+            write_output(scenario_results, str(input_path), None, False)
 
             expected_output_dir = temp_path / 'config_output'
             filenames = sorted(path.name for path in expected_output_dir.glob('*.csv'))
             self.assertEqual(
                 filenames,
                 [
-                    '000_flow_alpha_component.csv',
-                    '001_flow_beta_component.csv',
+                    'flow_alpha_component.csv',
+                    'flow_beta_component.csv',
                 ],
             )
 
-    def test_write_output_csv_is_collision_free_across_repeated_runs(self):
-        '''Repeated runs should not overwrite existing CSV outputs.'''
+    def test_write_output_multi_scenario_produces_per_scenario_files(self):
+        '''Multi-scenario runs produce one file per scenario×component, labeled by scenario.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            scenario_results = {
+                'scenario_a': [self._sample_result('comp1')],
+                'scenario_b': [self._sample_result('comp1')],
+            }
+            write_output(scenario_results, str(input_path), None, False)
+
+            expected_output_dir = temp_path / 'config_output'
+            filenames = sorted(path.name for path in expected_output_dir.glob('*.csv'))
+            self.assertEqual(
+                filenames,
+                [
+                    'scenario_a_comp1.csv',
+                    'scenario_b_comp1.csv',
+                ],
+            )
+
+    def test_write_output_overwrite_default_replaces_existing_file(self):
+        '''Default overwrite=True should silently replace existing output files.'''
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_path = temp_path / 'config.toml'
             input_path.write_text('', encoding='utf-8')
 
             result = self._sample_result('alpha component')
-            write_output([result], str(input_path), None, False)
-            write_output([result], str(input_path), None, False)
+            write_output({'flow': [result]}, str(input_path), None, False)
+            write_output({'flow': [result]}, str(input_path), None, False)
 
             expected_output_dir = temp_path / 'config_output'
-            self.assertTrue((expected_output_dir / '000_flow_alpha_component.csv').exists())
-            self.assertTrue((expected_output_dir / '000_flow_alpha_component__1.csv').exists())
+            csv_files = list(expected_output_dir.glob('*.csv'))
+            self.assertEqual(len(csv_files), 1)
+            self.assertEqual(csv_files[0].name, 'flow_alpha_component.csv')
+
+    def test_write_output_no_overwrite_appends_suffix(self):
+        '''no-overwrite mode should append __1 suffix instead of replacing existing files.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            result = self._sample_result('alpha component')
+            write_output({'flow': [result]}, str(input_path), None, False, overwrite=False)
+            write_output({'flow': [result]}, str(input_path), None, False, overwrite=False)
+
+            expected_output_dir = temp_path / 'config_output'
+            self.assertTrue((expected_output_dir / 'flow_alpha_component.csv').exists())
+            self.assertTrue((expected_output_dir / 'flow_alpha_component__1.csv').exists())

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import typer
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
@@ -40,13 +41,20 @@ def run(path: str = typer.Argument(...,
                                             help='''If true, all outputs are written
                                             to a single Excel file.
                                             If false, each time series output is written
-                                            to a separate .csv file.''')):
+                                            to a separate .csv file.'''),
+        overwrite: bool = typer.Option(True, "--overwrite/--no-overwrite",
+                                       help='''If true (default), existing output files
+                                       are replaced on each run.
+                                       If false, a numeric suffix is appended to avoid
+                                       overwriting existing files.''')):
     '''Run the hydropattern command line interface.'''
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
-    results = evaluate_components(timeseries.data, components)
-    write_output(results, path, output_directory, write_to_excel)
+    scenarios = split_scenarios(timeseries.data)
+    scenario_results = {name: evaluate_components(df, components)
+                        for name, df in scenarios.items()}
+    write_output(scenario_results, path, output_directory, write_to_excel, overwrite)
 
     if plot:
         xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
@@ -75,11 +83,29 @@ def load_timeseries(data: dict[str, Any]) -> Timeseries:
             field='path',
         )
     path = ts_data['path']
-    date_format = ts_data['date_format'] if 'date_format' in ts_data else ''
     first_day_of_water_year = (
         ts_data['first_day_of_water_year'] if 'first_day_of_water_year' in ts_data else 1
     )
+    ext = Path(path).suffix.lower()
+    if ext in ('.xlsx', '.xls'):
+        sheet_name = ts_data.get('sheet_name', 0)
+        date_format = ts_data.get('date_format', '')
+        return Timeseries.from_excel(path, first_day_of_water_year, date_format, sheet_name)
+    date_format = ts_data.get('date_format', '')
     return Timeseries.from_csv(path, first_day_of_water_year, date_format)
+
+def split_scenarios(data: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    '''Split a multi-column timeseries into one DataFrame per scenario.
+
+    The last column is always 'dowy' and is included in every scenario slice.
+    Each returned DataFrame has exactly two columns: the scenario data column
+    and 'dowy', matching the shape expected by evaluate_component.
+
+    A single-column timeseries (one data column + dowy) returns a dict with
+    one entry — the degenerate single-scenario case.
+    '''
+    dowy_col = data.columns[-1]
+    return {col: data[[col, dowy_col]] for col in data.columns[:-1]}
 
 def load_components(data: dict[str, Any]) -> list[Component]:
     '''Parse components from the configuration file.'''
@@ -91,10 +117,12 @@ def load_components(data: dict[str, Any]) -> list[Component]:
         )
     return build_components(parse_request(data['components']))
 
-def write_output(results: list[Result],
-                 input_path: str, output_directory: str | None, write_to_excel: bool):
+def write_output(scenario_results: dict[str, list[Result]],
+                 input_path: str, output_directory: str | None,
+                 write_to_excel: bool, overwrite: bool = True):
     '''Write output using the formatter entrypoint.'''
-    output_path = write_results(results, input_path, output_directory, write_to_excel)
+    output_path = write_results(scenario_results, input_path, output_directory,
+                                write_to_excel, overwrite)
     if write_to_excel:
         output_file = output_path / (Path(input_path).stem + '_output.xlsx')
         typer.echo(f'Output written to: {output_file}.')
