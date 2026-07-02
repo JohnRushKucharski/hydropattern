@@ -36,10 +36,10 @@
 # ------------------IDENTIFY TIMESERIES------------------ #
 [timeseries]
 path = "examples/single_timeseries.csv"
-date_format = "%Y-%m-%d"        # datetime format code. 
+date_format = "%Y-%m-%d"        # datetime format code. defaults to '' (pandas auto-detects).
 # options:
 # first_day_of_water_year = 1   # defaults to 1. i.e., 1 = 1 January
-# columns = [1, 2, 3]           # columns containing hydrolgic data, defaults to [1].
+# sheet_name = 0                # Excel sheet name/index, ignored for *.csv. defaults to 0.
 
 # -------------------DEFINE COMPONENTS------------------- #
 # first component.
@@ -77,18 +77,21 @@ magnitude = [">", 2.0]
 frequency = [">=", 1, 5]         # at least once every 5 years.
 
 # -------------Timeseries Parameter Notes---------------- #
-# Path: must be path to *.csv file, with following header row:
+# Path: must be path to *.csv or *.xlsx/*.xls file, with following header row:
 #   time, <column_name_1>, ..., <column_name_n>
-# Time_format: string datetime format code
+#   - required. Each data column beyond 'time' is treated as its own scenario.
+# Date_format: string datetime format code
+#   - optional, defaults to '' (pandas auto-detects the format).
 #   ex: use "%Y-%m-%d" for date in format "1900-01-31" (i.e., 31 Jan 1900).
 #   see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior 
 # First_day_of_water_year: day of year associated with start of water year.  
-#   - defaults to 1 (i.e., 01 Jan).
+#   - optional, defaults to 1 (i.e., 01 Jan).
 #   - based on 365 day year (i.e. 59 = 28 Feb, 60 = 01 Mar)
 #   - must be positive integer on range [1, 365].
 #   - note during leap years (i.e. day of year, day of water year is same for 28 and 29 Feb)
-# Columns: file columns containing hydrologic data
-#   - must be positive integer, since column 0 must be 'time' column.
+# Sheet_name: Excel sheet name or index to read.
+#   - optional, defaults to 0 (first sheet). Ignored for *.csv files.
+# See docs/user/reference.md for the full documented [timeseries] field reference.
 # ------------------------------------------------------- #
 
 # -------------Characteristic Metric Notes--------------- #

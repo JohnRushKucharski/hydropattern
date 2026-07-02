@@ -1,5 +1,5 @@
 '''Parses data from configuration file.'''
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Callable
 
@@ -60,6 +60,55 @@ class MetricMode(Enum):
 class MetricOptions:
     '''Pure-data specification for formatter/metric behavior options.'''
     mode: MetricMode = MetricMode.PORTION
+
+
+@dataclass(frozen=True)
+class ClimateCanvasPlotOptions:
+    '''Pure-data specification for [output.plot.climate-canvas] rendering options.
+
+    title/zlabel default to None: when unset, callers fall back to a dynamic default
+    (title -> component name; zlabel -> configured metric mode value) rather than a
+    static string, since those defaults vary per component/run.
+    '''
+    interpolate: bool = True
+    show: bool = False
+    title: str | None = None
+    xlabel: str = 'Precipitation Delta (%)'
+    ylabel: str = 'Temperature Delta (C)'
+    zlabel: str | None = None
+
+
+@dataclass(frozen=True)
+class PlotOptions:
+    '''Pure-data specification for the [output.plot] section.'''
+    enabled: bool = False
+    climate_canvas: ClimateCanvasPlotOptions = field(default_factory=ClimateCanvasPlotOptions)
+
+
+@dataclass(frozen=True)
+class OutputOptions:
+    '''Pure-data specification for the top-level [output] section.'''
+    directory: str | None = None
+    overwrite: bool = True
+    excel: bool = True
+    metric: MetricOptions = field(default_factory=MetricOptions)
+    plot: PlotOptions = field(default_factory=PlotOptions)
+
+
+@dataclass(frozen=True)
+class TimeseriesSpec:
+    '''Pure-data specification for the [timeseries] TOML section.
+
+    path: required. File path to a *.csv or *.xlsx/*.xls timeseries.
+    first_day_of_water_year: day of year (1-365) the water year starts on. Defaults to 1.
+    date_format: strftime/strptime format code for the 'time' column. Defaults to ''
+        (pandas infers the format automatically).
+    sheet_name: Excel sheet name/index to read. Ignored for *.csv files. Defaults to 0.
+    '''
+    path: str
+    first_day_of_water_year: int = 1
+    date_format: str = ''
+    sheet_name: int | str = 0
 
 
 def validate_metrics_not_empty(metrics: list[Any], characteristic: str) -> None:
@@ -745,31 +794,30 @@ def parse_request(data: dict[str, Any]) -> Request:
 #region metric/formatter options
 _VALID_METRIC_MODES: frozenset[str] = frozenset(m.value for m in MetricMode)
 
-def parse_metric_options(data: dict[str, Any]) -> MetricOptions:
-    '''Parse the optional top-level [metric] section into a MetricOptions spec.
+def parse_metric_options(section: Any = None, section_name: str = 'metric') -> MetricOptions:
+    '''Parse an already-extracted metric options section (e.g. [output.metric]) into MetricOptions.
 
     Contract
     --------
-        - Section is optional. Absent [metric] -> MetricOptions(mode=MetricMode.PORTION).
-        - 'mode' key is optional within [metric]. Absent -> defaults to 'portion'.
+        - section is optional. None (absent) -> MetricOptions(mode=MetricMode.PORTION).
+        - 'mode' key is optional within the section. Absent -> defaults to 'portion'.
         - 'mode' must be one of: 'portion', 'percentage', 'return_period'.
-        - Unrecognized keys within [metric] raise PARSER_UNKNOWN_OPTION.
+        - Unrecognized keys within the section raise PARSER_UNKNOWN_OPTION.
 
     Raises
     ------
-        HydropatternError: PARSER_INVALID_TYPE if [metric] is not a table (dict).
+        HydropatternError: PARSER_INVALID_TYPE if section is present but not a table (dict).
         HydropatternError: PARSER_INVALID_VALUE if 'mode' is not a recognized value.
         HydropatternError: PARSER_UNKNOWN_OPTION if an unrecognized key is present.
     '''
-    if 'metric' not in data:
+    if section is None:
         return MetricOptions()
 
-    section = data['metric']
     if not isinstance(section, dict):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
-            f'[metric] section must be a table, got: {section!r}.',
-            section='metric',
+            f'[{section_name}] section must be a table, got: {section!r}.',
+            section=section_name,
         )
 
     mode = MetricMode.PORTION
@@ -779,9 +827,9 @@ def parse_metric_options(data: dict[str, Any]) -> MetricOptions:
                 if not isinstance(value, str) or value not in _VALID_METRIC_MODES:
                     raise_parser_error(
                         ParserErrorCode.INVALID_VALUE,
-                        f'metric.mode must be one of {sorted(_VALID_METRIC_MODES)}, '
+                        f'{section_name}.mode must be one of {sorted(_VALID_METRIC_MODES)}, '
                         f'got: {value!r}.',
-                        section='metric',
+                        section=section_name,
                         field='mode',
                         value=value,
                     )
@@ -789,11 +837,207 @@ def parse_metric_options(data: dict[str, Any]) -> MetricOptions:
             case _:
                 raise_parser_error(
                     ParserErrorCode.UNKNOWN_OPTION,
-                    f'Unrecognized [metric] option: {key!r}.',
-                    section='metric',
+                    f'Unrecognized [{section_name}] option: {key!r}.',
+                    section=section_name,
                     field=key,
                 )
     return MetricOptions(mode=mode)
+#endregion
+
+#region output options
+def _require_type(value: Any, expected: type | tuple[type, ...], section: str, field_name: str,
+                   ) -> None:
+    '''Raise PARSER_INVALID_TYPE if value is not an instance of expected.'''
+    if not isinstance(value, expected):
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'{section}.{field_name} must be {expected}, got: {value!r}.',
+            section=section,
+            field=field_name,
+            value=value,
+        )
+
+def parse_climate_canvas_plot_options(section: Any = None) -> ClimateCanvasPlotOptions:
+    '''Parse the optional [output.plot.climate-canvas] section into ClimateCanvasPlotOptions.
+
+    Contract
+    --------
+        - section is optional. None (absent) -> ClimateCanvasPlotOptions() (all defaults).
+        - interpolate/show: bool, default True/False respectively.
+        - title/zlabel: str or omitted (None); None means "use the dynamic default"
+          (title -> component name, zlabel -> configured metric mode value).
+        - xlabel/ylabel: str, with documented defaults.
+        - Unrecognized keys raise PARSER_UNKNOWN_OPTION.
+    '''
+    name = 'output.plot.climate-canvas'
+    if section is None:
+        return ClimateCanvasPlotOptions()
+    if not isinstance(section, dict):
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'[{name}] section must be a table, got: {section!r}.',
+            section=name,
+        )
+
+    opts = ClimateCanvasPlotOptions()
+    for key, value in section.items():
+        match key:
+            case 'interpolate':
+                _require_type(value, bool, name, 'interpolate')
+                opts = replace(opts, interpolate=value)
+            case 'show':
+                _require_type(value, bool, name, 'show')
+                opts = replace(opts, show=value)
+            case 'title':
+                _require_type(value, str, name, 'title')
+                opts = replace(opts, title=value)
+            case 'xlabel':
+                _require_type(value, str, name, 'xlabel')
+                opts = replace(opts, xlabel=value)
+            case 'ylabel':
+                _require_type(value, str, name, 'ylabel')
+                opts = replace(opts, ylabel=value)
+            case 'zlabel':
+                _require_type(value, str, name, 'zlabel')
+                opts = replace(opts, zlabel=value)
+            case _:
+                raise_parser_error(
+                    ParserErrorCode.UNKNOWN_OPTION,
+                    f'Unrecognized [{name}] option: {key!r}.',
+                    section=name,
+                    field=key,
+                )
+    return opts
+
+def parse_plot_options(section: Any = None) -> PlotOptions:
+    '''Parse the optional [output.plot] section into PlotOptions.
+
+    Contract
+    --------
+        - section is optional. None (absent) -> PlotOptions() (enabled=False, defaults).
+        - 'enabled': bool, default False.
+        - 'climate-canvas': table, delegated to parse_climate_canvas_plot_options.
+        - Unrecognized keys raise PARSER_UNKNOWN_OPTION.
+    '''
+    name = 'output.plot'
+    if section is None:
+        return PlotOptions()
+    if not isinstance(section, dict):
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'[{name}] section must be a table, got: {section!r}.',
+            section=name,
+        )
+
+    enabled = False
+    climate_canvas = ClimateCanvasPlotOptions()
+    for key, value in section.items():
+        match key:
+            case 'enabled':
+                _require_type(value, bool, name, 'enabled')
+                enabled = value
+            case 'climate-canvas':
+                climate_canvas = parse_climate_canvas_plot_options(value)
+            case _:
+                raise_parser_error(
+                    ParserErrorCode.UNKNOWN_OPTION,
+                    f'Unrecognized [{name}] option: {key!r}.',
+                    section=name,
+                    field=key,
+                )
+    return PlotOptions(enabled=enabled, climate_canvas=climate_canvas)
+
+def parse_output_options(data: dict[str, Any]) -> OutputOptions:
+    '''Parse the optional top-level [output] section into OutputOptions.
+
+    Contract
+    --------
+        - Section is optional. Absent [output] -> OutputOptions() (all defaults).
+        - 'directory': str or omitted (None means auto-derived output directory).
+        - 'overwrite'/'excel': bool, default True/True respectively.
+        - 'metric': table, delegated to parse_metric_options(section_name='output.metric').
+        - 'plot': table, delegated to parse_plot_options.
+        - Unrecognized keys raise PARSER_UNKNOWN_OPTION.
+    '''
+    name = 'output'
+    if name not in data:
+        return OutputOptions()
+    section = data[name]
+    if not isinstance(section, dict):
+        raise_parser_error(
+            ParserErrorCode.INVALID_TYPE,
+            f'[{name}] section must be a table, got: {section!r}.',
+            section=name,
+        )
+
+    directory: str | None = None
+    overwrite = True
+    excel = True
+    metric = MetricOptions()
+    plot = PlotOptions()
+    for key, value in section.items():
+        match key:
+            case 'directory':
+                _require_type(value, str, name, 'directory')
+                directory = value
+            case 'overwrite':
+                _require_type(value, bool, name, 'overwrite')
+                overwrite = value
+            case 'excel':
+                _require_type(value, bool, name, 'excel')
+                excel = value
+            case 'metric':
+                metric = parse_metric_options(value, section_name='output.metric')
+            case 'plot':
+                plot = parse_plot_options(value)
+            case _:
+                raise_parser_error(
+                    ParserErrorCode.UNKNOWN_OPTION,
+                    f'Unrecognized [{name}] option: {key!r}.',
+                    section=name,
+                    field=key,
+                )
+    return OutputOptions(
+        directory=directory, overwrite=overwrite, excel=excel, metric=metric, plot=plot,
+    )
+#endregion
+
+#region timeseries options
+def parse_timeseries_spec(data: dict[str, Any]) -> TimeseriesSpec:
+    '''Parse the required top-level [timeseries] section into a TimeseriesSpec.
+
+    Contract
+    --------
+        - Section is required. Absent [timeseries] -> PARSER_MISSING_SECTION.
+        - 'path' is required within [timeseries]. Absent -> PARSER_MISSING_FIELD.
+        - 'first_day_of_water_year', 'date_format', 'sheet_name' are optional;
+          see TimeseriesSpec for defaults.
+
+    Raises
+    ------
+        HydropatternError: PARSER_MISSING_SECTION if [timeseries] is absent.
+        HydropatternError: PARSER_MISSING_FIELD if 'path' is absent.
+    '''
+    if 'timeseries' not in data:
+        raise_parser_error(
+            ParserErrorCode.MISSING_SECTION,
+            'No timeseries data in configuration file.',
+            section='timeseries',
+        )
+    section = data['timeseries']
+    if 'path' not in section:
+        raise_parser_error(
+            ParserErrorCode.MISSING_FIELD,
+            'No path in timeseries data.',
+            section='timeseries',
+            field='path',
+        )
+    return TimeseriesSpec(
+        path=section['path'],
+        first_day_of_water_year=section.get('first_day_of_water_year', 1),
+        date_format=section.get('date_format', ''),
+        sheet_name=section.get('sheet_name', 0),
+    )
 #endregion
 
 #region characteristic specification object (class) building functions

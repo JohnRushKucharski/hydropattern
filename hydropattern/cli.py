@@ -1,6 +1,7 @@
 '''Entry point for the hydropattern command line interface.'''
 
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -8,13 +9,17 @@ import pandas as pd
 import typer
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
-from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.errors import CliErrorCode, ParserErrorCode, raise_cli_error, raise_parser_error
 from hydropattern.formatters import build_summary_sheet, write_results
 from hydropattern.parsers import (
+    ClimateCanvasPlotOptions,
     MetricOptions,
+    OutputOptions,
     build_components,
     parse_metric_options,
+    parse_output_options,
     parse_request,
+    parse_timeseries_spec,
 )
 from hydropattern.patterns import Component, Result, evaluate_components
 from hydropattern.scenario_grid import build_grid, require_scenario_grid
@@ -29,43 +34,131 @@ def callback():
 @app.command()
 def run(path: str = typer.Argument(...,
                                    help='Path to *.toml configuration file.'),
-        plot: bool = typer.Option(False, "--plot",
-                                  help='Plot response surface.'),
+        plot: bool = typer.Option(None, "--plot/--no-plot",
+                                  help='''Plot response surface. Defaults to the
+                                  configuration file's [output.plot].enabled
+                                  (false if unset).'''),
         output_directory: str = typer.Option(None, "--output-dir",
                                              help='''Directory for output files.
-                                             By default, '_output' is appended to the path
-                                             file name, and a directory with that name is
-                                             created in the path directory (used for both
-                                             Excel and csv output).'''),
-        write_to_excel: bool = typer.Option(True, "--excel/--no-excel",
-                                            help='''If true (default), all outputs are written
-                                            to Excel files.
-                                            Use --no-excel to write per-scenario csv files
-                                            instead.'''),
-        overwrite: bool = typer.Option(True, "--overwrite/--no-overwrite",
-                                       help='''If true (default), existing output files
-                                       are replaced on each run.
-                                       If false, a numeric suffix is appended to avoid
-                                       overwriting existing files.'''),
-        interp: bool = typer.Option(True, "--interp/--no-interp",
-                                    help='''If true (default), interpolate the response
-                                    surface plot to a finer grid. Only affects --plot.'''),
-        show: bool = typer.Option(False, "--show",
+                                             Defaults to the configuration file's
+                                             [output].directory. If neither is given,
+                                             '_output' is appended to the path file name,
+                                             and a directory with that name is created
+                                             in the path directory (used for both Excel
+                                             and csv output).'''),
+        write_to_excel: bool = typer.Option(None, "--excel/--no-excel",
+                                            help='''If true, all outputs are written
+                                            to Excel files. Use --no-excel to write
+                                            per-scenario csv files instead. Defaults to
+                                            the configuration file's [output].excel
+                                            (true if unset).'''),
+        overwrite: bool = typer.Option(None, "--overwrite/--no-overwrite",
+                                       help='''If true, existing output files are
+                                       replaced on each run. If false, a numeric suffix
+                                       is appended to avoid overwriting existing files.
+                                       Defaults to the configuration file's
+                                       [output].overwrite (true if unset).'''),
+        interp: bool = typer.Option(None, "--interp/--no-interp",
+                                    help='''If true, interpolate the response surface
+                                    plot to a finer grid. Only affects --plot. Defaults
+                                    to the configuration file's
+                                    [output.plot.climate-canvas].interpolate
+                                    (true if unset).'''),
+        show: bool = typer.Option(None, "--show/--no-show",
                                   help='''Also open an interactive window for each
-                                  response surface plot. Only affects --plot.''')):
+                                  response surface plot. Only affects --plot. Defaults
+                                  to the configuration file's
+                                  [output.plot.climate-canvas].show (false if unset).'''),
+        run_toml_options: bool = typer.Option(False, "--run-toml-options/--override-toml-options",
+                                              help='''If true, run exactly as specified in
+                                              the configuration file's [output] section;
+                                              no other output-related CLI option
+                                              (--plot/--no-plot, --output-dir, --excel/--no-excel,
+                                              --overwrite/--no-overwrite, --interp/--no-interp,
+                                              --show/--no-show) may also be passed explicitly,
+                                              or a CLI_CONFLICTING_OPTIONS error is raised.
+                                              If false (default), any explicit CLI option
+                                              overrules a conflicting configuration file
+                                              option.''')):
     '''Run the hydropattern command line interface.'''
+    if run_toml_options:
+        require_no_conflicting_cli_options(
+            plot=plot, output_directory=output_directory, write_to_excel=write_to_excel,
+            overwrite=overwrite, interp=interp, show=show,
+        )
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
-    metric_options = load_metric_options(data)
+    output_options = resolve_output_options(data, plot, output_directory, write_to_excel,
+                                            overwrite, interp, show)
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {name: evaluate_components(df, components)
                         for name, df in scenarios.items()}
-    output_path = write_output(scenario_results, path, output_directory, write_to_excel,
-                               overwrite, timeseries.first_day_of_water_year, metric_options)
-    if plot:
-        plot_components(scenario_results, output_path, metric_options,
-                        timeseries.first_day_of_water_year, interp, show)
+    output_path = write_output(scenario_results, path, output_options.directory,
+                               output_options.excel, output_options.overwrite,
+                               timeseries.first_day_of_water_year, output_options.metric)
+    if output_options.plot.enabled:
+        plot_components(scenario_results, output_path, output_options.metric,
+                        timeseries.first_day_of_water_year, output_options.plot.climate_canvas)
+
+def require_no_conflicting_cli_options(plot: bool | None,
+                                       output_directory: str | None,
+                                       write_to_excel: bool | None,
+                                       overwrite: bool | None,
+                                       interp: bool | None,
+                                       show: bool | None) -> None:
+    '''Raise if any explicit output-related CLI option was passed alongside --run-toml-options.
+
+    --run-toml-options means "run exactly as specified in the configuration file", so no
+    other output-related CLI flag may be explicitly passed at the same time.
+    '''
+    conflicts = {
+        name: value for name, value in {
+            'plot': plot,
+            'output_directory': output_directory,
+            'write_to_excel': write_to_excel,
+            'overwrite': overwrite,
+            'interp': interp,
+            'show': show,
+        }.items() if value is not None
+    }
+    if conflicts:
+        raise_cli_error(
+            CliErrorCode.CONFLICTING_OPTIONS,
+            '--run-toml-options was passed with conflicting CLI option(s): '
+            f'{", ".join(conflicts)}. Remove these options or use --override-toml-options.',
+            options=list(conflicts),
+        )
+
+def resolve_output_options(data: dict[str, Any],
+                           plot: bool | None,
+                           output_directory: str | None,
+                           write_to_excel: bool | None,
+                           overwrite: bool | None,
+                           interp: bool | None,
+                           show: bool | None) -> OutputOptions:
+    '''Merge explicit CLI flags with the configuration file's [output] section.
+
+    CLI flags default to None (not explicitly passed by the user). An explicit
+    (non-None) CLI value always wins; otherwise the toml value applies (or that
+    value's own default when the toml is silent too).
+    '''
+    toml_options = parse_output_options(data)
+    climate_canvas = toml_options.plot.climate_canvas
+    if interp is not None:
+        climate_canvas = replace(climate_canvas, interpolate=interp)
+    if show is not None:
+        climate_canvas = replace(climate_canvas, show=show)
+    plot_options = replace(toml_options.plot, climate_canvas=climate_canvas)
+    if plot is not None:
+        plot_options = replace(plot_options, enabled=plot)
+    return replace(
+        toml_options,
+        directory=output_directory if output_directory is not None else toml_options.directory,
+        overwrite=overwrite if overwrite is not None else toml_options.overwrite,
+        excel=write_to_excel if write_to_excel is not None else toml_options.excel,
+        plot=plot_options,
+    )
 
 def load_config_file(path: str) -> dict[str, Any]:
     '''Load a configuration file.'''
@@ -75,31 +168,13 @@ def load_config_file(path: str) -> dict[str, Any]:
 
 def load_timeseries(data: dict[str, Any]) -> Timeseries:
     '''Parse a timeseries from the configuration file.'''
-    if 'timeseries' not in data:
-        raise_parser_error(
-            ParserErrorCode.MISSING_SECTION,
-            'No timeseries data in configuration file.',
-            section='timeseries',
-        )
-    ts_data = data['timeseries']
-    if 'path' not in ts_data:
-        raise_parser_error(
-            ParserErrorCode.MISSING_FIELD,
-            'No path in timeseries data.',
-            section='timeseries',
-            field='path',
-        )
-    path = ts_data['path']
-    first_day_of_water_year = (
-        ts_data['first_day_of_water_year'] if 'first_day_of_water_year' in ts_data else 1
-    )
-    ext = Path(path).suffix.lower()
+    spec = parse_timeseries_spec(data)
+    ext = Path(spec.path).suffix.lower()
     if ext in ('.xlsx', '.xls'):
-        sheet_name = ts_data.get('sheet_name', 0)
-        date_format = ts_data.get('date_format', '')
-        return Timeseries.from_excel(path, first_day_of_water_year, date_format, sheet_name)
-    date_format = ts_data.get('date_format', '')
-    return Timeseries.from_csv(path, first_day_of_water_year, date_format)
+        return Timeseries.from_excel(
+            spec.path, spec.first_day_of_water_year, spec.date_format, spec.sheet_name
+        )
+    return Timeseries.from_csv(spec.path, spec.first_day_of_water_year, spec.date_format)
 
 def split_scenarios(data: pd.DataFrame) -> dict[str, pd.DataFrame]:
     '''Split a multi-column timeseries into one DataFrame per scenario.
@@ -125,11 +200,12 @@ def load_components(data: dict[str, Any]) -> list[Component]:
     return build_components(parse_request(data['components']))
 
 def load_metric_options(data: dict[str, Any]) -> MetricOptions:
-    '''Parse the optional [metric] section from the configuration file.
+    '''Parse the optional [output.metric] section from the configuration file.
 
-    Absent [metric] section -> MetricOptions() (default mode: portion).
+    Absent [output] or [output.metric] section -> MetricOptions() (default mode: portion).
     '''
-    return parse_metric_options(data)
+    output_section = data.get('output', {})
+    return parse_metric_options(output_section.get('metric'), section_name='output.metric')
 
 def write_output(scenario_results: dict[str, list[Result]],
                  input_path: str, output_directory: str | None,
@@ -149,11 +225,15 @@ def write_output(scenario_results: dict[str, list[Result]],
 
 def plot_components(scenario_results: dict[str, list[Result]],
                     output_path: Path, metric_options: MetricOptions,
-                    first_day_of_wy: int, interpolate: bool, show: bool) -> None:
+                    first_day_of_wy: int,
+                    climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions()) -> None:
     '''Save one response-surface grid csv + plot png per component to output_path.
 
     Requires scenario names to form a valid precip/temp scenario grid (see
     hydropattern.scenario_grid). Raises HydropatternError otherwise.
+
+    title defaults to the component name and zlabel defaults to the configured
+    metric mode value when climate_canvas.title/zlabel are None (unset).
     '''
     first_scenario_results = next(iter(scenario_results.values()))
     scenario_names = list(scenario_results.keys())
@@ -165,12 +245,16 @@ def plot_components(scenario_results: dict[str, list[Result]],
         metric_values = summary.loc['total'].to_dict()
         xs, ys, zs = build_grid(scenario_names, metric_values)
         write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
+        title = component.name if climate_canvas.title is None else climate_canvas.title
+        zlabel = (
+            metric_options.mode.value if climate_canvas.zlabel is None else climate_canvas.zlabel
+        )
         plot_response_surface(
-            xs, ys, zs, interpolate=interpolate,
-            labels=('Precipitation Delta (%)', 'Temperature Delta (C)', metric_options.mode.value),
-            title=component.name,
+            xs, ys, zs, interpolate=climate_canvas.interpolate,
+            labels=(climate_canvas.xlabel, climate_canvas.ylabel, zlabel),
+            title=title,
             save_path=output_path / f'{component.name}_plot.png',
-            show=show,
+            show=climate_canvas.show,
         )
 
 def write_grid_csv(xs, ys, zs, path: Path) -> None:

@@ -23,6 +23,12 @@ class PlotErrorCode(StrEnum):
     INVALID_SCENARIO_GRID = 'PLOT_INVALID_SCENARIO_GRID'
 
 
+class CliErrorCode(StrEnum):
+    '''Stable CLI-level error codes.'''
+
+    CONFLICTING_OPTIONS = 'CLI_CONFLICTING_OPTIONS'
+
+
 @dataclass(frozen=True)
 class ErrorEnvelope:
     '''Machine-readable shared error payload.'''
@@ -61,4 +67,11 @@ def raise_plot_error(code: PlotErrorCode | str, message: str, **context: Any) ->
     '''Raise a shared plotting error with stable code and machine-readable context.'''
     raise HydropatternError(
         ErrorEnvelope(code=str(code), message=message, context=context, source='plot'),
+    )
+
+
+def raise_cli_error(code: CliErrorCode | str, message: str, **context: Any) -> NoReturn:
+    '''Raise a shared CLI-level error with stable code and machine-readable context.'''
+    raise HydropatternError(
+        ErrorEnvelope(code=str(code), message=message, context=context, source='cli'),
     )

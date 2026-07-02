@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 from typer.testing import CliRunner
@@ -16,8 +17,8 @@ from hydropattern.cli import (
     plot_components,
     write_output,
 )
-from hydropattern.errors import HydropatternError, ParserErrorCode, PlotErrorCode
-from hydropattern.parsers import MetricMode, MetricOptions
+from hydropattern.errors import CliErrorCode, HydropatternError, ParserErrorCode, PlotErrorCode
+from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
 from hydropattern.patterns import Component, Result
 
 RUNNER = CliRunner()
@@ -299,6 +300,100 @@ class TestCLICommand(unittest.TestCase):
                 result.exception.envelope.code, PlotErrorCode.INVALID_SCENARIO_GRID
             )
 
+    def test_run_command_toml_output_plot_enabled_writes_plot_without_cli_flag(self):
+        '''[output.plot].enabled = true in the config alone triggers plotting (no --plot).'''
+        grid_output_config_path = self.test_files_dir / 'cli_smoke_grid_output_config.toml'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(grid_output_config_path), '--output-dir', str(output_dir),
+                 '--no-excel'],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            self.assertTrue((output_dir / 'single_characteristic_grid.csv').exists())
+            self.assertTrue((output_dir / 'single_characteristic_plot.png').exists())
+
+    def test_run_command_cli_no_plot_overrides_toml_output_plot_enabled_true(self):
+        '''--no-plot always wins, even when [output.plot].enabled = true in the config.'''
+        grid_output_config_path = self.test_files_dir / 'cli_smoke_grid_output_config.toml'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(grid_output_config_path), '--output-dir', str(output_dir),
+                 '--no-excel', '--no-plot'],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            self.assertFalse((output_dir / 'single_characteristic_grid.csv').exists())
+            self.assertFalse((output_dir / 'single_characteristic_plot.png').exists())
+
+    def test_run_command_output_metric_mode_read_from_toml_output_section(self):
+        '''[output.metric].mode in the config controls the computed summary values.'''
+        grid_output_config_path = self.test_files_dir / 'cli_smoke_grid_output_config.toml'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(grid_output_config_path), '--output-dir', str(output_dir),
+                 '--no-excel', '--no-plot'],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            summary_df = pd.read_excel(
+                output_dir / 'single_characteristic_summary.xlsx',
+                sheet_name='single_characteristic', index_col=0,
+            )
+            # magnitude condition succeeds every timestep -> portion 1.0 -> percentage 100.0.
+            self.assertAlmostEqual(summary_df.loc['total'].iloc[0], 100.0)
+
+    def test_run_command_toml_options_only_rejects_conflicting_cli_flag(self):
+        '''--run-toml-options with any other explicit output CLI flag raises a clear error.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.cli_smoke_config_path), '--run-toml-options',
+                 '--output-dir', str(output_dir)],
+            )
+
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIsInstance(result.exception, HydropatternError)
+            self.assertEqual(
+                result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS
+            )
+            self.assertEqual(result.exception.envelope.source, 'cli')
+
+    def test_run_command_toml_options_only_runs_toml_config_without_conflicts(self):
+        '''--run-toml-options alone (no conflicting flags) runs purely per the toml.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+            config_path = Path(temp_dir) / 'config.toml'
+            config_path.write_text(
+                '[timeseries]\n'
+                'path = "tests/test_files/cli_smoke_grid_input.csv"\n'
+                'date_format = "%Y-%m-%d"\n\n'
+                '[components.single_characteristic]\n'
+                'magnitude = [">", 1.0]\n\n'
+                '[output]\n'
+                f'directory = "{output_dir.as_posix()}"\n'
+                'excel = false\n\n'
+                '[output.plot]\n'
+                'enabled = true\n'
+            )
+
+            result = RUNNER.invoke(app, ['run', str(config_path), '--run-toml-options'])
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            self.assertTrue((output_dir / 'single_characteristic_grid.csv').exists())
+            self.assertTrue((output_dir / 'single_characteristic_plot.png').exists())
+
 
 class TestCLIValidationErrors(unittest.TestCase):
     '''Validation error tests for CLI configuration parsing.'''
@@ -353,19 +448,19 @@ class TestCLIValidationErrors(unittest.TestCase):
         )
 
     def test_load_metric_options_defaults_to_portion(self):
-        '''Missing [metric] section should default to MetricOptions(mode=PORTION).'''
+        '''Missing [output.metric] section should default to MetricOptions(mode=PORTION).'''
         options = load_metric_options({'timeseries': {'path': 'x.csv'}})
         self.assertEqual(options, MetricOptions(mode=MetricMode.PORTION))
 
     def test_load_metric_options_reads_configured_mode(self):
-        '''Configured [metric].mode should be reflected in the returned options.'''
-        options = load_metric_options({'metric': {'mode': 'percentage'}})
+        '''Configured [output.metric].mode should be reflected in the returned options.'''
+        options = load_metric_options({'output': {'metric': {'mode': 'percentage'}}})
         self.assertEqual(options.mode, MetricMode.PERCENTAGE)
 
     def test_load_metric_options_raises_for_invalid_mode(self):
-        '''Invalid [metric].mode should raise the shared parser error envelope.'''
+        '''Invalid [output.metric].mode should raise the shared parser error envelope.'''
         with self.assertRaises(HydropatternError) as context:
-            load_metric_options({'metric': {'mode': 'invalid'}})
+            load_metric_options({'output': {'metric': {'mode': 'invalid'}}})
 
         self.assertEqual(context.exception.envelope.code, ParserErrorCode.INVALID_VALUE)
 
@@ -574,7 +669,7 @@ class TestPlotComponents(unittest.TestCase):
             }
 
             plot_components(scenario_results, output_path, MetricOptions(), 1,
-                            interpolate=False, show=False)
+                            ClimateCanvasPlotOptions(interpolate=False, show=False))
 
             self.assertTrue((output_path / 'single_characteristic_grid.csv').exists())
             self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
@@ -590,4 +685,48 @@ class TestPlotComponents(unittest.TestCase):
 
             with self.assertRaises(HydropatternError):
                 plot_components(scenario_results, output_path, MetricOptions(), 1,
-                                interpolate=False, show=False)
+                                ClimateCanvasPlotOptions(interpolate=False, show=False))
+
+    def test_plot_components_defaults_title_to_component_name_and_zlabel_to_metric_mode(self):
+        '''title/zlabel default (None in ClimateCanvasPlotOptions) -> component name / mode value.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path,
+                            MetricOptions(mode=MetricMode.PERCENTAGE), 1,
+                            ClimateCanvasPlotOptions())
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['title'], 'single_characteristic')
+            self.assertEqual(
+                kwargs['labels'],
+                ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+            )
+
+    def test_plot_components_uses_configured_title_and_labels_when_set(self):
+        '''Explicit title/xlabel/ylabel/zlabel override the dynamic defaults.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(
+                                title='Custom Title', xlabel='X', ylabel='Y', zlabel='Z',
+                            ))
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['title'], 'Custom Title')
+            self.assertEqual(kwargs['labels'], ('X', 'Y', 'Z'))

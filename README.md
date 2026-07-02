@@ -75,9 +75,11 @@ The program requires two primary inputs:
 
 1. A .toml configuration file. This file must contain the following sections:
 
-    a. **[timeseries]**: in this section the *path* variable provides the location of the .csv timeseries input file, described below. The optional *date_format* variable is used to provide the timeseries datetime format code, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior. By default pandas will, with a warning message and possible error, attempt to guess format of this string, if not date format is provided. The optional *first_day_of_water_year* is used to distinguish between water and calendar years, see: https://en.wikipedia.org/wiki/Water_year. By default, the water and calendar year are assumed be the same (i.e., first_day_of_water_year = 1). The optional *columns* parameter tells the program which columns in the timeseries .csv contain hydrologic data. By default only the first time, and first column are read (i.e., columns = [1]). 
+    a. **[timeseries]**: in this section the *path* variable provides the location of the .csv or .xlsx timeseries input file, described below. The optional *date_format* variable is used to provide the timeseries datetime format code, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior. By default pandas will, with a warning message and possible error, attempt to guess format of this string, if not date format is provided. The optional *first_day_of_water_year* is used to distinguish between water and calendar years, see: https://en.wikipedia.org/wiki/Water_year. By default, the water and calendar year are assumed be the same (i.e., first_day_of_water_year = 1). The optional *sheet_name* selects which Excel sheet to read (ignored for .csv files); defaults to 0 (the first sheet). See [docs/user/reference.md](docs/user/reference.md#timeseries-options) for the full field reference.
 
     b. **[components]**: in this section components, characteristics, and metrics are provided.
+
+    c. **[output]** *(optional)*: controls output directory/overwrite/Excel behavior, the `[output.metric]` summary mode, and `[output.plot]`/`[output.plot.climate-canvas]` response-surface plotting. All keys are optional and default to the same behavior as the CLI's own defaults (see [docs/user/reference.md](docs/user/reference.md#output-options) for the full schema). Any CLI flag explicitly passed (e.g. `--plot`, `--output-dir`) always overrides the corresponding `[output]` toml value.
     
 The toml configuration file follows basic toml file syntax (see: https://toml.io/en/). A minimal example can be found in the project GitHub repository at .\examples\minimal.toml. A more complete example file with extensive instructions and comments can be found at .\examples\detailed.toml.
 
@@ -100,7 +102,7 @@ The program can be run on a timeseries of input data, given a valid .toml file c
 uv run python -m hydropattern run "path_to_toml_file"
 ```
 
-where "path_to_toml_file" is replaced with a valid path to the input .toml file. The following **optional arguments**, can be appended to the end of the run command above:
+where "path_to_toml_file" is replaced with a valid path to the input .toml file. The following **optional arguments**, can be appended to the end of the run command above. Each corresponds to an `[output]` toml key of the same behavior (see [docs/user/reference.md](docs/user/reference.md#output-options)); when a flag is explicitly passed on the CLI it always overrides the toml value, otherwise the toml value (or its own default) applies:
 
 ```
 --output-dir "path_to_output_csv_or_xlsx_files"
@@ -108,23 +110,45 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 
 > By default, a `{config_stem}_output` directory is created next to the .toml
 > configuration file, and both the per-scenario results and the component summary
-> files are written there. Providing a valid path to this optional argument will
-> store the outputs in a different location instead.
+> files are written there. Providing a valid path to this optional argument, or an
+> `[output].directory` value in the toml file, stores the outputs in a different
+> location instead.
 
 ```
---plot
+--plot / --no-plot
 ```
 
 > Writes one response-surface plot (`{component}_plot.png`) and one grid csv
 > (`{component}_grid.csv`) per component to the output directory. Requires the
 > timeseries's scenario columns to encode a precip/temp scenario grid via the
-> `_<precip_delta>_<temp_delta>` naming convention (e.g. `_0_1.5`). See
-> [docs/user/reference.md](docs/user/reference.md#response-surface-plots---plot) for
-> details, the grid naming convention, and related `--interp/--no-interp` and `--show`
-> options.
+> `_<precip_delta>_<temp_delta>` naming convention (e.g. `_0_1.5`). Can also be
+> enabled via `[output.plot].enabled = true` in the toml file (no CLI flag needed).
+> See [docs/user/reference.md](docs/user/reference.md#response-surface-plots---plot) for
+> details, the grid naming convention, and related `--interp/--no-interp`, `--show/--no-show`
+> options and their `[output.plot.climate-canvas]` toml equivalents (which also configure
+> plot title/xlabel/ylabel/zlabel).
 
 ```
---excel
+--excel / --no-excel
 ```
 
-> This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file.
+> This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file. Equivalent to `[output].excel` in the toml file.
+
+```
+--overwrite / --no-overwrite
+```
+
+> If true (default), existing output files are replaced on each run; if false, a numeric suffix is appended instead. Equivalent to `[output].overwrite` in the toml file.
+
+```
+--run-toml-options / --override-toml-options
+```
+
+> If `--run-toml-options` is passed, the program runs exactly as specified in the
+> `.toml` file's `[output]` section; none of the other output-related CLI options
+> above (`--output-dir`, `--plot/--no-plot`, `--excel/--no-excel`,
+> `--overwrite/--no-overwrite`, `--interp/--no-interp`, `--show/--no-show`) may also
+> be passed explicitly — doing so raises a `CLI_CONFLICTING_OPTIONS` error. Default
+> is `--override-toml-options`, which keeps the normal CLI-overrides-toml precedence
+> described above.
+

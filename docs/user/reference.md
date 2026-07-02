@@ -26,6 +26,36 @@ parameter ranges.
 
 ---
 
+## Timeseries options
+
+```toml
+[timeseries]
+path                     = "data/flow.csv"  # required
+date_format              = "%Y-%m-%d"       # optional, defaults to ''
+first_day_of_water_year  = 1                # optional, defaults to 1
+sheet_name               = 0                # optional, defaults to 0 (Excel only)
+```
+
+| Key                        | Type          | Default | Required | Description |
+|----------------------------|---------------|---------|----------|--------------|
+| `path`                     | string        | —       | **yes**  | Path to a `*.csv` or `*.xlsx`/`*.xls` file with header row `time, <column_1>, ..., <column_n>`. Every column after `time` is treated as its own scenario (see [Response surface plots](#response-surface-plots---plot)). |
+| `date_format`              | string        | `''`    | no       | `strftime`/`strptime` format code for the `time` column, e.g. `"%Y-%m-%d"`. Empty string (default) lets pandas auto-detect the format. |
+| `first_day_of_water_year`  | integer       | `1`     | no       | Day-of-year (1–365) the water year starts on. `1` = 1 January. |
+| `sheet_name`               | string or int | `0`     | no       | Excel sheet name or 0-based index to read. Ignored when `path` is a `*.csv` file. |
+
+This section is parsed into a `TimeseriesSpec` (`hydropattern/parsers.py`), the single
+source of truth for these defaults — see `parse_timeseries_spec`.
+
+**Errors**
+```toml
+# PARSER_MISSING_SECTION: no [timeseries] section at all.
+
+[timeseries]
+date_format = "%Y-%m-%d"   # PARSER_MISSING_FIELD: 'path' is required.
+```
+
+---
+
 ## Characteristic parameters
 
 ### Timing
@@ -203,18 +233,59 @@ success_pattern = true   # Present = all characteristics met? Defaults to true.
 
 ---
 
-## Metric options
+## Output options
 
 ```toml
-[metric]
-mode = "portion"  # "portion" (default) | "percentage" | "return_period"
+[output]
+directory = "custom_output_dir/"  # optional; defaults to auto-derived '{config_stem}_output'
+overwrite = true                  # optional; defaults to true
+excel     = true                  # optional; defaults to true
+
+[output.metric]
+mode = "portion"                  # optional; "portion" (default) | "percentage" | "return_period"
+
+[output.plot]
+enabled = false                   # optional; defaults to false
+
+[output.plot.climate-canvas]
+interpolate = true                                  # optional; defaults to true
+show        = false                                 # optional; defaults to false
+title       = "My Custom Title"                     # optional; defaults to the component name
+xlabel      = "Precipitation Delta (%)"             # optional; shown default
+ylabel      = "Temperature Delta (C)"               # optional; shown default
+zlabel      = "portion"                             # optional; defaults to [output.metric].mode
 ```
 
+The entire `[output]` section is optional, as is every key within it and its nested
+`[output.metric]`, `[output.plot]`, and `[output.plot.climate-canvas]` sections. Every key
+mirrors a `run` CLI flag of the same behavior (see the table below); **an explicit CLI flag
+always overrides the corresponding toml value**. When a CLI flag is omitted, the toml value
+applies; when both are absent, the documented default applies.
+
+| `[output]` key | Type | Default | Equivalent CLI flag |
+|----------------|------|---------|----------------------|
+| `directory`    | string | auto-derived `{config_stem}_output` | `--output-dir` |
+| `overwrite`    | boolean | `true` | `--overwrite/--no-overwrite` |
+| `excel`        | boolean | `true` | `--excel/--no-excel` |
+
+### `--run-toml-options` / `--override-toml-options`
+
+By default (`--override-toml-options`), any explicit CLI flag above always overrides its
+corresponding `[output]` toml value, as described above. Passing `--run-toml-options`
+instead reverses this: the program must run *exactly* as specified in the toml file's
+`[output]` section, and none of the other output-related CLI flags (`--output-dir`,
+`--plot/--no-plot`, `--excel/--no-excel`, `--overwrite/--no-overwrite`,
+`--interp/--no-interp`, `--show/--no-show`) may be passed explicitly alongside it. Doing so
+raises a `CLI_CONFLICTING_OPTIONS` error instead of silently ignoring or merging the
+conflicting values.
+
+### `[output.metric]`
+
 Controls the metric computed in the `{component}_summary.xlsx` summary sheets written by
-the formatter (see `hydropattern/formatters.py`). The `[metric]` section is optional; when
-absent, or when `mode` is omitted, the default is `"portion"`. This option only affects the
-adapter/reporting layer — core compute contracts (`Result`, `evaluate_component(s)`) are
-unchanged.
+the formatter (see `hydropattern/formatters.py`), and (when plotting) the response surface's
+z-values. The section is optional; when absent, or when `mode` is omitted, the default is
+`"portion"`. This option only affects the adapter/reporting layer — core compute contracts
+(`Result`, `evaluate_component(s)`) are unchanged.
 
 | Value            | Description | NA/zero policy |
 |------------------|-------------|----------------|
@@ -224,22 +295,29 @@ unchanged.
 
 **Examples**
 ```toml
-[metric]
+[output.metric]
 mode = "percentage"
 
-[metric]
+[output.metric]
 mode = "return_period"
 ```
 
 **Invalid configuration**
 ```toml
-[metric]
-mode = "average"     # PARSER_INVALID_VALUE: not one of portion/percentage/return_period
-mode = 1              # PARSER_INVALID_TYPE-adjacent: PARSER_INVALID_VALUE, non-string mode
+[output.metric]
+mode = "average"      # PARSER_INVALID_VALUE: not one of portion/percentage/return_period
+mode = 1               # PARSER_INVALID_VALUE: non-string mode
 
-[metric]
-threshold = 0.5       # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized [metric] key
+[output.metric]
+threshold = 0.5        # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized key
 ```
+
+> **Migration note**: the metric mode option previously lived at the top-level `[metric]`
+> section. It has moved to `[output.metric]`; the old top-level `[metric]` is no longer read.
+
+### `[output.plot]` and `[output.plot.climate-canvas]`
+
+See [Response surface plots](#response-surface-plots---plot) below.
 
 ---
 
@@ -251,10 +329,17 @@ hydropattern run config.toml --plot --no-interp
 hydropattern run config.toml --plot --show
 ```
 
-The `run` command's `--plot` flag renders a 2D climate response-surface plot per
-component, using scenario results as the z-axis. This requires the timeseries's
-scenario columns (excluding the trailing `dowy` column) to encode a **scenario grid**:
-each scenario column name must follow the `_<precip_delta>_<temp_delta>` convention
+Plotting can also be enabled purely via the config file, with no CLI flag at all:
+
+```toml
+[output.plot]
+enabled = true
+```
+
+The `run` command's `--plot` flag (or `[output.plot].enabled = true`) renders a 2D climate
+response-surface plot per component, using scenario results as the z-axis. This requires the
+timeseries's scenario columns (excluding the trailing `dowy` column) to encode a **scenario
+grid**: each scenario column name must follow the `_<precip_delta>_<temp_delta>` convention
 (e.g. `_0_1.5` → precipitation delta 0%, temperature delta 1.5°C), with at least two
 distinct values on each axis. See `examples/great_lakes/example_1.toml` /
 `examples/great_lakes/superior.xlsx` for a worked example.
@@ -263,14 +348,22 @@ For each component, `--plot` writes two files to the run's output directory:
 
 | File | Contents |
 |------|----------|
-| `{component_name}_grid.csv` | The (precip_delta × temp_delta) grid of the component's `[metric]` value (`'total'` row, i.e. computed over the whole record), one row per temperature delta, one column per precipitation delta. Missing precip/temp combos are blank (NA). |
+| `{component_name}_grid.csv` | The (precip_delta × temp_delta) grid of the component's `[output.metric]` value (`'total'` row, i.e. computed over the whole record), one row per temperature delta, one column per precipitation delta. Missing precip/temp combos are blank (NA). |
 | `{component_name}_plot.png` | The rendered response-surface plot (imshow + contour), with missing grid cells shown as gaps. |
 
-| Option | Default | Description |
-|--------|---------|--------------|
-| `--plot` | `false` | Enable response-surface plotting (requires a valid scenario grid; see above). |
-| `--interp/--no-interp` | `--interp` (`true`) | Bilinearly interpolate the plotted surface to a finer grid. Interpolation only fills cells where all four surrounding grid corners are present — gaps adjacent to a missing scenario remain blank. |
-| `--show` | `false` (not shown) | Also open an interactive matplotlib window per component, in addition to saving the plot file. |
+| Option | Default | `[output.plot]`/`[output.plot.climate-canvas]` equivalent | Description |
+|--------|---------|------------------------------------------------------------|--------------|
+| `--plot/--no-plot` | `false` | `[output.plot].enabled` | Enable response-surface plotting (requires a valid scenario grid; see above). |
+| `--interp/--no-interp` | `true` | `[output.plot.climate-canvas].interpolate` | Bilinearly interpolate the plotted surface to a finer grid. Interpolation only fills cells where all four surrounding grid corners are present — gaps adjacent to a missing scenario remain blank. |
+| `--show/--no-show` | `false` (not shown) | `[output.plot.climate-canvas].show` | Also open an interactive matplotlib window per component, in addition to saving the plot file. |
+| — (toml only) | component name | `[output.plot.climate-canvas].title` | Plot title. Defaults to the component's name when unset. |
+| — (toml only) | `"Precipitation Delta (%)"` | `[output.plot.climate-canvas].xlabel` | X-axis label. |
+| — (toml only) | `"Temperature Delta (C)"` | `[output.plot.climate-canvas].ylabel` | Y-axis label. |
+| — (toml only) | `[output.metric].mode` value | `[output.plot.climate-canvas].zlabel` | Colorbar label. Defaults to the configured metric mode (e.g. `"portion"`) when unset. |
+
+As with all `[output]` keys, an explicit CLI flag (e.g. `--plot`, `--no-interp`) always
+overrides the corresponding toml value; `title`/`xlabel`/`ylabel`/`zlabel` have no CLI
+equivalent and can only be set via the toml file.
 
 **Non-grid scenarios**: If `--plot` is used on a config whose scenario names don't form
 a valid grid (e.g. a single-scenario timeseries, or names not matching the
@@ -292,7 +385,7 @@ These codes appear in the `code` field of a `HydropatternError` envelope.
 | `PARSER_INVALID_VALUE` | A parameter has the right type but is out of range or has an illegal value. | `first_doy = 0`; `ma_periods = 0`; negative magnitude threshold. |
 | `PARSER_UNKNOWN_CHARACTERISTIC` | A characteristic key is not recognised. | Typo in characteristic name, e.g. `magntiude`. |
 | `PARSER_UNKNOWN_COMPARISON_SYMBOL` | An operator string is not in the valid set. | `"gt"` instead of `">"`. |
-| `PARSER_UNKNOWN_OPTION` | A key in an options section (e.g. `[metric]`) is not recognised. | `[metric]` table has a typo'd or unsupported key. |
+| `PARSER_UNKNOWN_OPTION` | A key in an options section (e.g. `[output]`, `[output.metric]`, `[output.plot]`, `[output.plot.climate-canvas]`) is not recognised. | `[output.metric]` table has a typo'd or unsupported key. |
 
 ---
 
