@@ -4,13 +4,12 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import typer
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
-from hydropattern.formatters import write_results
+from hydropattern.formatters import build_summary_sheet, write_results
 from hydropattern.parsers import (
     MetricOptions,
     build_components,
@@ -18,6 +17,7 @@ from hydropattern.parsers import (
     parse_request,
 )
 from hydropattern.patterns import Component, Result, evaluate_components
+from hydropattern.scenario_grid import build_grid, require_scenario_grid
 from hydropattern.timeseries import Timeseries
 
 app = typer.Typer(no_args_is_help=True)
@@ -46,7 +46,13 @@ def run(path: str = typer.Argument(...,
                                        help='''If true (default), existing output files
                                        are replaced on each run.
                                        If false, a numeric suffix is appended to avoid
-                                       overwriting existing files.''')):
+                                       overwriting existing files.'''),
+        interp: bool = typer.Option(True, "--interp/--no-interp",
+                                    help='''If true (default), interpolate the response
+                                    surface plot to a finer grid. Only affects --plot.'''),
+        show: bool = typer.Option(False, "--show",
+                                  help='''Also open an interactive window for each
+                                  response surface plot. Only affects --plot.''')):
     '''Run the hydropattern command line interface.'''
     data = load_config_file(path)
     timeseries = load_timeseries(data)
@@ -55,12 +61,11 @@ def run(path: str = typer.Argument(...,
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {name: evaluate_components(df, components)
                         for name, df in scenarios.items()}
-    write_output(scenario_results, path, output_directory, write_to_excel, overwrite,
-                 timeseries.first_day_of_water_year, metric_options)
-
+    output_path = write_output(scenario_results, path, output_directory, write_to_excel,
+                               overwrite, timeseries.first_day_of_water_year, metric_options)
     if plot:
-        xs, ys, zs = np.array([0, 0.5, 1]), np.array([0, 1]), np.array([[2, 1.9, 1], [5, 4.5, 4]])
-        plot_response_surface(xs, ys, zs, interpolate=True)
+        plot_components(scenario_results, output_path, metric_options,
+                        timeseries.first_day_of_water_year, interp, show)
 
 def load_config_file(path: str) -> dict[str, Any]:
     '''Load a configuration file.'''
@@ -130,13 +135,44 @@ def write_output(scenario_results: dict[str, list[Result]],
                  input_path: str, output_directory: str | None,
                  write_to_excel: bool, overwrite: bool = True,
                  first_day_of_wy: int = 1,
-                 metric_options: MetricOptions = MetricOptions()):
-    '''Write output using the formatter entrypoint.'''
+                 metric_options: MetricOptions = MetricOptions()) -> Path:
+    '''Write output using the formatter entrypoint. Returns the resolved output path.'''
     output_path = write_results(scenario_results, input_path, output_directory,
                                 write_to_excel, overwrite, first_day_of_wy,
                                 metric_options.mode)
     if write_to_excel:
         output_file = output_path / (Path(input_path).stem + '_output.xlsx')
         typer.echo(f'Output written to: {output_file}.')
-        return
+        return output_path
     typer.echo(f'Output written to: {output_path}.')
+    return output_path
+
+def plot_components(scenario_results: dict[str, list[Result]],
+                    output_path: Path, metric_options: MetricOptions,
+                    first_day_of_wy: int, interpolate: bool, show: bool) -> None:
+    '''Save one response-surface grid csv + plot png per component to output_path.
+
+    Requires scenario names to form a valid precip/temp scenario grid (see
+    hydropattern.scenario_grid). Raises HydropatternError otherwise.
+    '''
+    first_scenario_results = next(iter(scenario_results.values()))
+    scenario_names = list(scenario_results.keys())
+    require_scenario_grid(scenario_names)
+    for result in first_scenario_results:
+        component = result.component
+        summary = build_summary_sheet(scenario_results, component.name, component.name,
+                                      first_day_of_wy, metric_options.mode)
+        metric_values = summary.loc['total'].to_dict()
+        xs, ys, zs = build_grid(scenario_names, metric_values)
+        write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
+        plot_response_surface(
+            xs, ys, zs, interpolate=interpolate,
+            labels=('Precipitation Delta (%)', 'Temperature Delta (C)', metric_options.mode.value),
+            title=component.name,
+            save_path=output_path / f'{component.name}_plot.png',
+            show=show,
+        )
+
+def write_grid_csv(xs, ys, zs, path: Path) -> None:
+    '''Write a (precip_delta x temp_delta) grid to csv: rows=temp deltas, columns=precip deltas.'''
+    pd.DataFrame(zs, index=ys, columns=xs).to_csv(path, index_label='temp_delta\\precip_delta')

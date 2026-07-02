@@ -115,7 +115,13 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 --plot
 ```
 
-> This plots a response surface of with the output data.
+> Writes one response-surface plot (`{component}_plot.png`) and one grid csv
+> (`{component}_grid.csv`) per component to the output directory. Requires the
+> timeseries's scenario columns to encode a precip/temp scenario grid via the
+> `_<precip_delta>_<temp_delta>` naming convention (e.g. `_0_1.5`). See
+> [docs/user/reference.md](docs/user/reference.md#response-surface-plots---plot) for
+> details, the grid naming convention, and related `--interp/--no-interp` and `--show`
+> options.
 
 ```
 --excel

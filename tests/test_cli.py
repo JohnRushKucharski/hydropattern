@@ -13,9 +13,10 @@ from hydropattern.cli import (
     load_config_file,
     load_metric_options,
     load_timeseries,
+    plot_components,
     write_output,
 )
-from hydropattern.errors import HydropatternError, ParserErrorCode
+from hydropattern.errors import HydropatternError, ParserErrorCode, PlotErrorCode
 from hydropattern.parsers import MetricMode, MetricOptions
 from hydropattern.patterns import Component, Result
 
@@ -265,6 +266,39 @@ class TestCLICommand(unittest.TestCase):
             self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertTrue(any(output_dir.glob('*.csv')))
 
+    def test_run_command_plot_writes_grid_csv_and_png_for_scenario_grid(self):
+        '''--plot on a config whose scenario names form a grid writes grid csv + png.'''
+        grid_config_path = self.test_files_dir / 'cli_smoke_grid_config.toml'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(grid_config_path), '--output-dir', str(output_dir),
+                 '--no-excel', '--plot'],
+            )
+
+            self.assertEqual(result.exit_code, 0, msg=result.stdout)
+            self.assertTrue((output_dir / 'single_characteristic_grid.csv').exists())
+            self.assertTrue((output_dir / 'single_characteristic_plot.png').exists())
+
+    def test_run_command_plot_fails_for_non_grid_scenarios(self):
+        '''--plot on a single-scenario config raises a clear PLOT_INVALID_SCENARIO_GRID error.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / 'out'
+
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.cli_smoke_config_path),
+                 '--output-dir', str(output_dir), '--no-excel', '--plot'],
+            )
+
+            self.assertNotEqual(result.exit_code, 0)
+            self.assertIsInstance(result.exception, HydropatternError)
+            self.assertEqual(
+                result.exception.envelope.code, PlotErrorCode.INVALID_SCENARIO_GRID
+            )
+
 
 class TestCLIValidationErrors(unittest.TestCase):
     '''Validation error tests for CLI configuration parsing.'''
@@ -369,6 +403,17 @@ class TestCLIOutputModes(unittest.TestCase):
             expected_output_dir = temp_path / 'config_output'
             self.assertTrue(expected_output_dir.exists())
             self.assertTrue((expected_output_dir / 'flow_sample_component.csv').exists())
+
+    def test_write_output_returns_resolved_output_path(self):
+        '''write_output should return the resolved output directory Path.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / 'config.toml'
+            input_path.write_text('', encoding='utf-8')
+
+            result = write_output({'flow': [self._sample_result()]}, str(input_path), None, False)
+
+            self.assertEqual(result, temp_path / 'config_output')
 
     def test_write_output_default_excel_creates_file_in_stem_output_dir(self):
         '''Default excel mode should write the xlsx inside <input_stem>_output.'''
@@ -499,3 +544,50 @@ class TestCLIOutputModes(unittest.TestCase):
             )
             # 2 of 3 timesteps succeed -> portion 2/3 -> percentage ~66.67.
             self.assertAlmostEqual(summary_df.loc['total', 'flow'], 200 / 3)
+
+
+class TestPlotComponents(unittest.TestCase):
+    '''Tests for plot_components.'''
+
+    def _grid_result(self, component_name: str, success: bool) -> Result:
+        '''Minimal Result whose component column is all-success or all-failure.'''
+        component = Component(name=component_name, characteristics=[], is_success_pattern=True)
+        index = pd.DatetimeIndex([
+            pd.Timestamp('2000-01-01'), pd.Timestamp('2000-02-01'),
+        ], name='time')
+        value = 1 if success else 0
+        df = pd.DataFrame({
+            'flow': [1.0, 2.0],
+            component_name: [value, value],
+        }, index=index)
+        return Result(df=df, component=component)
+
+    def test_plot_components_writes_grid_csv_and_png_per_component(self):
+        '''One {component}_grid.csv and {component}_plot.png written per component.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            interpolate=False, show=False)
+
+            self.assertTrue((output_path / 'single_characteristic_grid.csv').exists())
+            self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
+
+    def test_plot_components_raises_for_non_grid_scenarios(self):
+        '''Non-grid scenario names raise HydropatternError (PLOT_INVALID_SCENARIO_GRID).'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                'flow_a': [self._grid_result('single_characteristic', True)],
+                'flow_b': [self._grid_result('single_characteristic', False)],
+            }
+
+            with self.assertRaises(HydropatternError):
+                plot_components(scenario_results, output_path, MetricOptions(), 1,
+                                interpolate=False, show=False)

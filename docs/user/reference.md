@@ -243,6 +243,43 @@ threshold = 0.5       # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized [
 
 ---
 
+## Response surface plots (`--plot`)
+
+```bash
+hydropattern run config.toml --plot
+hydropattern run config.toml --plot --no-interp
+hydropattern run config.toml --plot --show
+```
+
+The `run` command's `--plot` flag renders a 2D climate response-surface plot per
+component, using scenario results as the z-axis. This requires the timeseries's
+scenario columns (excluding the trailing `dowy` column) to encode a **scenario grid**:
+each scenario column name must follow the `_<precip_delta>_<temp_delta>` convention
+(e.g. `_0_1.5` → precipitation delta 0%, temperature delta 1.5°C), with at least two
+distinct values on each axis. See `examples/great_lakes/example_1.toml` /
+`examples/great_lakes/superior.xlsx` for a worked example.
+
+For each component, `--plot` writes two files to the run's output directory:
+
+| File | Contents |
+|------|----------|
+| `{component_name}_grid.csv` | The (precip_delta × temp_delta) grid of the component's `[metric]` value (`'total'` row, i.e. computed over the whole record), one row per temperature delta, one column per precipitation delta. Missing precip/temp combos are blank (NA). |
+| `{component_name}_plot.png` | The rendered response-surface plot (imshow + contour), with missing grid cells shown as gaps. |
+
+| Option | Default | Description |
+|--------|---------|--------------|
+| `--plot` | `false` | Enable response-surface plotting (requires a valid scenario grid; see above). |
+| `--interp/--no-interp` | `--interp` (`true`) | Bilinearly interpolate the plotted surface to a finer grid. Interpolation only fills cells where all four surrounding grid corners are present — gaps adjacent to a missing scenario remain blank. |
+| `--show` | `false` (not shown) | Also open an interactive matplotlib window per component, in addition to saving the plot file. |
+
+**Non-grid scenarios**: If `--plot` is used on a config whose scenario names don't form
+a valid grid (e.g. a single-scenario timeseries, or names not matching the
+`_<precip_delta>_<temp_delta>` convention), hydropattern raises a `HydropatternError`
+with code `PLOT_INVALID_SCENARIO_GRID` (see [Plot error codes](#plot-error-codes)
+below) instead of silently producing an empty or nonsensical plot.
+
+---
+
 ## Parser error codes
 
 These codes appear in the `code` field of a `HydropatternError` envelope.
@@ -256,6 +293,18 @@ These codes appear in the `code` field of a `HydropatternError` envelope.
 | `PARSER_UNKNOWN_CHARACTERISTIC` | A characteristic key is not recognised. | Typo in characteristic name, e.g. `magntiude`. |
 | `PARSER_UNKNOWN_COMPARISON_SYMBOL` | An operator string is not in the valid set. | `"gt"` instead of `">"`. |
 | `PARSER_UNKNOWN_OPTION` | A key in an options section (e.g. `[metric]`) is not recognised. | `[metric]` table has a typo'd or unsupported key. |
+
+---
+
+## Plot error codes
+
+These codes appear in the `code` field of a `HydropatternError` envelope raised by
+`--plot` (see [Response surface plots](#response-surface-plots---plot) above). Unlike
+parser errors, plot errors use `source: 'plot'` in the envelope.
+
+| Code | Meaning | Common cause |
+|------|---------|--------------|
+| `PLOT_INVALID_SCENARIO_GRID` | Scenario column names don't form a valid precip/temp scenario grid. | Single-scenario timeseries; scenario names don't match `_<precip_delta>_<temp_delta>`; fewer than 2 distinct values on an axis. |
 
 ### Accessing error details programmatically
 

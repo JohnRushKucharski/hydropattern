@@ -17,6 +17,12 @@ class ParserErrorCode(StrEnum):
     UNKNOWN_OPTION = 'PARSER_UNKNOWN_OPTION'
 
 
+class PlotErrorCode(StrEnum):
+    '''Stable plotting error codes.'''
+
+    INVALID_SCENARIO_GRID = 'PLOT_INVALID_SCENARIO_GRID'
+
+
 @dataclass(frozen=True)
 class ErrorEnvelope:
     '''Machine-readable shared error payload.'''
@@ -48,4 +54,11 @@ def raise_parser_error(code: ParserErrorCode | str, message: str, **context: Any
     '''Raise a shared parser error with stable code and machine-readable context.'''
     raise HydropatternError(
         ErrorEnvelope(code=str(code), message=message, context=context),
+    )
+
+
+def raise_plot_error(code: PlotErrorCode | str, message: str, **context: Any) -> NoReturn:
+    '''Raise a shared plotting error with stable code and machine-readable context.'''
+    raise HydropatternError(
+        ErrorEnvelope(code=str(code), message=message, context=context, source='plot'),
     )
