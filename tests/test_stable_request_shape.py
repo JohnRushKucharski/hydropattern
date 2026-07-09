@@ -24,7 +24,6 @@ from hydropattern.parsers import (
 )
 from hydropattern.patterns import CharacteristicType, Component, evaluate_components
 
-
 # ---------------------------------------------------------------------------
 # Shared test DataFrame fixture
 # ---------------------------------------------------------------------------
@@ -50,7 +49,12 @@ def _make_df() -> pd.DataFrame:
 class TestCharacteristicSpecEquality(unittest.TestCase):
     '''CharacteristicSpec equality uses structural field comparison (no closures).'''
 
-    def _mag_spec(self, operator: str = '>', values: tuple = (1.0,), order: int = 1) -> CharacteristicSpec:
+    def _mag_spec(
+            self,
+            operator: str = '>',
+            values: tuple = (1.0,),
+            order: int = 1,
+    ) -> CharacteristicSpec:
         return CharacteristicSpec(
             type=CharacteristicType.MAGNITUDE,
             operator=operator,
@@ -71,18 +75,32 @@ class TestCharacteristicSpecEquality(unittest.TestCase):
         self.assertNotEqual(self._mag_spec(order=1), self._mag_spec(order=2))
 
     def test_between_spec_with_none_operator_equal(self):
-        a = CharacteristicSpec(type=CharacteristicType.MAGNITUDE, operator=None, values=(0.5, 2.0), order=1)
-        b = CharacteristicSpec(type=CharacteristicType.MAGNITUDE, operator=None, values=(0.5, 2.0), order=1)
+        a = CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE, operator=None, values=(0.5, 2.0), order=1
+        )
+        b = CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE, operator=None, values=(0.5, 2.0), order=1
+        )
         self.assertEqual(a, b)
 
     def test_different_types_not_equal(self):
-        a = CharacteristicSpec(type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,), order=1)
-        b = CharacteristicSpec(type=CharacteristicType.TIMING, operator=None, values=(1, 90), order=1)
+        a = CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,), order=1
+        )
+        b = CharacteristicSpec(
+            type=CharacteristicType.TIMING, operator=None, values=(1, 90), order=1
+        )
         self.assertNotEqual(a, b)
 
     def test_different_ma_periods_not_equal(self):
-        a = CharacteristicSpec(type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,), ma_periods=1, order=1)
-        b = CharacteristicSpec(type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,), ma_periods=3, order=1)
+        a = CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,),
+            ma_periods=1, order=1,
+        )
+        b = CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE, operator='>', values=(1.0,),
+            ma_periods=3, order=1,
+        )
         self.assertNotEqual(a, b)
 
 

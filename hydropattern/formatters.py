@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from numbers import Integral
 from collections import Counter
+from numbers import Integral
 from pathlib import Path
 
 import pandas as pd

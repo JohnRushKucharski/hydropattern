@@ -14,7 +14,7 @@ from hydropattern.formatters import (
     write_summary,
 )
 from hydropattern.parsers import MetricMode
-from hydropattern.patterns import CharacteristicType, Component, Characteristic, Result
+from hydropattern.patterns import Characteristic, CharacteristicType, Component, Result
 
 
 def _make_result(values: list[int], years: list[int],
@@ -302,6 +302,7 @@ class TestWriteSummary(unittest.TestCase):
     def test_summary_has_sheet_per_characteristic_and_component(self):
         '''Summary xlsx has one sheet per characteristic + one for the component.'''
         import tempfile
+
         from openpyxl import load_workbook
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp)

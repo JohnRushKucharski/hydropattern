@@ -72,7 +72,7 @@ class TestParseMetricOptionsInvalid(unittest.TestCase):
         self.assertEqual(ctx.exception.envelope.context.get('field'), 'mode')
 
     def test_custom_section_name_used_in_error_context(self):
-        '''section_name overrides the default 'metric' label in error context (e.g. output.metric).'''
+        '''section_name overrides default error context label (e.g. output.metric).'''
         with self.assertRaises(HydropatternError) as ctx:
             parse_metric_options({'mode': 'bogus'}, section_name='output.metric')
         self.assertEqual(ctx.exception.envelope.context.get('section'), 'output.metric')

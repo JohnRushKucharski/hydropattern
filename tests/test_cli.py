@@ -577,7 +577,12 @@ class TestCLIOutputModes(unittest.TestCase):
             custom_output_dir = temp_path / 'custom_out'
             input_path.write_text('', encoding='utf-8')
 
-            write_output({'flow': [self._sample_result()]}, str(input_path), str(custom_output_dir), False)
+            write_output(
+                {'flow': [self._sample_result()]},
+                str(input_path),
+                str(custom_output_dir),
+                False,
+            )
 
             self.assertTrue(custom_output_dir.exists())
             self.assertTrue((custom_output_dir / 'flow_sample_component.csv').exists())
@@ -731,7 +736,7 @@ class TestPlotComponents(unittest.TestCase):
                                 ClimateCanvasPlotOptions(interpolate=False, show=False))
 
     def test_plot_components_defaults_title_to_component_name_and_zlabel_to_metric_mode(self):
-        '''title/zlabel default (None in ClimateCanvasPlotOptions) -> component name / mode value.'''
+        '''title/zlabel default to component name and mode value when unset.'''
         with tempfile.TemporaryDirectory() as temp_dir, \
              mock.patch('hydropattern.cli.plot_response_surface') as mocked:
             output_path = Path(temp_dir)

@@ -13,9 +13,9 @@ Example:
     1900-01-02,13
     ...
 '''
+import datetime as datetime_mod
 from calendar import month_abbr
 from dataclasses import dataclass
-import datetime as datetime_mod
 from pathlib import Path
 
 import matplotlib.dates as mdates
