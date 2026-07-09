@@ -8,6 +8,7 @@ Covers:
   - Parity: load_components (CLI entry path) produces the same error codes as
     calling parsers directly (direct Python API path).
 '''
+# pylint: disable=missing-class-docstring,missing-function-docstring,import-outside-toplevel
 import unittest
 
 from hydropattern.cli import load_components

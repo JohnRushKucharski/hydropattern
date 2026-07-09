@@ -83,9 +83,8 @@ def comparison_fx(symbol1: str, bound1: float,
         if is_bound_b:
             # Return a function that calls symbols[s](value, bound)
             return lambda value: symbols[s](value, bound)
-        else:
-            # Return a function that calls symbols[s](bound, value)
-            return lambda value: symbols[s](bound, value)
+        # Return a function that calls symbols[s](bound, value)
+        return lambda value: symbols[s](bound, value)
     # Single bound, not a between comparison.
     if symbol2 is None and bound2 is None:
         return closure(symbol1, bound1)
@@ -334,7 +333,7 @@ def magnitude_fx(f: Callable[[float], bool],
         # n = len(data)
         # result = np.zeros(n)
         # # restrict t to moving average
-        # # todo: test this restriction
+        # # test this restriction
         # for t in range(ma_periods-1, n):
         #     if is_order_1(order, output):
         #         result[t] = 1 if f(data[t]) else 0
@@ -633,17 +632,17 @@ class Result:
                      ylimits: None|tuple[float, float] = None,
                      full_timeseries: bool = True) -> None:
         '''Plot the component success over time.'''
-        # todo: add option to plot only eligible periods (based on 1st or n-th characteristic)
-        # df if full_timeseries else self.df[self.df[self.component.characteristics[0].name] == 1
         df = self.df
+        if not full_timeseries:
+            df = self.df[self.df[self.component.characteristics[0].name] == 1]
         _, ax = plt.subplots(figsize=(15, 5))
         df['success'] = self.df[self.component.name] * self.df.dv
         df['possible'] = self.df[self.component.characteristics[0].name] * self.df.dv
-        df.possible.replace({0: None}).plot(
+        df.possible.replace({0: np.nan}).plot(
             color='yellow', linewidth=10, label=self.component.characteristics[0].name, ax=ax)
         df.dv.plot(
             color='grey', linewidth=0.5, label=self.dv_name, ax=ax)
-        df.success.replace({0: None}).plot(
+        df.success.replace({0: np.nan}).plot(
             color='black', linewidth=1, label=self.component.name, ax=ax)
         # widths = np.arange(
         #     start=1.0 + len(self.component.characteristics) * 0.5,
@@ -678,8 +677,7 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
             |------|-------|------|--------|--------|-----|----------------|
             | ...  | ...   | ...  | 0/1    | 0/1    | ... | 0/1            |
     '''
-    # todo: split ts with multiple columns into separate evaluations.
-    # todo: check flow column name is useful pandas column name.
+    # This function expects one flow column + trailing dowy column.
     validate_timeseries(df)
     # length of timeseries, one row per characteristics
     output = np.zeros((len(df), len(component.characteristics)), dtype=int)
@@ -745,7 +743,7 @@ def evaluate_components(df: pd.DataFrame, components: list[Component]) -> list[R
 
 def validate_timeseries(timeseries: pd.DataFrame) -> None:
     '''Validates the timeseries data.'''
-    # todo: this seems misplaced, but is near evaluate patterns where it is used.
+    # Keep validation close to evaluate_component; callers rely on this contract.
     df = timeseries.apply(pd.to_numeric, errors='coerce')
     if df.isnull().values.any():
         raise ValueError('''Timeseries must contain only

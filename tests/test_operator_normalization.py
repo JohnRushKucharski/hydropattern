@@ -4,6 +4,7 @@ Behavioral delta: whitespace-padded symbols (e.g. " > ") previously raised
 UNKNOWN_COMPARISON_SYMBOL; they now normalize to the stripped symbol and succeed.
 Symbols that are not in the valid set still raise UNKNOWN_COMPARISON_SYMBOL.
 '''
+# pylint: disable=missing-function-docstring
 import unittest
 
 from hydropattern.errors import HydropatternError, ParserErrorCode

@@ -1,4 +1,5 @@
 '''Tests for the parse_metric_options section parser (used by [output.metric]).'''
+# pylint: disable=missing-function-docstring,line-too-long
 
 import unittest
 

@@ -4,14 +4,13 @@ CLI flags default to None (not explicitly passed). When None, the toml [output]
 section's value applies (or its own default when toml is silent too). When a CLI
 flag is explicitly given (not None), it always wins over the toml value.
 '''
+# pylint: disable=missing-function-docstring
 
 import unittest
 
 from hydropattern.cli import resolve_output_options
 from hydropattern.parsers import (
-    ClimateCanvasPlotOptions,
     OutputOptions,
-    PlotOptions,
 )
 
 

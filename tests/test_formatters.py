@@ -1,4 +1,5 @@
 '''Tests for formatter metric computation.'''
+# pylint: disable=import-outside-toplevel
 
 import unittest
 from pathlib import Path

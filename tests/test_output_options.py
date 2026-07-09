@@ -1,6 +1,7 @@
 '''Tests for the [output] TOML section parser contract (directory/overwrite/excel,
 [output.metric], [output.plot], [output.plot.climate-canvas]).
 '''
+# pylint: disable=missing-function-docstring
 
 import unittest
 

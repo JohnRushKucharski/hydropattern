@@ -1,4 +1,5 @@
 '''Tests for CLI module functionality.'''
+# pylint: disable=line-too-long
 
 import tempfile
 import unittest
@@ -663,8 +664,6 @@ class TestCLIOutputModes(unittest.TestCase):
 
     def test_write_output_metric_options_wired_to_summary(self):
         '''metric_options.mode should control the computed summary values.'''
-        import pandas as pd  # noqa: PLC0415 - local import matches existing test style
-
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             input_path = temp_path / 'config.toml'

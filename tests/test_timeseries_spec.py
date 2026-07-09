@@ -1,4 +1,5 @@
 '''Tests for the [timeseries] TOML section parser contract.'''
+# pylint: disable=missing-function-docstring
 
 import unittest
 

@@ -31,9 +31,10 @@ def is_scenario_grid(names: list[str]) -> bool:
     at least two distinct values on each axis (otherwise there's nothing to plot as a
     2D response surface).
     '''
-    parsed = [parse_scenario_name(name) for name in names]
-    if any(p is None for p in parsed):
+    parsed_with_none = [parse_scenario_name(name) for name in names]
+    if any(p is None for p in parsed_with_none):
         return False
+    parsed = [p for p in parsed_with_none if p is not None]
     precip_deltas = {p[0] for p in parsed}
     temp_deltas = {p[1] for p in parsed}
     return len(precip_deltas) >= 2 and len(temp_deltas) >= 2
@@ -48,7 +49,17 @@ def build_grid(scenario_names: list[str],
     zs[i, j] = metric_values[scenario] for the scenario at (temp=ys[i], precip=xs[j]),
     or NaN where no scenario exists for that combo (missing grid cell).
     '''
-    coords = {name: parse_scenario_name(name) for name in scenario_names}
+    coords: dict[str, tuple[float, float]] = {}
+    for name in scenario_names:
+        parsed = parse_scenario_name(name)
+        if parsed is None:
+            raise_plot_error(
+                PlotErrorCode.INVALID_SCENARIO_GRID,
+                'Scenario names do not form a valid precip/temp scenario grid. '
+                'Expected `_<precip_delta>_<temp_delta>` names.',
+                scenario_name=name,
+            )
+        coords[name] = parsed
     xs = np.array(sorted({c[0] for c in coords.values()}))
     ys = np.array(sorted({c[1] for c in coords.values()}))
     zs = np.full((len(ys), len(xs)), np.nan)

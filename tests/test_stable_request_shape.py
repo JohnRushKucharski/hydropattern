@@ -8,6 +8,7 @@ Covers:
   - build_components: Request -> list[Component] conversion.
   - Round-trip: Request -> build_components -> evaluate_components produces correct results.
 '''
+# pylint: disable=missing-function-docstring,line-too-long
 import unittest
 
 import numpy as np

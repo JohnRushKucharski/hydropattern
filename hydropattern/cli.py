@@ -2,6 +2,7 @@
 
 import tomllib
 from dataclasses import replace
+from numbers import Real
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,8 @@ def callback():
     '''hydropattern command line interface.'''
 
 @app.command()
+# Typer command signature intentionally mirrors public CLI flags.
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def run(path: str = typer.Argument(...,
                                    help='Path to *.toml configuration file.'),
         plot: bool = typer.Option(None, "--plot/--no-plot",
@@ -123,15 +126,19 @@ def run(path: str = typer.Argument(...,
         plot_components(scenario_results, output_path, output_options.metric,
                         timeseries.first_day_of_water_year, output_options.plot.climate_canvas)
 
-def require_no_conflicting_cli_options(plot: bool | None,
-                                       output_directory: str | None,
-                                       write_to_excel: bool | None,
-                                       overwrite: bool | None,
-                                       interp: bool | None,
-                                       show: bool | None,
-                                       threshold: float | None = None,
-                                       color_map: str | None = None,
-                                       color_map_ticks: list[float] | None = None) -> None:
+# Signature mirrors explicit CLI override surface.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def require_no_conflicting_cli_options(
+        plot: bool | None,
+        output_directory: str | None,
+        write_to_excel: bool | None,
+        overwrite: bool | None,
+        interp: bool | None,
+        show: bool | None,
+        threshold: float | None = None,
+        color_map: str | None = None,
+        color_map_ticks: list[float] | None = None,
+) -> None:
     '''Raise if any explicit output-related CLI option was passed alongside --run-toml-options.
 
     --run-toml-options means "run exactly as specified in the configuration file", so no
@@ -158,6 +165,8 @@ def require_no_conflicting_cli_options(plot: bool | None,
             options=list(conflicts),
         )
 
+# Signature mirrors explicit CLI override surface.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def resolve_output_options(data: dict[str, Any],
                            plot: bool | None,
                            output_directory: str | None,
@@ -260,6 +269,8 @@ def write_output(scenario_results: dict[str, list[Result]],
     typer.echo(f'Output written to: {output_path}.')
     return output_path
 
+# Signature mirrors plotting options surface.
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def plot_components(scenario_results: dict[str, list[Result]],
                     output_path: Path, metric_options: MetricOptions,
                     first_day_of_wy: int,
@@ -279,7 +290,14 @@ def plot_components(scenario_results: dict[str, list[Result]],
         component = result.component
         summary = build_summary_sheet(scenario_results, component.name, component.name,
                                       first_day_of_wy, metric_options.mode)
-        metric_values = summary.loc['total'].to_dict()
+        metric_values: dict[str, float] = {}
+        for name in scenario_names:
+            value = summary.at['total', name]
+            if not isinstance(value, Real):
+                raise ValueError(
+                    f'Expected numeric summary metric for scenario {name!r}, got {value!r}.'
+                )
+            metric_values[name] = float(value)
         xs, ys, zs = build_grid(scenario_names, metric_values)
         write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
         title = component.name if climate_canvas.title is None else climate_canvas.title

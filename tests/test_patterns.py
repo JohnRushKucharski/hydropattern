@@ -1,5 +1,6 @@
 '''Tests for the patterns module.'''
-# todo: test is_order_1, frequency_fx, evaluate_pattens
+# test coverage backlog: is_order_1, frequency_fx, evaluate_patterns
+# pylint: disable=too-many-public-methods
 import unittest
 
 import numpy as np

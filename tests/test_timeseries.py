@@ -187,5 +187,47 @@ class TestTimeseries(unittest.TestCase):
         finally:
             # Restore original backend
             matplotlib.use(original_backend)
+
+    def test_plot_timeseries_with_year_rows_and_comparison_series(self, show_plot: bool = False):
+        '''Tests plot_timeseries over multiple year rows with a comparison series.'''
+        #pylint: disable-all
+        import os
+        import tempfile
+
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        original_backend = matplotlib.get_backend()
+        if not show_plot:
+            matplotlib.use('Agg')
+
+        try:
+            dates = pd.date_range(start='1900-01-01', periods=800, freq='D')
+            values = [float(i % 120) for i in range(len(dates))]
+            comparison = pd.Series([v * 0.8 for v in values], index=dates, name='comparison')
+            df = pd.DataFrame({'time': dates, 'value': values}).set_index('time')
+            ts = Timeseries.from_dataframe(df)
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                temp_path = tmp.name
+
+            ts.plot_timeseries(
+                data_columns=['value'],
+                output_path=temp_path,
+                comparision_series=comparison,
+                yrs_per_row=1,
+                broken_axis=False,
+            )
+
+            self.assertTrue(os.path.exists(temp_path))
+            self.assertGreater(os.path.getsize(temp_path), 0)
+
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            plt.close('all')
+        except Exception as e:
+            self.fail(f'plot_timeseries with years/comparison raised an exception: {e}')
+        finally:
+            matplotlib.use(original_backend)
     #endregion
     #endregion

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from numbers import Integral
 from collections import Counter
 from pathlib import Path
 
@@ -41,6 +42,8 @@ def _group_by_water_year(
         'total': {'n': total_n, 'T': total_t}
     }
     for wy, group in df.groupby('_wy'):
+        if not isinstance(wy, Integral):
+            raise ValueError(f'Invalid water year label: {wy!r}.')
         rows[int(wy)] = {'n': float(group[column].sum()), 'T': float(len(group))}
 
     return pd.DataFrame(rows).T
@@ -60,7 +63,8 @@ def compute_portion_series(
     groups = _group_by_water_year(result, column, first_day_of_wy)
     t = groups['T']
     n = groups['n']
-    return (n / t).where(t > 0, other=pd.NA)
+    portion = (n / t).astype('Float64')
+    return portion.mask(t <= 0, pd.NA)
 
 
 def compute_metric_series(
@@ -85,7 +89,8 @@ def compute_metric_series(
         case MetricMode.PERCENTAGE:
             return portion * 100
         case MetricMode.RETURN_PERIOD:
-            return (1 / portion).where(portion > 0, other=pd.NA)  # type: ignore[call-overload]
+            return_period = (1 / portion).astype('Float64')
+            return return_period.mask(portion <= 0, pd.NA)
     raise ValueError(f'Unsupported metric mode: {mode!r}.')
 
 
@@ -116,6 +121,8 @@ def build_summary_sheet(
     return pd.DataFrame(series)
 
 
+# Public formatter API keeps this signature for CLI and library callers.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def write_results(
     scenario_results: dict[str, list[Result]],
     input_path: str,
@@ -140,26 +147,10 @@ def write_results(
     Returns the directory (or file parent) that received output files.
     """
     output_path = _resolve_output_path(input_path, output_directory)
-    filename_map = _build_all_filenames(scenario_results)
-
     if write_to_excel:
-        output_filename = Path(input_path).stem + "_output.xlsx"
-        target = output_path / output_filename
-        if not overwrite:
-            target = _next_available_path(target)
-        with pd.ExcelWriter(target) as writer:
-            for scenario_name, results in scenario_results.items():
-                for result in results:
-                    sheet = _build_sheet_name(scenario_name, result.component.name)
-                    result.df.to_excel(writer, sheet_name=sheet)
+        _write_results_excel(scenario_results, output_path, input_path, overwrite)
     else:
-        for (scenario_name, component_name), base_name in filename_map.items():
-            csv_path = output_path / (base_name + ".csv")
-            if not overwrite:
-                csv_path = _next_available_path(csv_path)
-            results = scenario_results[scenario_name]
-            result = next(r for r in results if r.component.name == component_name)
-            result.df.to_csv(csv_path)
+        _write_results_csv(scenario_results, output_path, overwrite)
 
     write_summary(scenario_results, output_path, first_day_of_wy, overwrite, metric_mode)
     return output_path
@@ -180,23 +171,14 @@ def write_summary(
     """
     first_scenario_results = next(iter(scenario_results.values()))
     for result in first_scenario_results:
-        component = result.component
-        filename = _clean_variable_name(component.name) + '_summary.xlsx'
-        target = output_path / filename
-        if not overwrite:
-            target = _next_available_path(target)
-        with pd.ExcelWriter(target) as writer:
-            for char in component.characteristics:
-                sheet_name = _clean_variable_name(char.name)[:31]
-                sheet_df = build_summary_sheet(
-                    scenario_results, component.name, char.name, first_day_of_wy, metric_mode
-                )
-                sheet_df.to_excel(writer, sheet_name=sheet_name)
-            comp_sheet = _clean_variable_name(component.name)[:31]
-            comp_df = build_summary_sheet(
-                scenario_results, component.name, component.name, first_day_of_wy, metric_mode
-            )
-            comp_df.to_excel(writer, sheet_name=comp_sheet)
+        _write_component_summary(
+            scenario_results=scenario_results,
+            output_path=output_path,
+            component_result=result,
+            first_day_of_wy=first_day_of_wy,
+            overwrite=overwrite,
+            metric_mode=metric_mode,
+        )
 
 
 
@@ -227,6 +209,62 @@ def _build_all_filenames(
         else:
             filename_map[pair] = clean
     return filename_map
+
+
+def _write_results_excel(scenario_results: dict[str, list[Result]],
+                         output_path: Path,
+                         input_path: str,
+                         overwrite: bool) -> None:
+    '''Write raw scenario outputs as one workbook with one sheet per scenario/component pair.'''
+    output_filename = Path(input_path).stem + "_output.xlsx"
+    target = output_path / output_filename
+    if not overwrite:
+        target = _next_available_path(target)
+    with pd.ExcelWriter(target) as writer:
+        for scenario_name, results in scenario_results.items():
+            for result in results:
+                sheet = _build_sheet_name(scenario_name, result.component.name)
+                result.df.to_excel(writer, sheet_name=sheet)
+
+
+def _write_results_csv(scenario_results: dict[str, list[Result]],
+                       output_path: Path,
+                       overwrite: bool) -> None:
+    '''Write raw scenario outputs as per-scenario/component csv files.'''
+    filename_map = _build_all_filenames(scenario_results)
+    for (scenario_name, component_name), base_name in filename_map.items():
+        csv_path = output_path / (base_name + ".csv")
+        if not overwrite:
+            csv_path = _next_available_path(csv_path)
+        results = scenario_results[scenario_name]
+        result = next(r for r in results if r.component.name == component_name)
+        result.df.to_csv(csv_path)
+
+
+def _write_component_summary(scenario_results: dict[str, list[Result]],
+                             output_path: Path,
+                             component_result: Result,
+                             first_day_of_wy: int,
+                             overwrite: bool,
+                             metric_mode: MetricMode) -> None:
+    '''Write one {component}_summary.xlsx workbook for a single component.'''
+    component = component_result.component
+    filename = _clean_variable_name(component.name) + '_summary.xlsx'
+    target = output_path / filename
+    if not overwrite:
+        target = _next_available_path(target)
+    with pd.ExcelWriter(target) as writer:
+        for char in component.characteristics:
+            sheet_name = _clean_variable_name(char.name)[:31]
+            sheet_df = build_summary_sheet(
+                scenario_results, component.name, char.name, first_day_of_wy, metric_mode
+            )
+            sheet_df.to_excel(writer, sheet_name=sheet_name)
+        comp_sheet = _clean_variable_name(component.name)[:31]
+        comp_df = build_summary_sheet(
+            scenario_results, component.name, component.name, first_day_of_wy, metric_mode
+        )
+        comp_df.to_excel(writer, sheet_name=comp_sheet)
 
 
 def _resolve_output_path(
