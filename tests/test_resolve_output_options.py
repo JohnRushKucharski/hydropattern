@@ -39,6 +39,18 @@ class TestResolveOutputOptionsAllCliOmitted(unittest.TestCase):
         self.assertFalse(opts.plot.climate_canvas.interpolate)
         self.assertTrue(opts.plot.climate_canvas.show)
 
+    def test_toml_threshold_color_map_and_ticks_used_when_cli_omitted(self):
+        data = {'output': {'plot': {'climate-canvas': {
+            'threshold': 1.25, 'color_map': 'viridis', 'color_map_ticks': [-1, 0, 1],
+        }}}}
+        opts = resolve_output_options(data, plot=None, output_directory=None,
+                                      write_to_excel=None, overwrite=None,
+                                      interp=None, show=None,
+                                      threshold=None, color_map=None, color_map_ticks=None)
+        self.assertEqual(opts.plot.climate_canvas.threshold, 1.25)
+        self.assertEqual(opts.plot.climate_canvas.color_map, 'viridis')
+        self.assertEqual(opts.plot.climate_canvas.color_map_ticks, [-1.0, 0.0, 1.0])
+
 
 class TestResolveOutputOptionsCliOverridesWin(unittest.TestCase):
     '''Explicit CLI flags override toml values, regardless of toml content.'''
@@ -72,6 +84,19 @@ class TestResolveOutputOptionsCliOverridesWin(unittest.TestCase):
                                       interp=False, show=True)
         self.assertFalse(opts.plot.climate_canvas.interpolate)
         self.assertTrue(opts.plot.climate_canvas.show)
+
+    def test_cli_threshold_color_map_and_ticks_override_toml_climate_canvas(self):
+        data = {'output': {'plot': {'climate-canvas': {
+            'threshold': 1.25, 'color_map': 'viridis', 'color_map_ticks': [-1, 0, 1],
+        }}}}
+        opts = resolve_output_options(data, plot=None, output_directory=None,
+                                      write_to_excel=None, overwrite=None,
+                                      interp=None, show=None,
+                                      threshold=2.5, color_map='RdYlBu',
+                                      color_map_ticks=[-5, 0, 5])
+        self.assertEqual(opts.plot.climate_canvas.threshold, 2.5)
+        self.assertEqual(opts.plot.climate_canvas.color_map, 'RdYlBu')
+        self.assertEqual(opts.plot.climate_canvas.color_map_ticks, [-5, 0, 5])
 
     def test_title_xlabel_ylabel_zlabel_unaffected_by_cli(self):
         '''No CLI flags exist yet for these -- toml values (or defaults) pass through untouched.'''

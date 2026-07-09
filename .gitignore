@@ -228,3 +228,7 @@ Data_comparing/
 frio/
 great_lakes/
 Luvuvhu/
+*.code-workspace
+
+README.html
+README_files/

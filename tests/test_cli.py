@@ -238,6 +238,15 @@ class TestCLICommand(unittest.TestCase):
         self.assertIn('Usage', result.stdout)
         self.assertIn('run', result.stdout)
 
+    def test_run_help_includes_new_climate_canvas_options(self):
+        '''Run help exposes the new response-surface tuning CLI options.'''
+        result = RUNNER.invoke(app, ['run', '--help'])
+
+        self.assertEqual(result.exit_code, 0, msg=result.stdout)
+        self.assertIn('--threshold', result.stdout)
+        self.assertIn('--color-map', result.stdout)
+        self.assertIn('--color-map-ticks', result.stdout)
+
     def test_run_command_smoke_with_temp_files(self):
         '''Default run (Excel) succeeds and writes an xlsx file.'''
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -369,6 +378,41 @@ class TestCLICommand(unittest.TestCase):
                 result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS
             )
             self.assertEqual(result.exception.envelope.source, 'cli')
+
+    def test_run_command_toml_options_only_rejects_threshold_option(self):
+        '''--run-toml-options conflicts with explicit --threshold.'''
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options', '--threshold', '1.0'],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS)
+
+    def test_run_command_toml_options_only_rejects_color_map_option(self):
+        '''--run-toml-options conflicts with explicit --color-map.'''
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options',
+             '--color-map', 'viridis'],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS)
+
+    def test_run_command_toml_options_only_rejects_color_map_ticks_option(self):
+        '''--run-toml-options conflicts with explicit --color-map-ticks.'''
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options',
+             '--color-map-ticks', '0', '--color-map-ticks', '1'],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS)
 
     def test_run_command_toml_options_only_runs_toml_config_without_conflicts(self):
         '''--run-toml-options alone (no conflicting flags) runs purely per the toml.'''
@@ -730,3 +774,27 @@ class TestPlotComponents(unittest.TestCase):
             _, kwargs = mocked.call_args
             self.assertEqual(kwargs['title'], 'Custom Title')
             self.assertEqual(kwargs['labels'], ('X', 'Y', 'Z'))
+
+    def test_plot_components_forwards_threshold_color_map_and_ticks(self):
+        '''Configured climate-canvas tuning options are forwarded to plotting.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(
+                scenario_results, output_path, MetricOptions(), 1,
+                ClimateCanvasPlotOptions(
+                    threshold=1.5, color_map='viridis', color_map_ticks=[-1.0, 0.0, 1.0],
+                ),
+            )
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['threshold'], 1.5)
+            self.assertEqual(kwargs['color_map'], 'viridis')
+            self.assertEqual(kwargs['color_map_ticks'], [-1.0, 0.0, 1.0])

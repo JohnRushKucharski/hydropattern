@@ -124,8 +124,9 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 > `_<precip_delta>_<temp_delta>` naming convention (e.g. `_0_1.5`). Can also be
 > enabled via `[output.plot].enabled = true` in the toml file (no CLI flag needed).
 > See [docs/user/reference.md](docs/user/reference.md#response-surface-plots---plot) for
-> details, the grid naming convention, and related `--interp/--no-interp`, `--show/--no-show`
-> options and their `[output.plot.climate-canvas]` toml equivalents (which also configure
+> details, the grid naming convention, and related `--interp/--no-interp`, `--show/--no-show`,
+> `--threshold`, `--color-map`, and `--color-map-ticks` options and their
+> `[output.plot.climate-canvas]` toml equivalents (which also configure
 > plot title/xlabel/ylabel/zlabel).
 
 ```
@@ -147,8 +148,8 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 > If `--run-toml-options` is passed, the program runs exactly as specified in the
 > `.toml` file's `[output]` section; none of the other output-related CLI options
 > above (`--output-dir`, `--plot/--no-plot`, `--excel/--no-excel`,
-> `--overwrite/--no-overwrite`, `--interp/--no-interp`, `--show/--no-show`) may also
-> be passed explicitly — doing so raises a `CLI_CONFLICTING_OPTIONS` error. Default
-> is `--override-toml-options`, which keeps the normal CLI-overrides-toml precedence
+> `--overwrite/--no-overwrite`, `--interp/--no-interp`, `--show/--no-show`,
+> `--threshold`, `--color-map`, `--color-map-ticks`) may also be passed explicitly —
+> doing so raises a `CLI_CONFLICTING_OPTIONS` error. Default is
+> `--override-toml-options`, which keeps the normal CLI-overrides-toml precedence
 > described above.
-

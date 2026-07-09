@@ -76,6 +76,29 @@ verbose = false
 magnitude = [">", 2.0]
 frequency = [">=", 1, 5]         # at least once every 5 years.
 
+# ---------------------OUTPUT OPTIONS--------------------- #
+# [output]
+# directory = "examples/output"   # optional; defaults to "<config_stem>_output"
+# excel = true                    # optional; defaults to true
+# overwrite = true                # optional; defaults to true
+#
+# [output.metric]
+# mode = "portion"                # optional; one of portion/percentage/return_period
+#
+# [output.plot]
+# enabled = true                  # optional; defaults to false
+#
+# [output.plot.climate-canvas]
+# interpolate = true              # optional; defaults to true
+# show = false                    # optional; defaults to false
+# title = "Response Surface"      # optional; defaults to component name
+# xlabel = "Precipitation Delta (%)"
+# ylabel = "Temperature Delta (C)"
+# zlabel = "portion"              # optional; defaults to [output.metric].mode
+# threshold = 0.5                 # optional; defaults to z-range midpoint
+# color_map = "RdBu"              # optional; matplotlib colormap name
+# color_map_ticks = [-2.0, 0.0, 2.0] # optional; explicit colorbar ticks
+
 # -------------Timeseries Parameter Notes---------------- #
 # Path: must be path to *.csv or *.xlsx/*.xls file, with following header row:
 #   time, <column_name_1>, ..., <column_name_n>

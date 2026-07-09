@@ -82,11 +82,15 @@ class TestParseOutputOptionsPlot(unittest.TestCase):
             'xlabel': 'X',
             'ylabel': 'Y',
             'zlabel': 'Z',
+            'threshold': 1.5,
+            'color_map': 'viridis',
+            'color_map_ticks': [-1, 0, 1],
         }}}})
         cc = opts.plot.climate_canvas
         self.assertEqual(cc, ClimateCanvasPlotOptions(
             interpolate=False, show=True, title='My Title',
             xlabel='X', ylabel='Y', zlabel='Z',
+            threshold=1.5, color_map='viridis', color_map_ticks=[-1.0, 0.0, 1.0],
         ))
 
 
@@ -148,6 +152,32 @@ class TestParseOutputOptionsErrors(unittest.TestCase):
         with self.assertRaises(HydropatternError) as ctx:
             parse_output_options({'output': {'plot': {'climate-canvas': {'title': 1}}}})
         self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+
+    def test_non_numeric_threshold_raises_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'climate-canvas': {'threshold': '1.0'}}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+        self.assertEqual(ctx.exception.envelope.context.get('field'), 'threshold')
+
+    def test_non_str_color_map_raises_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'climate-canvas': {'color_map': 1}}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+        self.assertEqual(ctx.exception.envelope.context.get('field'), 'color_map')
+
+    def test_non_list_color_map_ticks_raises_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'climate-canvas': {'color_map_ticks': 1}}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+        self.assertEqual(ctx.exception.envelope.context.get('field'), 'color_map_ticks')
+
+    def test_non_numeric_color_map_ticks_entry_raises_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'climate-canvas': {
+                'color_map_ticks': [0, 'bad', 1],
+            }}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+        self.assertEqual(ctx.exception.envelope.context.get('field'), 'color_map_ticks')
 
 
 if __name__ == '__main__':

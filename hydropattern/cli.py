@@ -69,13 +69,33 @@ def run(path: str = typer.Argument(...,
                                   response surface plot. Only affects --plot. Defaults
                                   to the configuration file's
                                   [output.plot.climate-canvas].show (false if unset).'''),
+        threshold: float = typer.Option(None, "--threshold",
+                                        help='''Z-value centered on the colormap for
+                                        each response surface plot. Only affects --plot.
+                                        Defaults to the configuration file's
+                                        [output.plot.climate-canvas].threshold (the
+                                        midpoint of the z-value range if unset).'''),
+        color_map: str = typer.Option(None, "--color-map",
+                                      help='''Matplotlib colormap name for the response
+                                      surface plot. Only affects --plot. Defaults to
+                                      the configuration file's
+                                      [output.plot.climate-canvas].color_map
+                                      ('RdBu' if unset).'''),
+        color_map_ticks: list[float] = typer.Option(None, "--color-map-ticks",
+                                                    help='''Explicit colorbar tick
+                                                    value. Repeat for multiple ticks.
+                                                    Only affects --plot. Defaults to
+                                                    the configuration file's
+                                                    [output.plot.climate-canvas].color_map_ticks
+                                                    (unset).'''),
         run_toml_options: bool = typer.Option(False, "--run-toml-options/--override-toml-options",
                                               help='''If true, run exactly as specified in
                                               the configuration file's [output] section;
                                               no other output-related CLI option
                                               (--plot/--no-plot, --output-dir, --excel/--no-excel,
                                               --overwrite/--no-overwrite, --interp/--no-interp,
-                                              --show/--no-show) may also be passed explicitly,
+                                              --show/--no-show, --threshold, --color-map,
+                                              --color-map-ticks) may also be passed explicitly,
                                               or a CLI_CONFLICTING_OPTIONS error is raised.
                                               If false (default), any explicit CLI option
                                               overrules a conflicting configuration file
@@ -84,13 +104,15 @@ def run(path: str = typer.Argument(...,
     if run_toml_options:
         require_no_conflicting_cli_options(
             plot=plot, output_directory=output_directory, write_to_excel=write_to_excel,
-            overwrite=overwrite, interp=interp, show=show,
+            overwrite=overwrite, interp=interp, show=show, threshold=threshold,
+            color_map=color_map, color_map_ticks=color_map_ticks,
         )
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
     output_options = resolve_output_options(data, plot, output_directory, write_to_excel,
-                                            overwrite, interp, show)
+                                            overwrite, interp, show, threshold,
+                                            color_map, color_map_ticks)
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {name: evaluate_components(df, components)
                         for name, df in scenarios.items()}
@@ -106,7 +128,10 @@ def require_no_conflicting_cli_options(plot: bool | None,
                                        write_to_excel: bool | None,
                                        overwrite: bool | None,
                                        interp: bool | None,
-                                       show: bool | None) -> None:
+                                       show: bool | None,
+                                       threshold: float | None = None,
+                                       color_map: str | None = None,
+                                       color_map_ticks: list[float] | None = None) -> None:
     '''Raise if any explicit output-related CLI option was passed alongside --run-toml-options.
 
     --run-toml-options means "run exactly as specified in the configuration file", so no
@@ -120,6 +145,9 @@ def require_no_conflicting_cli_options(plot: bool | None,
             'overwrite': overwrite,
             'interp': interp,
             'show': show,
+            'threshold': threshold,
+            'color_map': color_map,
+            'color_map_ticks': color_map_ticks,
         }.items() if value is not None
     }
     if conflicts:
@@ -136,7 +164,10 @@ def resolve_output_options(data: dict[str, Any],
                            write_to_excel: bool | None,
                            overwrite: bool | None,
                            interp: bool | None,
-                           show: bool | None) -> OutputOptions:
+                           show: bool | None,
+                           threshold: float | None = None,
+                           color_map: str | None = None,
+                           color_map_ticks: list[float] | None = None) -> OutputOptions:
     '''Merge explicit CLI flags with the configuration file's [output] section.
 
     CLI flags default to None (not explicitly passed by the user). An explicit
@@ -149,6 +180,12 @@ def resolve_output_options(data: dict[str, Any],
         climate_canvas = replace(climate_canvas, interpolate=interp)
     if show is not None:
         climate_canvas = replace(climate_canvas, show=show)
+    if threshold is not None:
+        climate_canvas = replace(climate_canvas, threshold=threshold)
+    if color_map is not None:
+        climate_canvas = replace(climate_canvas, color_map=color_map)
+    if color_map_ticks is not None:
+        climate_canvas = replace(climate_canvas, color_map_ticks=color_map_ticks)
     plot_options = replace(toml_options.plot, climate_canvas=climate_canvas)
     if plot is not None:
         plot_options = replace(plot_options, enabled=plot)
@@ -255,6 +292,9 @@ def plot_components(scenario_results: dict[str, list[Result]],
             title=title,
             save_path=output_path / f'{component.name}_plot.png',
             show=climate_canvas.show,
+            threshold=climate_canvas.threshold,
+            color_map=climate_canvas.color_map,
+            color_map_ticks=climate_canvas.color_map_ticks,
         )
 
 def write_grid_csv(xs, ys, zs, path: Path) -> None:

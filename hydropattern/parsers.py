@@ -76,6 +76,9 @@ class ClimateCanvasPlotOptions:
     xlabel: str = 'Precipitation Delta (%)'
     ylabel: str = 'Temperature Delta (C)'
     zlabel: str | None = None
+    threshold: float | None = None
+    color_map: str = 'RdBu'
+    color_map_ticks: list[float] | None = None
 
 
 @dataclass(frozen=True)
@@ -867,6 +870,11 @@ def parse_climate_canvas_plot_options(section: Any = None) -> ClimateCanvasPlotO
         - title/zlabel: str or omitted (None); None means "use the dynamic default"
           (title -> component name, zlabel -> configured metric mode value).
         - xlabel/ylabel: str, with documented defaults.
+        - threshold: int or float, or omitted (None); None means "use the midpoint
+          of the z-value range" (climate_canvas's own default).
+        - color_map: str, matplotlib colormap name, default 'RdBu'.
+        - color_map_ticks: list of int/float, or omitted (None); None means "let
+          climate_canvas choose default tick placement".
         - Unrecognized keys raise PARSER_UNKNOWN_OPTION.
     '''
     name = 'output.plot.climate-canvas'
@@ -900,6 +908,17 @@ def parse_climate_canvas_plot_options(section: Any = None) -> ClimateCanvasPlotO
             case 'zlabel':
                 _require_type(value, str, name, 'zlabel')
                 opts = replace(opts, zlabel=value)
+            case 'threshold':
+                _require_type(value, (int, float), name, 'threshold')
+                opts = replace(opts, threshold=float(value))
+            case 'color_map':
+                _require_type(value, str, name, 'color_map')
+                opts = replace(opts, color_map=value)
+            case 'color_map_ticks':
+                _require_type(value, list, name, 'color_map_ticks')
+                for tick in value:
+                    _require_type(tick, (int, float), name, 'color_map_ticks')
+                opts = replace(opts, color_map_ticks=[float(t) for t in value])
             case _:
                 raise_parser_error(
                     ParserErrorCode.UNKNOWN_OPTION,

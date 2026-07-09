@@ -254,6 +254,9 @@ title       = "My Custom Title"                     # optional; defaults to the 
 xlabel      = "Precipitation Delta (%)"             # optional; shown default
 ylabel      = "Temperature Delta (C)"               # optional; shown default
 zlabel      = "portion"                             # optional; defaults to [output.metric].mode
+threshold   = 0.0                                   # optional; defaults to z-range midpoint
+color_map   = "RdBu"                                # optional; matplotlib colormap name
+color_map_ticks = [-2.0, 0.0, 2.0]                  # optional; explicit colorbar ticks
 ```
 
 The entire `[output]` section is optional, as is every key within it and its nested
@@ -275,9 +278,9 @@ corresponding `[output]` toml value, as described above. Passing `--run-toml-opt
 instead reverses this: the program must run *exactly* as specified in the toml file's
 `[output]` section, and none of the other output-related CLI flags (`--output-dir`,
 `--plot/--no-plot`, `--excel/--no-excel`, `--overwrite/--no-overwrite`,
-`--interp/--no-interp`, `--show/--no-show`) may be passed explicitly alongside it. Doing so
-raises a `CLI_CONFLICTING_OPTIONS` error instead of silently ignoring or merging the
-conflicting values.
+`--interp/--no-interp`, `--show/--no-show`, `--threshold`, `--color-map`,
+`--color-map-ticks`) may be passed explicitly alongside it. Doing so raises a
+`CLI_CONFLICTING_OPTIONS` error instead of silently ignoring or merging the conflicting values.
 
 ### `[output.metric]`
 
@@ -356,6 +359,9 @@ For each component, `--plot` writes two files to the run's output directory:
 | `--plot/--no-plot` | `false` | `[output.plot].enabled` | Enable response-surface plotting (requires a valid scenario grid; see above). |
 | `--interp/--no-interp` | `true` | `[output.plot.climate-canvas].interpolate` | Bilinearly interpolate the plotted surface to a finer grid. Interpolation only fills cells where all four surrounding grid corners are present — gaps adjacent to a missing scenario remain blank. |
 | `--show/--no-show` | `false` (not shown) | `[output.plot.climate-canvas].show` | Also open an interactive matplotlib window per component, in addition to saving the plot file. |
+| `--threshold <float>` | midpoint of z-range | `[output.plot.climate-canvas].threshold` | Centers the diverging colormap at the provided z-value. |
+| `--color-map <name>` | `"RdBu"` | `[output.plot.climate-canvas].color_map` | Matplotlib colormap name used for the response surface. |
+| `--color-map-ticks <float>` (repeatable) | climate-canvas automatic ticks | `[output.plot.climate-canvas].color_map_ticks` | Explicit colorbar tick values (repeat flag for multiple ticks). |
 | — (toml only) | component name | `[output.plot.climate-canvas].title` | Plot title. Defaults to the component's name when unset. |
 | — (toml only) | `"Precipitation Delta (%)"` | `[output.plot.climate-canvas].xlabel` | X-axis label. |
 | — (toml only) | `"Temperature Delta (C)"` | `[output.plot.climate-canvas].ylabel` | Y-axis label. |
