@@ -14,6 +14,7 @@ from hydropattern.errors import CliErrorCode, ParserErrorCode, raise_cli_error, 
 from hydropattern.formatters import build_summary_sheet, write_results
 from hydropattern.parsers import (
     ClimateCanvasPlotOptions,
+    MetricMode,
     MetricOptions,
     OutputOptions,
     build_components,
@@ -269,6 +270,22 @@ def write_output(scenario_results: dict[str, list[Result]],
     typer.echo(f'Output written to: {output_path}.')
     return output_path
 
+def _resolve_color_map(color_map: str, is_success_pattern: bool, metric_mode: MetricMode) -> str:
+    '''Auto-reverse hydropattern's default 'RdBu' colormap so red always means "less success".
+
+    Only applies when color_map is left at the default 'RdBu' (explicit color_map choices
+    are never touched). Two independent conditions each flip the map to 'RdBu_r':
+      - metric_mode is RETURN_PERIOD (high return period == rare/undesirable, the opposite
+        direction from portion/percentage, where higher == more success).
+      - is_success_pattern is False (the component tracks a failure condition, so a high
+        portion/percentage/return-period value means more of the *bad* thing happening).
+    If both conditions hold, they cancel out and the plain 'RdBu' default is kept.
+    '''
+    if color_map != 'RdBu':
+        return color_map
+    reverse = (metric_mode == MetricMode.RETURN_PERIOD) ^ (not is_success_pattern)
+    return 'RdBu_r' if reverse else 'RdBu'
+
 # Signature mirrors plotting options surface.
 # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
 def plot_components(scenario_results: dict[str, list[Result]],
@@ -311,7 +328,9 @@ def plot_components(scenario_results: dict[str, list[Result]],
             save_path=output_path / f'{component.name}_plot.png',
             show=climate_canvas.show,
             threshold=climate_canvas.threshold,
-            color_map=climate_canvas.color_map,
+            color_map=_resolve_color_map(
+                climate_canvas.color_map, component.is_success_pattern, metric_options.mode
+            ),
             color_map_ticks=climate_canvas.color_map_ticks,
         )
 

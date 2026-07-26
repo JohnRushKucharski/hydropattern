@@ -10,6 +10,7 @@ import pandas as pd
 from typer.testing import CliRunner
 
 from hydropattern.cli import (
+    _resolve_color_map,
     app,
     load_components,
     load_config_file,
@@ -692,9 +693,11 @@ class TestCLIOutputModes(unittest.TestCase):
 class TestPlotComponents(unittest.TestCase):
     '''Tests for plot_components.'''
 
-    def _grid_result(self, component_name: str, success: bool) -> Result:
+    def _grid_result(self, component_name: str, success: bool,
+                      is_success_pattern: bool = True) -> Result:
         '''Minimal Result whose component column is all-success or all-failure.'''
-        component = Component(name=component_name, characteristics=[], is_success_pattern=True)
+        component = Component(name=component_name, characteristics=[],
+                               is_success_pattern=is_success_pattern)
         index = pd.DatetimeIndex([
             pd.Timestamp('2000-01-01'), pd.Timestamp('2000-02-01'),
         ], name='time')
@@ -802,3 +805,94 @@ class TestPlotComponents(unittest.TestCase):
             self.assertEqual(kwargs['threshold'], 1.5)
             self.assertEqual(kwargs['color_map'], 'viridis')
             self.assertEqual(kwargs['color_map_ticks'], [-1.0, 0.0, 1.0])
+
+    def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
+        '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False,
+                                              is_success_pattern=False)],
+                '_5_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_5_1.5': [self._grid_result('single_characteristic', True,
+                                              is_success_pattern=False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions())
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['color_map'], 'RdBu_r')
+
+    def test_plot_components_keeps_explicit_color_map_for_failure_pattern(self):
+        '''An explicitly-configured color_map is never auto-reversed.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False,
+                                              is_success_pattern=False)],
+                '_5_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_5_1.5': [self._grid_result('single_characteristic', True,
+                                              is_success_pattern=False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(color_map='viridis'))
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['color_map'], 'viridis')
+
+
+class TestResolveColorMap(unittest.TestCase):
+    '''Tests for _resolve_color_map.'''
+
+    def test_default_map_portion_success_pattern_stays_rdbu(self):
+        self.assertEqual(
+            _resolve_color_map('RdBu', is_success_pattern=True, metric_mode=MetricMode.PORTION),
+            'RdBu',
+        )
+
+    def test_default_map_return_period_success_pattern_reverses(self):
+        self.assertEqual(
+            _resolve_color_map('RdBu', is_success_pattern=True,
+                                metric_mode=MetricMode.RETURN_PERIOD),
+            'RdBu_r',
+        )
+
+    def test_default_map_portion_failure_pattern_reverses(self):
+        self.assertEqual(
+            _resolve_color_map('RdBu', is_success_pattern=False, metric_mode=MetricMode.PORTION),
+            'RdBu_r',
+        )
+
+    def test_default_map_return_period_failure_pattern_cancels_out(self):
+        self.assertEqual(
+            _resolve_color_map('RdBu', is_success_pattern=False,
+                                metric_mode=MetricMode.RETURN_PERIOD),
+            'RdBu',
+        )
+
+    def test_default_map_percentage_mode_behaves_like_portion(self):
+        self.assertEqual(
+            _resolve_color_map('RdBu', is_success_pattern=False,
+                                metric_mode=MetricMode.PERCENTAGE),
+            'RdBu_r',
+        )
+
+    def test_explicit_color_map_never_reversed(self):
+        for is_success_pattern in (True, False):
+            for metric_mode in MetricMode:
+                self.assertEqual(
+                    _resolve_color_map('viridis', is_success_pattern=is_success_pattern,
+                                        metric_mode=metric_mode),
+                    'viridis',
+                )
+

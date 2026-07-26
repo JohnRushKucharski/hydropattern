@@ -114,6 +114,30 @@ def to_doy_from_dowy(dowy: int, first_day_of_wy: int = 1, yr: int = 1900) -> int
         doy -= 1
     return doy
 
+def _parse_dates_beyond_ns_range(raw_index: pd.Index, date_format: str = '') -> pd.DatetimeIndex:
+    '''
+    Parses string-valued date index entries into a DatetimeIndex, supporting
+    years beyond ~2262 which overflow pandas' default nanosecond precision.
+
+    Expects:
+        - raw_index: strings, either ISO-formatted (YYYY-MM-DD) when
+          date_format is not given, or matching date_format otherwise.
+
+    Note:
+        pandas' to_datetime always parses at nanosecond precision internally,
+        so it raises OutOfBoundsDatetime for far-future/past years even when
+        a coarser unit is requested afterwards. To avoid this, each string is
+        parsed with datetime.strptime (unbounded), reformatted to ISO, then
+        built into a datetime64[D]-typed numpy array, whose parser is not
+        limited to the nanosecond range.
+    '''
+    if date_format:
+        parsed = [datetime_mod.datetime.strptime(str(s), date_format) for s in raw_index]
+        iso_strings = [d.strftime('%Y-%m-%d') for d in parsed]
+    else:
+        iso_strings = [str(s) for s in raw_index]
+    return pd.DatetimeIndex(np.array(iso_strings, dtype='datetime64[D]'))
+
 @dataclass
 class Timeseries:
     '''Class for holding time series of hydrology data.'''
@@ -177,15 +201,15 @@ class Timeseries:
             - *.csv file
             - columns: ['time', ...]
             - parse_dates = True will successfully parse 'time' column.
+
+        Note:
+            Dates are normalised to datetime64[s] resolution so that years
+            beyond 2262 (which overflow nanosecond precision) are supported.
         '''
-        if date_format:
-            df = pd.read_csv(path, header=0, index_col=0, parse_dates=[0],
-                             date_format=date_format,
-                             ).rename_axis('time', axis=0)
-            pd.to_datetime(df.index, format=date_format, errors='raise')
-        else:
-            df = pd.read_csv(path, header=0, index_col=0, parse_dates=[0],
-                             ).rename_axis('time', axis=0)
+        df = pd.read_csv(path, header=0, index_col=0, dtype={0: str}
+                         ).rename_axis('time', axis=0)
+        df.index = _parse_dates_beyond_ns_range(df.index, date_format)
+        df.index.name = 'time'
         return Timeseries(file_path=path, data=df.apply(pd.to_numeric, errors='raise').sort_index(),
                           first_day_of_water_year=first_dowy)
 
@@ -211,8 +235,7 @@ class Timeseries:
         # Index cells may be Python datetime objects (native Excel dates) or
         # strings. Parse strings with date_format when provided.
         if df.index.dtype == object and not isinstance(df.index[0], datetime_mod.datetime):
-            fmt = date_format or None
-            idx_parsed = pd.to_datetime(df.index, format=fmt)
+            idx_parsed = _parse_dates_beyond_ns_range(df.index, date_format)
         else:
             # datetime objects: convert via ISO strings → datetime64[D] so
             # years > 2262 (nanosecond overflow) are handled correctly.

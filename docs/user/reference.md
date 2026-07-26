@@ -360,7 +360,7 @@ For each component, `--plot` writes two files to the run's output directory:
 | `--interp/--no-interp` | `true` | `[output.plot.climate-canvas].interpolate` | Bilinearly interpolate the plotted surface to a finer grid. Interpolation only fills cells where all four surrounding grid corners are present — gaps adjacent to a missing scenario remain blank. |
 | `--show/--no-show` | `false` (not shown) | `[output.plot.climate-canvas].show` | Also open an interactive matplotlib window per component, in addition to saving the plot file. |
 | `--threshold <float>` | midpoint of z-range | `[output.plot.climate-canvas].threshold` | Centers the diverging colormap at the provided z-value. |
-| `--color-map <name>` | `"RdBu"` | `[output.plot.climate-canvas].color_map` | Matplotlib colormap name used for the response surface. |
+| `--color-map <name>` | `"RdBu"` | `[output.plot.climate-canvas].color_map` | Matplotlib colormap name used for the response surface. When left at the default `"RdBu"`, hydropattern auto-reverses it to `"RdBu_r"` per component if `metric.mode = "return_period"` XOR the component's `success_pattern = false` (both together cancel out, keeping `"RdBu"`), so red always indicates less success. Explicit non-default colormaps are never auto-reversed. |
 | `--color-map-ticks <float>` (repeatable) | climate-canvas automatic ticks | `[output.plot.climate-canvas].color_map_ticks` | Explicit colorbar tick values (repeat flag for multiple ticks). |
 | — (toml only) | component name | `[output.plot.climate-canvas].title` | Plot title. Defaults to the component's name when unset. |
 | — (toml only) | `"Precipitation Delta (%)"` | `[output.plot.climate-canvas].xlabel` | X-axis label. |

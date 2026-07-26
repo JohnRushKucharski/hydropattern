@@ -1,4 +1,6 @@
 '''Tests for the timeseries module.'''
+import os
+import tempfile
 import unittest
 
 import pandas as pd
@@ -55,6 +57,46 @@ class TestTimeseries(unittest.TestCase):
                            'value': range(10)}).set_index('time')
         # a second column containing dowy is added to the dataframe
         self.assertEqual(Timeseries.from_dataframe(df).data.shape, (10, 2))
+    #endregion
+
+    #region from_csv tests
+    def test_from_csv_iso_dates_beyond_nanosecond_range(self):
+        '''Tests from_csv with ISO dates spanning years that overflow datetime64[ns].'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, 'data.csv')
+            pd.DataFrame({'time': ['1970-01-01', '2999-01-01'], 'value': [1.0, 2.0]}
+                        ).to_csv(path, index=False)
+            ts = Timeseries.from_csv(path)
+            self.assertEqual(list(ts.data.index.year), [1970, 2999])
+
+    def test_from_csv_custom_date_format_beyond_nanosecond_range(self):
+        '''Tests from_csv with a custom date_format spanning years beyond datetime64[ns].'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, 'data.csv')
+            pd.DataFrame({'time': ['01-01-1970', '01-01-2999'], 'value': [1.0, 2.0]}
+                        ).to_csv(path, index=False)
+            ts = Timeseries.from_csv(path, date_format='%d-%m-%Y')
+            self.assertEqual(list(ts.data.index.year), [1970, 2999])
+    #endregion
+
+    #region from_excel tests
+    def test_from_excel_string_dates_beyond_nanosecond_range(self):
+        '''Tests from_excel with string-formatted date cells beyond datetime64[ns] range.'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, 'data.xlsx')
+            pd.DataFrame({'time': ['1970-01-01', '2999-01-01'], 'value': [1.0, 2.0]}
+                        ).to_excel(path, index=False)
+            ts = Timeseries.from_excel(path)
+            self.assertEqual(list(ts.data.index.year), [1970, 2999])
+
+    def test_from_excel_string_dates_custom_format_beyond_nanosecond_range(self):
+        '''Tests from_excel with custom-format string date cells beyond datetime64[ns].'''
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, 'data.xlsx')
+            pd.DataFrame({'time': ['01-01-1970', '01-01-2999'], 'value': [1.0, 2.0]}
+                        ).to_excel(path, index=False)
+            ts = Timeseries.from_excel(path, date_format='%d-%m-%Y')
+            self.assertEqual(list(ts.data.index.year), [1970, 2999])
     #endregion
 
     #region day_of_water_year_to_date tests
