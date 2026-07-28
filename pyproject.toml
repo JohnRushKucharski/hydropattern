@@ -33,6 +33,7 @@ dev = [
 	"ipykernel>=6.29.5,<7.0.0",
 	"python-calamine>=0.3.1,<1.0.0",
 	"xlsxwriter>=3.2.0,<4.0.0",
+	"types-openpyxl>=3.1.5.20260724",
 ]
 
 [build-system]
@@ -54,3 +55,20 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+explicit_package_bases = true
+
+[tool.pylint.main]
+ignore-paths = ["^examples/.*$"]
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-function-docstring",
+    "missing-class-docstring",
+    "protected-access",
+    "redefined-outer-name",
+    "import-outside-toplevel",
+    "duplicate-code",
+]

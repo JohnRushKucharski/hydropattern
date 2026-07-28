@@ -226,8 +226,22 @@ Backup[ ]of[ ]*.numbers/
 # Example/Project files
 Data_comparing/
 frio/
-great_lakes/
 Luvuvhu/
+
+# Great Lakes example (examples/great_lakes/): expose top-level scripts/docs plus the
+# templates/, data/, and docs/ subdirectories only (manual_tests/ and __pycache__/ stay
+# ignored via the catch-all below). Within data/, raw/ is script-only (its data files
+# are too bulky/regenerable to commit); clean/ and filled/ are small enough to commit
+# in full.
+examples/great_lakes/*
+!examples/great_lakes/*.py
+!examples/great_lakes/*.md
+!examples/great_lakes/templates/
+!examples/great_lakes/data/
+!examples/great_lakes/docs/
+
+examples/great_lakes/data/raw/*
+!examples/great_lakes/data/raw/*.py
 *.code-workspace
 
 README.html

@@ -939,4 +939,3 @@ class TestResolveColorMap(unittest.TestCase):
                                         metric_mode=metric_mode),
                     'viridis',
                 )
-

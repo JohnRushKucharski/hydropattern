@@ -453,6 +453,7 @@ def test_resolve_output_folder_is_stateless_same_inputs_same_result():
 
 # ---- read_resources_sheet / read_config_sheet -----------------------------------------
 
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
 def make_workbook(tmp_path, resources_header=None, resources_rows=None,
                   config_pairs=None, resources_sheet_name="resources",
                   config_sheet_name="config"):
@@ -695,7 +696,7 @@ def test_run_batch_invalid_row_reported_as_failed_and_does_not_run(tmp_path):
     assert len(summary.failed) == 1
     assert summary.failed[0].status == "failed"
     assert "component_name" in summary.failed[0].message
-    assert calls == []
+    assert not calls
 
 
 def test_run_batch_continues_after_a_failed_row(tmp_path):
@@ -767,7 +768,8 @@ def test_run_batch_pre_existing_output_fails_when_overwrite_false(tmp_path):
     config = batch_config(tmp_path, overwrite=False)
     output_folder = Path(tmp_path / "out")
     output_folder.mkdir(parents=True)
-    (output_folder / "duluth_harbor_high_water_summary.xlsx").touch()  # pre-existing from a prior run
+    # pre-existing from a prior run
+    (output_folder / "duluth_harbor_high_water_summary.xlsx").touch()
     calls = []
 
     summary = avg_batch_run.run_batch(
@@ -776,7 +778,7 @@ def test_run_batch_pre_existing_output_fails_when_overwrite_false(tmp_path):
 
     assert summary.results[0].status == "failed"
     assert "overwrite=False" in summary.results[0].message
-    assert calls == []
+    assert not calls
 
 
 def test_run_batch_pre_existing_output_ignored_when_overwrite_true(tmp_path):

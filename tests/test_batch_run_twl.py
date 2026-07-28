@@ -1,21 +1,15 @@
 """Tests for the Great Lakes batch_run_twl.py example script.
 
-The script lives outside the hydropattern package (examples/great_lakes/), so it is
-loaded here via importlib by file path rather than a normal package import.
+The script lives outside the hydropattern package, in examples/great_lakes/ -- which is
+itself a regular Python package (see examples/great_lakes/__init__.py) -- so it's
+imported normally rather than loaded by file path.
 """
-import importlib.util
-import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-SCRIPT_PATH = Path(__file__).parent.parent / "examples" / "great_lakes" / "batch_run_twl.py"
-_spec = importlib.util.spec_from_file_location("twl_batch_run", SCRIPT_PATH)
-assert _spec is not None and _spec.loader is not None
-twl_batch_run = importlib.util.module_from_spec(_spec)
-sys.modules["twl_batch_run"] = twl_batch_run
-_spec.loader.exec_module(twl_batch_run)
-
+from examples.great_lakes import batch_run_twl as twl_batch_run
 
 # ---- _is_blank ----------------------------------------------------------------------
 
@@ -51,7 +45,7 @@ def test_require_str_returns_stripped_value():
     value = twl_batch_run._require_str({"resource_name": "  duluth_harbor  "},
                                         "resource_name", errors)
     assert value == "duluth_harbor"
-    assert errors == []
+    assert not errors
 
 
 @pytest.mark.parametrize("row", [{}, {"resource_name": None}, {"resource_name": "   "}])
@@ -179,8 +173,6 @@ def test_compute_metric_rejects_unknown_mode():
 
 
 # ---- select_save_point --------------------------------------------------------------
-
-import pandas as pd
 
 SAVE_POINTS = pd.DataFrame({
     "ID": [1, 2, 3],
@@ -356,7 +348,6 @@ def test_parse_resource_row_threshold_blank_is_none():
     ("ontario", "ontario_twl.xlsx"),
 ])
 def test_resolve_lake_twl_path(lake, expected_name):
-    from pathlib import Path
     data_dir = Path("some/data/dir")
     result = twl_batch_run.resolve_lake_twl_path(lake, data_dir)
     assert result == data_dir / expected_name
@@ -390,6 +381,7 @@ def test_resolve_output_folder_row():
 
 # ---- read_resources_sheet / read_config_sheet -----------------------------------------
 
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
 def make_workbook(tmp_path, resources_header=None, resources_rows=None,
                   config_pairs=None, resources_sheet_name="resources",
                   config_sheet_name="config"):
@@ -601,7 +593,9 @@ def test_compute_scenario_metrics_one_value_per_grid_sheet(tmp_path):
         tmp_path / "lake_twl.xlsx",
         {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
     )
-    resource = twl_batch_run.parse_resource_row(base_row(magnitude_operator=">", magnitude_value=110.0))
+    resource = twl_batch_run.parse_resource_row(
+        base_row(magnitude_operator=">", magnitude_value=110.0)
+    )
     values = twl_batch_run.compute_scenario_metrics(resource, path, "portion")
     assert set(values.keys()) == {"_0_0", "_0_1.5", "_5_0", "_5_1.5"}
     assert all(0.0 <= v <= 1.0 for v in values.values())
@@ -690,7 +684,7 @@ def test_run_batch_all_rows_succeed(tmp_path):
     config = twl_batch_run.BatchConfig(output_directory=str(tmp_path / "out"))
     calls = []
 
-    def fake_build_outputs(resource, data_dir, cfg):
+    def fake_build_outputs(resource, _data_dir, _cfg):
         calls.append(resource.resource_name)
         return (Path("grid.csv"), Path("plot.png"))
 
@@ -737,7 +731,7 @@ def test_run_batch_continues_past_build_outputs_error(tmp_path):
     )
     config = twl_batch_run.BatchConfig(output_directory=str(tmp_path / "out"))
 
-    def flaky_build_outputs(resource, data_dir, cfg):
+    def flaky_build_outputs(resource, _data_dir, _cfg):
         if resource.resource_name == "duluth_harbor":
             raise ValueError("boom")
         return (Path("g.csv"), Path("p.png"))
