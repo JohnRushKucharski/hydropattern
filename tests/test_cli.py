@@ -233,10 +233,15 @@ class TestCLICommand(unittest.TestCase):
         self.cli_smoke_config_path = self.test_files_dir / "cli_smoke_config.toml"
 
     def test_cli_without_args_shows_help(self):
-        '''Invoking the app with no args should show help text.'''
+        '''Invoking the app with no args should show help text.
+
+        Typer/Click >=0.27 exit with code 2 (a usage-error-style exit) when
+        no_args_is_help triggers, instead of 0 as in earlier versions. The
+        help text itself is unchanged, so we assert on the new exit code.
+        '''
         result = RUNNER.invoke(app, [])
 
-        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.exit_code, 2)
         self.assertIn('Usage', result.stdout)
         self.assertIn('run', result.stdout)
 

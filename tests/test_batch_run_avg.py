@@ -1,4 +1,4 @@
-"""Tests for the Great Lakes avg_batch_run.py example script.
+"""Tests for the Great Lakes batch_run_avg.py example script.
 
 The script lives outside the hydropattern package (examples/great_lakes/), so it is
 loaded here via importlib by file path rather than a normal package import.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_PATH = Path(__file__).parent.parent / "examples" / "great_lakes" / "avg_batch_run.py"
+SCRIPT_PATH = Path(__file__).parent.parent / "examples" / "great_lakes" / "batch_run_avg.py"
 _spec = importlib.util.spec_from_file_location("avg_batch_run", SCRIPT_PATH)
 assert _spec is not None and _spec.loader is not None
 avg_batch_run = importlib.util.module_from_spec(_spec)
