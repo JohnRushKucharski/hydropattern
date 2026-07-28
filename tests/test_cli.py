@@ -253,6 +253,16 @@ class TestCLICommand(unittest.TestCase):
         self.assertIn('--threshold', result.stdout)
         self.assertIn('--color-map', result.stdout)
         self.assertIn('--color-map-ticks', result.stdout)
+        self.assertIn('--fillin', result.stdout)
+
+    def test_run_help_groups_options_into_rich_help_panels(self):
+        '''Output-related and climate-canvas-plot-related options are grouped into
+        separate --help panels for readability.'''
+        result = RUNNER.invoke(app, ['run', '--help'])
+
+        self.assertEqual(result.exit_code, 0, msg=result.stdout)
+        self.assertIn('Output', result.stdout)
+        self.assertIn('Climate Canvas Plot', result.stdout)
 
     def test_run_command_smoke_with_temp_files(self):
         '''Default run (Excel) succeeds and writes an xlsx file.'''
@@ -415,6 +425,17 @@ class TestCLICommand(unittest.TestCase):
             app,
             ['run', str(self.cli_smoke_config_path), '--run-toml-options',
              '--color-map-ticks', '0', '--color-map-ticks', '1'],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS)
+
+    def test_run_command_toml_options_only_rejects_fillin_option(self):
+        '''--run-toml-options conflicts with explicit --fillin.'''
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options', '--fillin'],
         )
 
         self.assertNotEqual(result.exit_code, 0)
@@ -810,6 +831,24 @@ class TestPlotComponents(unittest.TestCase):
             self.assertEqual(kwargs['threshold'], 1.5)
             self.assertEqual(kwargs['color_map'], 'viridis')
             self.assertEqual(kwargs['color_map_ticks'], [-1.0, 0.0, 1.0])
+
+    def test_plot_components_forwards_fillin(self):
+        '''Configured climate-canvas fillin option is forwarded to plotting.'''
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.cli.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(fillin=True))
+
+            _, kwargs = mocked.call_args
+            self.assertTrue(kwargs['fillin'])
 
     def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
         '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''

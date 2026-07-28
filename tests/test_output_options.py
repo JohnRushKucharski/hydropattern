@@ -86,13 +86,25 @@ class TestParseOutputOptionsPlot(unittest.TestCase):
             'threshold': 1.5,
             'color_map': 'viridis',
             'color_map_ticks': [-1, 0, 1],
+            'fillin': True,
         }}}})
         cc = opts.plot.climate_canvas
         self.assertEqual(cc, ClimateCanvasPlotOptions(
             interpolate=False, show=True, title='My Title',
             xlabel='X', ylabel='Y', zlabel='Z',
             threshold=1.5, color_map='viridis', color_map_ticks=[-1.0, 0.0, 1.0],
+            fillin=True,
         ))
+
+    def test_climate_canvas_fillin_defaults_false(self):
+        opts = parse_output_options({})
+        self.assertFalse(opts.plot.climate_canvas.fillin)
+
+    def test_non_bool_fillin_raises_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'climate-canvas': {'fillin': 1}}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+        self.assertEqual(ctx.exception.envelope.context.get('field'), 'fillin')
 
 
 class TestParseOutputOptionsErrors(unittest.TestCase):

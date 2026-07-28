@@ -97,6 +97,13 @@ class TestResolveOutputOptionsCliOverridesWin(unittest.TestCase):
         self.assertEqual(opts.plot.climate_canvas.color_map, 'RdYlBu')
         self.assertEqual(opts.plot.climate_canvas.color_map_ticks, [-5, 0, 5])
 
+    def test_cli_fillin_overrides_toml_climate_canvas(self):
+        data = {'output': {'plot': {'climate-canvas': {'fillin': False}}}}
+        opts = resolve_output_options(data, plot=None, output_directory=None,
+                                      write_to_excel=None, overwrite=None,
+                                      interp=None, show=None, fillin=True)
+        self.assertTrue(opts.plot.climate_canvas.fillin)
+
     def test_title_xlabel_ylabel_zlabel_unaffected_by_cli(self):
         '''No CLI flags exist yet for these -- toml values (or defaults) pass through untouched.'''
         data = {'output': {'plot': {'climate-canvas': {'title': 'T', 'xlabel': 'X'}}}}

@@ -80,6 +80,7 @@ class ClimateCanvasPlotOptions:
     threshold: float | None = None
     color_map: str = 'RdBu'
     color_map_ticks: list[float] | None = None
+    fillin: bool = False
 
 
 @dataclass(frozen=True)

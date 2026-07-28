@@ -107,6 +107,9 @@ def parse_climate_canvas_plot_options(section: Any = None) -> Any:
                 for tick in value:
                     _require_type(tick, (int, float), name, 'color_map_ticks')
                 opts = replace(opts, color_map_ticks=[float(t) for t in value])
+            case 'fillin':
+                _require_type(value, bool, name, 'fillin')
+                opts = replace(opts, fillin=value)
             case _:
                 raise_parser_error(
                     ParserErrorCode.UNKNOWN_OPTION,
