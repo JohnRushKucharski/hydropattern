@@ -1,4 +1,5 @@
 '''Parses data from configuration file.'''
+import dataclasses
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -96,6 +97,28 @@ class OutputOptions:
     excel: bool = True
     metric: MetricOptions = field(default_factory=MetricOptions)
     plot: PlotOptions = field(default_factory=PlotOptions)
+
+
+def collect_explicit_options(**kwargs: Any) -> dict[str, Any]:
+    '''Return only the keyword arguments whose value is not None.
+
+    Used to identify which CLI options were explicitly passed by the user, since
+    every CLI-overridable option defaults to None (meaning "not passed, defer to
+    the configuration file or that option's own default").
+    '''
+    return {name: value for name, value in kwargs.items() if value is not None}
+
+
+def merge_overrides(base: Any, **overrides: Any) -> Any:
+    '''Return a copy of frozen dataclass `base` with each explicitly-set override applied.
+
+    `overrides` keys must match `base`'s field names. A None value means "not
+    explicitly passed" and is skipped, leaving that field's existing value on
+    `base` untouched. Adding a new overridable field only requires passing it
+    through at the call site -- no separate hand-written None-check is needed here.
+    '''
+    changes = collect_explicit_options(**overrides)
+    return dataclasses.replace(base, **changes) if changes else base
 
 
 @dataclass(frozen=True)

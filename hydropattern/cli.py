@@ -18,6 +18,8 @@ from hydropattern.parsers import (
     MetricOptions,
     OutputOptions,
     build_components,
+    collect_explicit_options,
+    merge_overrides,
     parse_metric_options,
     parse_output_options,
     parse_request,
@@ -145,19 +147,17 @@ def require_no_conflicting_cli_options(
     --run-toml-options means "run exactly as specified in the configuration file", so no
     other output-related CLI flag may be explicitly passed at the same time.
     '''
-    conflicts = {
-        name: value for name, value in {
-            'plot': plot,
-            'output_directory': output_directory,
-            'write_to_excel': write_to_excel,
-            'overwrite': overwrite,
-            'interp': interp,
-            'show': show,
-            'threshold': threshold,
-            'color_map': color_map,
-            'color_map_ticks': color_map_ticks,
-        }.items() if value is not None
-    }
+    conflicts = collect_explicit_options(
+        plot=plot,
+        output_directory=output_directory,
+        write_to_excel=write_to_excel,
+        overwrite=overwrite,
+        interp=interp,
+        show=show,
+        threshold=threshold,
+        color_map=color_map,
+        color_map_ticks=color_map_ticks,
+    )
     if conflicts:
         raise_cli_error(
             CliErrorCode.CONFLICTING_OPTIONS,
@@ -185,26 +185,17 @@ def resolve_output_options(data: dict[str, Any],
     value's own default when the toml is silent too).
     '''
     toml_options = parse_output_options(data)
-    climate_canvas = toml_options.plot.climate_canvas
-    if interp is not None:
-        climate_canvas = replace(climate_canvas, interpolate=interp)
-    if show is not None:
-        climate_canvas = replace(climate_canvas, show=show)
-    if threshold is not None:
-        climate_canvas = replace(climate_canvas, threshold=threshold)
-    if color_map is not None:
-        climate_canvas = replace(climate_canvas, color_map=color_map)
-    if color_map_ticks is not None:
-        climate_canvas = replace(climate_canvas, color_map_ticks=color_map_ticks)
-    plot_options = replace(toml_options.plot, climate_canvas=climate_canvas)
-    if plot is not None:
-        plot_options = replace(plot_options, enabled=plot)
-    return replace(
+    climate_canvas = merge_overrides(
+        toml_options.plot.climate_canvas,
+        interpolate=interp, show=show, threshold=threshold,
+        color_map=color_map, color_map_ticks=color_map_ticks,
+    )
+    plot_options = merge_overrides(
+        replace(toml_options.plot, climate_canvas=climate_canvas), enabled=plot,
+    )
+    return merge_overrides(
         toml_options,
-        directory=output_directory if output_directory is not None else toml_options.directory,
-        overwrite=overwrite if overwrite is not None else toml_options.overwrite,
-        excel=write_to_excel if write_to_excel is not None else toml_options.excel,
-        plot=plot_options,
+        directory=output_directory, overwrite=overwrite, excel=write_to_excel, plot=plot_options,
     )
 
 def load_config_file(path: str) -> dict[str, Any]:
