@@ -46,6 +46,20 @@ against a save point's (water level, ARI) pairs to find the ARI at a resource ro
 magnitude threshold. Out-of-range thresholds are clamped to the nearest end ARI (`0.1` or
 `1000`) with a warning, never extrapolated.
 
+**Equivalent elevation**:
+An optional (`compute_equivalent_elevation` config option, default off) second
+scenario-grid metric alongside a resource row's primary exceedance-probability/ARI
+metric. Computed by first finding the baseline (`_0_0`) scenario's ARI at the row's
+`magnitude_value`, then interpolating the water level at that same ARI under every other
+scenario's own curve — the reverse direction of the ARI lookup used for the primary
+metric. Answers "what water level is equally likely, under this scenario, as
+`magnitude_value` is under the baseline scenario?" Written to its own grid csv + plot
+png (`..._equivalent_elevation_grid.csv` / `_equivalent_elevation_plot.png`), with plot
+z-axis label `"Equivalent Elevation"` and plot threshold equal to `magnitude_value`
+itself (a water level) rather than a metric-mode-units value.
+_Avoid_: Equivalent ARI, equivalent magnitude (the output is a water level, not an ARI
+or the metric-mode value the primary grid produces).
+
 **Known scenario**:
 One of the 5 (of 17 total) precip/temp scenarios a `<lake>_twl.xlsx` workbook already has
 a sheet for, per save point (`baseline-_0_0`, `nearterm-_5_1.5`, `moderate_low-_10_5`,

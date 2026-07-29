@@ -21,7 +21,7 @@ excluded from linting (see the `# ruff: noqa` above).
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -249,6 +249,17 @@ def extrapolate_scenarios(resolved_frames: dict[str, pd.DataFrame],
     return extrapolated
 
 
+def resolve_default_output_dir(data_dir: Path, extrapolate: bool) -> Path:
+    """Default output_dir when the CLI's output_dir argument is omitted.
+
+    A sibling of data_dir (normally data/clean): data/extrapolated when extrapolate is
+    True (17 sheets per lake -- Stage 2 row-shift extrapolation ran), or data/filled
+    when False (12 sheets per lake -- Stage 2 skipped). Keeps the two possible output
+    shapes from silently overwriting each other under the same directory name.
+    """
+    return data_dir.parent / ("extrapolated" if extrapolate else "filled")
+
+
 def write_filled_workbook(known_sheets: dict[str, pd.DataFrame],
                            filled_frames: dict[str, pd.DataFrame],
                            output_path: Path, overwrite: bool = False,
@@ -286,8 +297,10 @@ def main(
     data_dir: Path = typer.Argument(
         ..., help="Directory holding the clean <lake>_twl.xlsx workbooks and "
                    "<avg-lake>_avg.csv files."),
-    output_dir: Path = typer.Argument(
-        ..., help="Directory to write the filled <lake>_twl.xlsx workbooks to."),
+    output_dir: Optional[Path] = typer.Argument(
+        None, help="Directory to write the filled <lake>_twl.xlsx workbooks to. "
+                    "Defaults to a sibling of data_dir: data/extrapolated when "
+                    "--extrapolate (the default), or data/filled with --no-extrapolate."),
     overwrite: bool = typer.Option(
         False, "--overwrite", help="Replace existing output files instead of refusing to run."),
     extrapolate: bool = typer.Option(
@@ -309,6 +322,9 @@ def main(
     --overwrite was not passed -- checked up front for all 4 lakes before writing
     anything, so a run either fully succeeds or makes no changes.
     """
+    if output_dir is None:
+        output_dir = resolve_default_output_dir(data_dir, extrapolate)
+
     lakes = list(common_twl.LAKE_TWL_FILENAMES)
 
     if not overwrite:

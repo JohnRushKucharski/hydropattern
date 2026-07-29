@@ -109,6 +109,44 @@ def interpolate_ari(levels: Sequence[float], aris: Sequence[float], threshold: f
     return float(np.interp(threshold, levels, aris))
 
 
+def interpolate_level(aris: Sequence[float], levels: Sequence[float], target_ari: float) -> float:
+    """Linearly interpolate the water level at a target ARI (reverse of interpolate_ari).
+
+    aris/levels are one save point's water-level-vs-ARI curve (levels ascending with
+    ARI, per the twl data files -- one value per ARI column D:P). Interpolates linearly
+    across ARI (per the fixed-space convention used throughout this script), i.e. water
+    level is treated as linear in ARI between the two bracketing curve points.
+
+    Used to compute equivalent elevation: given a baseline-scenario ARI, find the water
+    level under a different scenario's curve that corresponds to that same ARI.
+
+    If target_ari falls outside the curve's [min, max] ARI range, clamps to the nearest
+    end level (the level at ARI=0.1 or ARI=1000) and emits a UserWarning rather than
+    extrapolating or failing -- ARIs a bit beyond the modeled range are still usable,
+    just less precise.
+    """
+    if len(aris) != len(levels):
+        raise ValueError(
+            f"aris and levels must be the same length; got {len(aris)} and {len(levels)}."
+        )
+    if len(aris) < 2:
+        raise ValueError("aris/levels must contain at least two points to interpolate.")
+
+    if target_ari < aris[0]:
+        warnings.warn(
+            f"Target ARI {target_ari!r} is below curve minimum {aris[0]!r}; "
+            f"clamping to level={levels[0]!r}."
+        )
+        return float(levels[0])
+    if target_ari > aris[-1]:
+        warnings.warn(
+            f"Target ARI {target_ari!r} is above curve maximum {aris[-1]!r}; "
+            f"clamping to level={levels[-1]!r}."
+        )
+        return float(levels[-1])
+    return float(np.interp(target_ari, aris, levels))
+
+
 # Magnitude operators supported here. '=' and '!=' are deliberately excluded: against a
 # continuous exceedance curve they have no sensible probability (always ~0 or ~1), unlike
 # hydropattern's full operator set used for discrete per-timestep comparisons.
@@ -359,6 +397,14 @@ class BatchConfig:
     plot_interpolate: bool = True
     plot_color_map: str = "RdBu"
     plot_color_map_ticks: tuple[float, ...] | None = None
+    # If true, also compute+write a second grid csv + plot png per row: the water level
+    # under every scenario equivalent to the baseline (_0_0) scenario's ARI at this
+    # row's magnitude_value. See compute_equivalent_elevation_metrics.
+    compute_equivalent_elevation: bool = False
+    # Forwarded as climate-canvas's plot_response_surface(fillin=...) on every plot_fn
+    # call this script makes (primary + equivalent-elevation). Estimates missing (NaN)
+    # grid cells via Delaunay triangulation; see climate-canvas's --fillin option.
+    fillin: bool = False
 
 
 def resolve_output_folder(resource: ResourceSpec, config: BatchConfig) -> Path:
@@ -440,7 +486,9 @@ def read_resources_sheet(path: Path, sheet_name: str = "resources") -> list[dict
     return [{str(k): (None if _is_blank(v) else v) for k, v in row.items()} for row in records]
 
 
-_CONFIG_BOOL_KEYS = frozenset({"overwrite", "plot_interpolate"})
+_CONFIG_BOOL_KEYS = frozenset(
+    {"overwrite", "plot_interpolate", "compute_equivalent_elevation", "fillin"}
+)
 _CONFIG_STR_KEYS = frozenset(
     {"metric_mode", "output_directory", "subdirectory_structure", "plot_color_map"}
 )
@@ -531,6 +579,12 @@ def read_config_sheet(path: Path, sheet_name: str = "config") -> BatchConfig:
         kwargs["plot_color_map"] = str(values["plot_color_map"]).strip()
     if ticks is not None:
         kwargs["plot_color_map_ticks"] = ticks
+    if not _is_blank(values.get("compute_equivalent_elevation")):
+        kwargs["compute_equivalent_elevation"] = _to_bool(
+            values.get("compute_equivalent_elevation"), defaults.compute_equivalent_elevation
+        )
+    if not _is_blank(values.get("fillin")):
+        kwargs["fillin"] = _to_bool(values.get("fillin"), defaults.fillin)
 
     return BatchConfig(**kwargs)
 
@@ -565,6 +619,58 @@ def compute_scenario_metrics(resource: ResourceSpec, twl_path: Path, metric_mode
     return metric_values
 
 
+# The known/filled/extrapolated scenario-grid suffix for the (0% precip delta, 0C temp
+# delta) baseline scenario -- always present in every lake's twl workbook (see
+# CONTEXT.md's "Known scenario" entry).
+_BASELINE_SCENARIO_SUFFIX = "_0_0"
+
+
+def compute_equivalent_elevation_metrics(resource: ResourceSpec, twl_path: Path
+                                          ) -> dict[str, float]:
+    """Compute one equivalent-elevation value per scenario sheet for one resource.
+
+    First finds the baseline (_0_0) scenario's ARI at resource.magnitude_value (via
+    interpolate_ari), then, for every scenario sheet (including baseline itself), finds
+    the water level at that same ARI under that scenario's curve (via interpolate_level)
+    -- i.e. "what water level, under this scenario, is equally likely (same ARI) as
+    resource.magnitude_value is under the baseline scenario". Keys are the bare
+    `_<precip>_<temp>` scenario-grid suffix (see parse_scenario_sheet_name) -- sheets
+    that don't match that naming convention are skipped.
+
+    Raises ValueError if the lake's twl workbook has no baseline (_0_0) scenario sheet.
+    """
+    sheets = _load_lake_sheets(twl_path)
+
+    def _save_point_ari_columns_levels(df: pd.DataFrame) -> tuple[list[float], list[float]]:
+        save_point = select_save_point(df, resource.save_point_id, resource.lat, resource.lon)
+        ari_columns = [c for c in df.columns if c not in _NON_ARI_COLUMNS]
+        aris = [float(c) for c in ari_columns]
+        levels = [float(save_point[c]) for c in ari_columns]
+        return aris, levels
+
+    baseline_aris: list[float] | None = None
+    baseline_levels: list[float] | None = None
+    for sheet_name, df in sheets.items():
+        if parse_scenario_sheet_name(sheet_name) == _BASELINE_SCENARIO_SUFFIX:
+            baseline_aris, baseline_levels = _save_point_ari_columns_levels(df)
+            break
+    if baseline_aris is None or baseline_levels is None:
+        raise ValueError(
+            f"No baseline ({_BASELINE_SCENARIO_SUFFIX!r}) scenario sheet found in "
+            f"{twl_path}; cannot compute equivalent elevation."
+        )
+    baseline_ari = interpolate_ari(baseline_levels, baseline_aris, resource.magnitude_value)
+
+    equivalent_elevations: dict[str, float] = {}
+    for sheet_name, df in sheets.items():
+        suffix = parse_scenario_sheet_name(sheet_name)
+        if suffix is None:
+            continue
+        aris, levels = _save_point_ari_columns_levels(df)
+        equivalent_elevations[suffix] = interpolate_level(aris, levels, baseline_ari)
+    return equivalent_elevations
+
+
 def build_resource_outputs(
     resource: ResourceSpec,
     data_dir: Path,
@@ -573,10 +679,20 @@ def build_resource_outputs(
 ) -> tuple[Path, Path]:
     """Compute one resource's scenario-grid metrics and write its grid csv + plot png.
 
+    If config.compute_equivalent_elevation is True, also computes and writes a second
+    grid csv + plot png: the water level under every scenario equivalent (same ARI) to
+    the baseline scenario's ARI at resource.magnitude_value (see
+    compute_equivalent_elevation_metrics). This second plot's z-axis is labeled
+    "Equivalent Elevation", its threshold is resource.magnitude_value (a water level,
+    unlike the primary plot's metric-mode-units threshold), and it uses
+    config.plot_color_map as given -- unlike the primary plot, no RdBu-direction
+    auto-reversal or color_map_ticks are applied, since success_pattern/metric_mode
+    semantics don't apply to a raw elevation value.
+
     plot_fn is injectable so tests can substitute a recording stub instead of the real
     climate_canvas plotting call (which opens a matplotlib figure).
 
-    Raises FileExistsError if the target grid csv/plot png already exist and
+    Raises FileExistsError if any target output file already exists and
     config.overwrite is False. Raises HydropatternError (via require_scenario_grid) if
     the lake's sheet names don't form a valid scenario grid.
     """
@@ -589,8 +705,14 @@ def build_resource_outputs(
     output_folder = resolve_output_folder(resource, config)
     grid_path = output_folder / f"{resource.qualified_name}_grid.csv"
     plot_path = output_folder / f"{resource.qualified_name}_plot.png"
+    elev_grid_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_grid.csv"
+    elev_plot_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_plot.png"
+
+    targets = [grid_path, plot_path]
+    if config.compute_equivalent_elevation:
+        targets += [elev_grid_path, elev_plot_path]
     if not config.overwrite:
-        existing = [p for p in (grid_path, plot_path) if p.exists()]
+        existing = [p for p in targets if p.exists()]
         if existing:
             raise FileExistsError(
                 f"Output file(s) already exist and overwrite=False: "
@@ -612,7 +734,26 @@ def build_resource_outputs(
         threshold=resource.threshold,
         color_map=color_map,
         color_map_ticks=config.plot_color_map_ticks,
+        fillin=config.fillin,
     )
+
+    if config.compute_equivalent_elevation:
+        elev_values = compute_equivalent_elevation_metrics(resource, twl_path)
+        elev_xs, elev_ys, elev_zs = build_grid(list(elev_values.keys()), elev_values)
+        write_grid_csv(elev_xs, elev_ys, elev_zs, elev_grid_path)
+        plot_fn(
+            elev_xs, elev_ys, elev_zs,
+            interpolate=config.plot_interpolate,
+            labels=("Precipitation Delta (%)", "Temperature Delta (C)", "Equivalent Elevation"),
+            title=f"{resource.qualified_name}_equivalent_elevation",
+            save_path=elev_plot_path,
+            show=False,
+            threshold=resource.magnitude_value,
+            color_map=config.plot_color_map,
+            color_map_ticks=None,
+            fillin=config.fillin,
+        )
+
     return (grid_path, plot_path)
 
 

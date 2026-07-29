@@ -87,6 +87,14 @@ CONFIG_ROWS = [
      "component based on metric_mode/success_pattern -- see docs/user/reference.md."),
     ("plot_color_map_ticks", "",
      "(Optional) comma-separated explicit colorbar ticks, e.g. \"-1.0, 0.0, 1.0\"."),
+    ("compute_equivalent_elevation", False,
+     "If true, also write a second grid csv + plot png per row: the water level under "
+     "every scenario equivalent (same ARI) to the baseline (_0_0) scenario's ARI at "
+     "magnitude_value. See CONTEXT.md's \"Equivalent elevation\" definition."),
+    ("fillin", False,
+     "If true, estimate missing (NaN) grid cells in the response surface via Delaunay "
+     "triangulation before plotting (climate-canvas's --fillin option). Applies to "
+     "every plot png this row produces."),
 ]
 
 _HEADER_FONT = Font(bold=True)

@@ -42,7 +42,12 @@ examples/great_lakes/
 │   │   ├── michigan_twl.xlsx
 │   │   ├── huron_twl.xlsx
 │   │   └── ontario_twl.xlsx
-│   └── filled/                 <- fillin_twl.py output: <lake>_twl.xlsx with all 17 scenarios
+│   ├── extrapolated/            <- fillin_twl.py output (--extrapolate, default): 17 scenarios
+│   │   ├── superior_twl.xlsx
+│   │   ├── michigan_twl.xlsx
+│   │   ├── huron_twl.xlsx
+│   │   └── ontario_twl.xlsx
+│   └── filled/                 <- fillin_twl.py output (--no-extrapolate): 12 scenarios only
 │       ├── superior_twl.xlsx
 │       ├── michigan_twl.xlsx
 │       ├── huron_twl.xlsx
@@ -300,6 +305,8 @@ The workbook has two sheets:
 | `plot_interpolate` | `true` | Bilinearly interpolate the plotted response surface. |
 | `plot_color_map` | `RdBu` | Auto-reversed per resource based on `metric_mode`/`success_pattern`, same as `batch_run_avg.py`. |
 | `plot_color_map_ticks` | *(unset)* | Optional comma-separated explicit colorbar ticks. |
+| `compute_equivalent_elevation` | `false` | If `true`, also compute+write a second grid csv + plot png per row: the water level under every scenario equivalent (same ARI) to the baseline (`_0_0`) scenario's ARI at `magnitude_value`. See "Equivalent elevation" below. |
+| `fillin` | `false` | If `true`, estimate missing (NaN) grid cells in the response surface via Delaunay triangulation before plotting (climate-canvas's `--fillin` option). Applies to every plot png the row produces. |
 
 Leave a cell blank to use its default.
 
@@ -329,6 +336,31 @@ duluth_harbor_twl_plot.png        <- climate-canvas response-surface plot
 
 No `.toml`, no summary/output Excel workbook, and no raw per-scenario CSVs are written —
 this tool's output is deliberately minimal since there's no hydropattern run to summarize.
+
+### Equivalent elevation (`compute_equivalent_elevation`)
+
+If `compute_equivalent_elevation` is `true` on the config sheet, each row also produces:
+
+```
+duluth_harbor_twl_equivalent_elevation_grid.csv   <- one water level per scenario
+duluth_harbor_twl_equivalent_elevation_plot.png   <- climate-canvas response-surface plot
+```
+
+This answers: "the row's `magnitude_value` corresponds to some ARI under the baseline
+(`_0_0`) scenario — what water level is equally likely (same ARI) under every *other*
+scenario?" Concretely: the baseline scenario's ARI at `magnitude_value` is found first
+(the same `interpolate_ari` lookup the primary grid uses), then that ARI is looked up
+against every scenario's own water-level-vs-ARI curve (the reverse interpolation,
+`interpolate_level`) to get that scenario's equivalent elevation. The baseline scenario's
+own cell in this grid is therefore always `magnitude_value` itself (interpolating a curve
+at the ARI you just read off of it returns the same point).
+
+The equivalent-elevation plot differs from the primary plot in three ways: its z-axis
+label is `"Equivalent Elevation"` (not `metric_mode`'s units), its plot threshold is
+`magnitude_value` itself (a water level, not a metric-mode-units value), and it always
+uses `plot_color_map` as configured with no automatic RdBu-direction reversal and no
+`plot_color_map_ticks` — the auto-reversal and tick logic are keyed to
+`success_pattern`/`metric_mode` semantics, which don't apply to a raw elevation value.
 
 ## Regenerating the template
 
@@ -448,14 +480,25 @@ prefix, instead of Stage 1's `filled-` prefix.
 ## CLI usage
 
 ```powershell
+# extrapolation on (default) -> defaults to examples\great_lakes\data\extrapolated
+uv run python examples\great_lakes\fillin_twl.py examples\great_lakes\data\clean
+
+# extrapolation off -> defaults to examples\great_lakes\data\filled
+uv run python examples\great_lakes\fillin_twl.py examples\great_lakes\data\clean --no-extrapolate
+
+# explicit output_dir always overrides the default, either way
 uv run python examples\great_lakes\fillin_twl.py examples\great_lakes\data\clean examples\great_lakes\data\filled
 ```
 
 Arguments:
 1. `data_dir` — directory containing the known `<lake>_twl.xlsx` and `<avg-lake>_avg.csv`
    files (normally `data/clean`).
-2. `output_dir` — directory to write the filled `<lake>_twl.xlsx` workbooks to (normally
-   `data/filled`).
+2. `output_dir` *(optional)* — directory to write the filled `<lake>_twl.xlsx` workbooks
+   to. When omitted, defaults to a sibling of `data_dir`: `data/extrapolated` when
+   `--extrapolate` (the default), or `data/filled` with `--no-extrapolate` — since the two
+   modes produce workbooks with a different number of sheets, they default to different
+   directories rather than silently overwriting each other. Pass `output_dir` explicitly to
+   override either default.
 
 Flags:
 - `--overwrite` / (default: refuse and raise if an output file already exists).

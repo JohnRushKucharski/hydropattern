@@ -120,6 +120,41 @@ def test_interpolate_ari_requires_at_least_two_points():
         twl_batch_run.interpolate_ari([1.0], [1.0], 1.5)
 
 
+# ---- interpolate_level ------------------------------------------------------------
+
+def test_interpolate_level_exact_hit_on_a_known_point():
+    level = twl_batch_run.interpolate_level(ARIS, LEVELS, 5)
+    assert level == pytest.approx(183.98)
+
+
+def test_interpolate_level_between_two_points():
+    # Halfway between ARI=1 (183.80) and ARI=2 (183.90) -> level should be halfway.
+    level = twl_batch_run.interpolate_level(ARIS, LEVELS, 1.5)
+    assert level == pytest.approx(183.85)
+
+
+def test_interpolate_level_below_minimum_clamps_and_warns():
+    with pytest.warns(UserWarning, match="below curve minimum"):
+        level = twl_batch_run.interpolate_level(ARIS, LEVELS, 0.01)
+    assert level == pytest.approx(182.55)
+
+
+def test_interpolate_level_above_maximum_clamps_and_warns():
+    with pytest.warns(UserWarning, match="above curve maximum"):
+        level = twl_batch_run.interpolate_level(ARIS, LEVELS, 2000.0)
+    assert level == pytest.approx(184.18)
+
+
+def test_interpolate_level_requires_matching_lengths():
+    with pytest.raises(ValueError):
+        twl_batch_run.interpolate_level([1.0, 2.0], [1.0], 1.5)
+
+
+def test_interpolate_level_requires_at_least_two_points():
+    with pytest.raises(ValueError):
+        twl_batch_run.interpolate_level([1.0], [1.0], 1.5)
+
+
 # ---- exceedance_probability -----------------------------------------------------------
 
 @pytest.mark.parametrize("operator,expected", [
@@ -542,6 +577,8 @@ def test_read_config_sheet_all_options_overridden(tmp_path):
             ("plot_interpolate", False),
             ("plot_color_map", "viridis"),
             ("plot_color_map_ticks", "-1.0, 0.0, 1.0"),
+            ("compute_equivalent_elevation", True),
+            ("fillin", True),
         ],
     )
     config = twl_batch_run.read_config_sheet(path)
@@ -552,6 +589,20 @@ def test_read_config_sheet_all_options_overridden(tmp_path):
     assert config.plot_interpolate is False
     assert config.plot_color_map == "viridis"
     assert config.plot_color_map_ticks == (-1.0, 0.0, 1.0)
+    assert config.compute_equivalent_elevation is True
+    assert config.fillin is True
+
+
+def test_read_config_sheet_compute_equivalent_elevation_defaults_false(tmp_path):
+    path = make_workbook(tmp_path, config_pairs=[("output_directory", "out")])
+    config = twl_batch_run.read_config_sheet(path)
+    assert config.compute_equivalent_elevation is False
+
+
+def test_read_config_sheet_fillin_defaults_false(tmp_path):
+    path = make_workbook(tmp_path, config_pairs=[("output_directory", "out")])
+    config = twl_batch_run.read_config_sheet(path)
+    assert config.fillin is False
 
 
 def test_read_config_sheet_blank_optional_rows_use_defaults(tmp_path):
@@ -611,6 +662,65 @@ def test_compute_scenario_metrics_skips_non_grid_sheets(tmp_path):
     assert set(values.keys()) == {"_0_0"}
 
 
+# ---- compute_equivalent_elevation_metrics ----------------------------------------------
+
+def test_compute_equivalent_elevation_metrics_baseline_maps_to_itself(tmp_path):
+    path = make_twl_workbook(
+        tmp_path / "lake_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(
+        base_row(magnitude_operator=">", magnitude_value=110.0)
+    )
+    values = twl_batch_run.compute_equivalent_elevation_metrics(resource, path)
+    assert set(values.keys()) == {"_0_0", "_0_1.5", "_5_0", "_5_1.5"}
+    # All scenario sheets share the identical curve here, so baseline's own equivalent
+    # elevation (and every scenario's) should equal the magnitude_value exactly.
+    assert values["_0_0"] == pytest.approx(110.0)
+    for value in values.values():
+        assert value == pytest.approx(110.0)
+
+
+def test_compute_equivalent_elevation_metrics_uses_baseline_ari_across_scenarios(tmp_path):
+    path = make_twl_workbook(
+        tmp_path / "lake_twl.xlsx",
+        {
+            "baseline-_0_0": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other-_5_0": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+            "other2-_0_1.5": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other3-_5_1.5": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+        },
+    )
+    resource = twl_batch_run.parse_resource_row(
+        base_row(magnitude_operator=">", magnitude_value=110.0)
+    )
+    values = twl_batch_run.compute_equivalent_elevation_metrics(resource, path)
+    # Baseline ARI at level=110.0 is exactly ARI=5 (an exact hit on baseline's own curve).
+    # Under "_5_0"'s curve, the level at ARI=5 is 116.0 (also an exact hit).
+    assert values["_0_0"] == pytest.approx(110.0)
+    assert values["_5_0"] == pytest.approx(116.0)
+
+
+def test_compute_equivalent_elevation_metrics_missing_baseline_sheet_raises(tmp_path):
+    path = make_twl_workbook(
+        tmp_path / "lake_twl.xlsx",
+        {"a-_0_1.5": _twl_sheet_frame(), "b-_5_0": _twl_sheet_frame()},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    with pytest.raises(ValueError, match="baseline"):
+        twl_batch_run.compute_equivalent_elevation_metrics(resource, path)
+
+
+def test_compute_equivalent_elevation_metrics_skips_non_grid_sheets(tmp_path):
+    path = make_twl_workbook(
+        tmp_path / "lake_twl.xlsx",
+        {"not_a_grid_sheet": _twl_sheet_frame(), "baseline-_0_0": _twl_sheet_frame()},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    values = twl_batch_run.compute_equivalent_elevation_metrics(resource, path)
+    assert set(values.keys()) == {"_0_0"}
+
+
 def _recording_plot_fn(calls):
     def plot_fn(xs, ys, zs, **kwargs):
         calls.append({"xs": xs, "ys": ys, "zs": zs, **kwargs})
@@ -637,6 +747,7 @@ def test_build_resource_outputs_writes_grid_csv_and_calls_plot_fn(tmp_path):
     assert calls[0]["title"] == "duluth_harbor_twl"
     assert calls[0]["save_path"] == plot_path
     assert calls[0]["show"] is False
+    assert calls[0]["fillin"] is False
 
 
 def test_build_resource_outputs_overwrite_false_raises_on_existing(tmp_path):
@@ -667,6 +778,73 @@ def test_build_resource_outputs_overwrite_true_replaces(tmp_path):
     twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
     # Should not raise the second time.
     twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
+
+
+def test_build_resource_outputs_equivalent_elevation_off_by_default(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    config = default_config(output_directory=str(tmp_path / "out"))
+    twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
+    elev_grid = tmp_path / "out" / "duluth_harbor_twl_equivalent_elevation_grid.csv"
+    elev_plot = tmp_path / "out" / "duluth_harbor_twl_equivalent_elevation_plot.png"
+    assert not elev_grid.exists()
+    assert not elev_plot.exists()
+
+
+def test_build_resource_outputs_equivalent_elevation_writes_second_grid_and_plot(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row(magnitude_operator=">",
+                                                          magnitude_value=110.0))
+    config = default_config(
+        output_directory=str(tmp_path / "out"), compute_equivalent_elevation=True,
+        plot_color_map="viridis", plot_color_map_ticks=(1.0, 2.0), fillin=True,
+    )
+    calls = []
+    grid_path, plot_path = twl_batch_run.build_resource_outputs(
+        resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
+    )
+    elev_grid = tmp_path / "out" / "duluth_harbor_twl_equivalent_elevation_grid.csv"
+    elev_plot = tmp_path / "out" / "duluth_harbor_twl_equivalent_elevation_plot.png"
+    assert grid_path.exists()
+    assert elev_grid.exists()
+    assert len(calls) == 2
+    assert calls[0]["fillin"] is True
+    elev_call = calls[1]
+    assert elev_call["labels"][2] == "Equivalent Elevation"
+    assert elev_call["threshold"] == pytest.approx(110.0)
+    assert elev_call["save_path"] == elev_plot
+    assert elev_call["color_map"] == "viridis"
+    assert elev_call["color_map_ticks"] is None
+    assert elev_call["fillin"] is True
+
+
+def test_build_resource_outputs_equivalent_elevation_overwrite_false_raises_on_existing(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    config = default_config(
+        output_directory=str(tmp_path / "out"), compute_equivalent_elevation=True,
+        overwrite=False,
+    )
+    twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
+    with pytest.raises(FileExistsError):
+        twl_batch_run.build_resource_outputs(
+            resource, data_dir, config, plot_fn=_recording_plot_fn([])
+        )
 
 
 # ---- run_batch --------------------------------------------------------------------------

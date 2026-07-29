@@ -36,12 +36,21 @@ LAKES = {
 }
 
 # source scenario tag, in output sheet order -> new sheet name
+#
+# precip/temp deltas per tag come from the source workbook's own "summary" sheet
+# (columns dT/dP), the authoritative scenario definitions -- NOT from the tag names
+# themselves. lowLL ("low lake level") is dT=7, dP=0: no precip increase, max
+# warming -- physically the dry/hot scenario that produces low lake levels.
+# highLL ("high lake level") is dT=5, dP=20: max precip, moderate warming --
+# physically the wet scenario that produces high lake levels. A previous version of
+# this dict had the two suffixes swapped (lowLL -> _20_5, highLL -> _0_7), which
+# silently mislabeled every known-scenario sheet's precip/temp deltas.
 SCENARIOS = {
     "baseline": "baseline-_0_0",
     "modnear": "nearterm-_5_1.5",
     "modfuture_low": "moderate_low-_10_5",
-    "lowLL": "extreme_low-_20_5",
-    "highLL": "extreme_high-_0_7",
+    "lowLL": "extreme_low-_0_7",
+    "highLL": "extreme_high-_20_5",
 }
 
 NEW_HEADER = ["ID", "lat", "lon", 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]

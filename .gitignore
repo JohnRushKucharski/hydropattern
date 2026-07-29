@@ -246,3 +246,4 @@ examples/great_lakes/data/raw/*
 
 README.html
 README_files/
+examples/great_lakes/data/analysis/twl/known_scenario_directionality.csv

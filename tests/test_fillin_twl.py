@@ -4,10 +4,26 @@ The script lives outside the hydropattern package, in examples/great_lakes/ -- w
 itself a regular Python package (see examples/great_lakes/__init__.py) -- so it's
 imported normally rather than loaded by file path.
 """
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
 from examples.great_lakes import fillin_twl
+
+# ---- resolve_default_output_dir ----------------------------------------------------
+
+def test_resolve_default_output_dir_extrapolate_true_uses_extrapolated_sibling():
+    data_dir = Path("examples/great_lakes/data/clean")
+    result = fillin_twl.resolve_default_output_dir(data_dir, extrapolate=True)
+    assert result == Path("examples/great_lakes/data/extrapolated")
+
+
+def test_resolve_default_output_dir_extrapolate_false_uses_filled_sibling():
+    data_dir = Path("examples/great_lakes/data/clean")
+    result = fillin_twl.resolve_default_output_dir(data_dir, extrapolate=False)
+    assert result == Path("examples/great_lakes/data/filled")
+
 
 # ---- known_scenario_coords --------------------------------------------------------
 
@@ -509,3 +525,38 @@ def test_cli_overwrite_flag_replaces_existing_files(tmp_path):
     import pandas as pd
     sheets = pd.read_excel(output_dir / "superior_twl.xlsx", sheet_name=None)
     assert len(sheets) == 17
+
+
+def test_cli_omitted_output_dir_defaults_to_extrapolated_sibling(tmp_path):
+    data_dir = _make_data_dir(tmp_path)
+
+    result = runner.invoke(fillin_twl.app, [str(data_dir)])
+
+    assert result.exit_code == 0, result.output
+    default_output_dir = data_dir.parent / "extrapolated"
+    import pandas as pd
+    sheets = pd.read_excel(default_output_dir / "superior_twl.xlsx", sheet_name=None)
+    assert len(sheets) == 17
+
+
+def test_cli_omitted_output_dir_no_extrapolate_defaults_to_filled_sibling(tmp_path):
+    data_dir = _make_data_dir(tmp_path)
+
+    result = runner.invoke(fillin_twl.app, [str(data_dir), "--no-extrapolate"])
+
+    assert result.exit_code == 0, result.output
+    default_output_dir = data_dir.parent / "filled"
+    import pandas as pd
+    sheets = pd.read_excel(default_output_dir / "superior_twl.xlsx", sheet_name=None)
+    assert len(sheets) == 12
+
+
+def test_cli_explicit_output_dir_still_overrides_default(tmp_path):
+    data_dir = _make_data_dir(tmp_path)
+    explicit_output_dir = tmp_path / "custom"
+
+    result = runner.invoke(fillin_twl.app, [str(data_dir), str(explicit_output_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert (explicit_output_dir / "superior_twl.xlsx").exists()
+    assert not (data_dir.parent / "extrapolated").exists()
