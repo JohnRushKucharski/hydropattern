@@ -240,6 +240,15 @@ examples/great_lakes/*
 !examples/great_lakes/data/
 !examples/great_lakes/docs/
 
+# longtailpoint/ is a user's real-data working folder: track just the .xlsx input
+# workbooks (small, needed to reproduce results) -- generated outputs
+# (batch_*_output/) and the dashboard (dashboard.html/manifest.js) are large,
+# regenerable, and stay untracked.
+!examples/great_lakes/longtailpoint/
+examples/great_lakes/longtailpoint/*
+!examples/great_lakes/longtailpoint/*.xlsx
+examples/great_lakes/longtailpoint/~$*
+
 examples/great_lakes/data/raw/*
 !examples/great_lakes/data/raw/*.py
 *.code-workspace
