@@ -6,10 +6,12 @@ imported normally rather than loaded by file path.
 """
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from examples.great_lakes import batch_run_twl as twl_batch_run
+from examples.great_lakes import common_twl
 
 # ---- _is_blank ----------------------------------------------------------------------
 
@@ -865,8 +867,12 @@ def test_build_resource_outputs_equivalent_elevation_off_by_default(tmp_path):
     twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
     elev_grid = tmp_path / "out" / "duluth_harbor_twl_1_equivalent_elevation_grid.csv"
     elev_plot = tmp_path / "out" / "duluth_harbor_twl_1_equivalent_elevation_plot.png"
+    delta_grid = tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_grid.csv"
+    delta_plot = tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_plot.png"
     assert not elev_grid.exists()
     assert not elev_plot.exists()
+    assert not delta_grid.exists()
+    assert not delta_plot.exists()
 
 
 def test_build_resource_outputs_equivalent_elevation_writes_second_grid_and_plot(tmp_path):
@@ -892,15 +898,21 @@ def test_build_resource_outputs_equivalent_elevation_writes_second_grid_and_plot
     elev_plot = tmp_path / "out" / "duluth_harbor_twl_1_equivalent_elevation_plot.png"
     assert grid_path.exists()
     assert elev_grid.exists()
-    assert len(calls) == 2
+    # 3 plot calls now: primary, equivalent_elevation, elevation_delta.
+    assert len(calls) == 3
     assert calls[0]["fillin"] is True
     elev_call = calls[1]
-    assert elev_call["labels"][2] == "Equivalent Elevation"
-    assert elev_call["threshold"] == pytest.approx(110.0)
+    assert elev_call["labels"][2] == "Equivalent Elevation (ft, NAVG88)"
+    # threshold/zs are converted from meters (IGLD85) to feet (NAVG88) at output time --
+    # the underlying analysis (compute_equivalent_elevation_metrics) still works in
+    # meters; build_resource_outputs converts only when writing the grid/plot.
+    assert elev_call["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_navg88(110.0))
     assert elev_call["save_path"] == elev_plot
     assert elev_call["color_map"] == "viridis"
     assert elev_call["color_map_ticks"] is None
     assert elev_call["fillin"] is True
+    for value in elev_call["zs"]:
+        assert value == pytest.approx(common_twl.m_igld85_to_ft_navg88(110.0))
 
 
 def test_build_resource_outputs_equivalent_elevation_numeric_override_uses_value_as_threshold(
@@ -920,10 +932,11 @@ def test_build_resource_outputs_equivalent_elevation_numeric_override_uses_value
     twl_batch_run.build_resource_outputs(
         resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
     )
-    assert len(calls) == 2
+    assert len(calls) == 3
     # The elevation plot's threshold tracks the override value (115.0), not
-    # magnitude_value (110.0) -- the primary plot (calls[0]) is unaffected either way.
-    assert calls[1]["threshold"] == pytest.approx(115.0)
+    # magnitude_value (110.0) -- the primary plot (calls[0]) is unaffected either way --
+    # and is expressed in ft NAVG88, not the raw meters override.
+    assert calls[1]["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_navg88(115.0))
 
 
 def test_build_resource_outputs_primary_grid_unaffected_by_equivalent_elevation_value(tmp_path):
@@ -969,6 +982,116 @@ def test_build_resource_outputs_equivalent_elevation_overwrite_false_raises_on_e
     config = default_config(
         output_directory=str(tmp_path / "out"), overwrite=False,
     )
+    twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
+    with pytest.raises(FileExistsError):
+        twl_batch_run.build_resource_outputs(
+            resource, data_dir, config, plot_fn=_recording_plot_fn([])
+        )
+
+
+# ---- elevation_delta (build_resource_outputs 3rd grid+plot) --------------------------
+
+def test_build_resource_outputs_elevation_delta_writes_third_grid_and_plot(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {
+            "baseline-_0_0": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other-_5_0": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+            "other2-_0_1.5": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other3-_5_1.5": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+        },
+    )
+    resource = twl_batch_run.parse_resource_row(base_row(
+        magnitude_operator=">", magnitude_value=110.0,
+        equivalent_elevation="baseline_magnitude",
+    ))
+    config = default_config(output_directory=str(tmp_path / "out"))
+    calls = []
+    twl_batch_run.build_resource_outputs(
+        resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
+    )
+    delta_grid = tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_grid.csv"
+    delta_plot = tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_plot.png"
+    assert delta_grid.exists()
+    assert len(calls) == 3
+    delta_call = calls[2]
+    assert delta_call["labels"][2] == "Elevation Delta (ft, NAVG88)"
+    assert delta_call["save_path"] == delta_plot
+    # Fixed colorbar center of 0 (no delta), regardless of resource.threshold or the
+    # equivalent_elevation plot's own threshold.
+    assert delta_call["threshold"] == pytest.approx(0.0)
+    # Baseline ARI at level=110.0 is exactly ARI=5 (an exact hit on baseline's own
+    # curve), so baseline's own equivalent elevation == the lookup value itself ->
+    # delta == 0 for the baseline (_0_0) scenario. Assert via the known
+    # equivalent_elevation values, converted to ft and differenced from the
+    # ft-converted lookup value (resource.equivalent_elevation resolves to
+    # magnitude_value == 110.0 via "baseline_magnitude").
+    lookup_ft = common_twl.m_igld85_to_ft_navg88(110.0)
+    baseline_delta_ft = common_twl.m_igld85_to_ft_navg88(110.0) - lookup_ft
+    other_delta_ft = common_twl.m_igld85_to_ft_navg88(116.0) - lookup_ft
+    assert baseline_delta_ft == pytest.approx(0.0)
+    assert other_delta_ft == pytest.approx(common_twl.m_igld85_to_ft_navg88(116.0) - lookup_ft)
+    assert min(np.ravel(delta_call["zs"])) <= other_delta_ft + 1e-9
+    assert any(v == pytest.approx(0.0, abs=1e-9) for v in np.ravel(delta_call["zs"]))
+
+
+def test_build_resource_outputs_elevation_delta_off_when_equivalent_elevation_blank(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    config = default_config(output_directory=str(tmp_path / "out"))
+    calls = []
+    twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn(calls))
+    assert len(calls) == 1
+    delta_grid = tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_grid.csv"
+    assert not delta_grid.exists()
+
+
+def test_build_resource_outputs_elevation_delta_numeric_override_uses_override_as_comparison(
+    tmp_path,
+):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {
+            "baseline-_0_0": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other-_5_0": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+            "other2-_0_1.5": _twl_sheet_frame(levels=(100.0, 110.0, 115.0, 120.0)),
+            "other3-_5_1.5": _twl_sheet_frame(levels=(105.0, 116.0, 121.0, 126.0)),
+        },
+    )
+    # equivalent_elevation override (115.0) differs from magnitude_value (110.0) --
+    # the delta's comparison elevation must track the override, not magnitude_value.
+    resource = twl_batch_run.parse_resource_row(base_row(
+        magnitude_operator=">", magnitude_value=110.0, equivalent_elevation=115.0,
+    ))
+    config = default_config(output_directory=str(tmp_path / "out"))
+    calls = []
+    twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn(calls))
+    delta_call = calls[2]
+    # Baseline scenario's equivalent elevation at ARI(115.0)=10 is 115.0 itself
+    # (exact hit) -> delta should be ~0 for the baseline scenario.
+    assert any(v == pytest.approx(0.0, abs=1e-9) for v in np.ravel(delta_call["zs"]))
+
+
+def test_build_resource_outputs_elevation_delta_overwrite_false_raises_on_existing(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(
+        base_row(equivalent_elevation="baseline_magnitude")
+    )
+    config = default_config(output_directory=str(tmp_path / "out"), overwrite=False)
     twl_batch_run.build_resource_outputs(resource, data_dir, config, plot_fn=_recording_plot_fn([]))
     with pytest.raises(FileExistsError):
         twl_batch_run.build_resource_outputs(

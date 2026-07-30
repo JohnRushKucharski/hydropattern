@@ -52,6 +52,33 @@ LAKE_AVG_FILENAMES = {
 # Sheet columns that are not ARI (Average Return Interval) values.
 NON_ARI_COLUMNS = frozenset({"ID", "lat", "lon"})
 
+# Meters per foot, and the flat IGLD85->NAVG88 offset (in feet) used throughout the
+# Great Lakes example data (see examples/great_lakes/longtailpoint/longtail_waterlevel
+# .xlsx, Sheet2's "NAVG88 to IGLD85" table: NAVG88 587ft -> IGLD85 586.56ft, NAVG88
+# 582ft -> IGLD85 581.56ft -- both a flat -0.44ft offset, i.e. IGLD85_ft = NAVG88_ft -
+# 0.44, so NAVG88_ft = IGLD85_ft + 0.44. This is the "USACE team estimate" noted in
+# that workbook's conversion_ex sheet; it is *not* the slightly different computed
+# ~0.4093ft offset, which the workbook explicitly says was not used).
+_METERS_PER_FOOT = 0.3048
+_IGLD85_TO_NAVG88_OFFSET_FT = 0.44
+
+
+def m_igld85_to_ft_navg88(value_m_igld85: float) -> float:
+    """Convert an elevation in meters, IGLD85 datum, to feet, NAVG88 datum."""
+    ft_igld85 = value_m_igld85 / _METERS_PER_FOOT
+    return ft_igld85 + _IGLD85_TO_NAVG88_OFFSET_FT
+
+
+def ft_navg88_to_m_igld85(value_ft_navg88: float) -> float:
+    """Convert an elevation in feet, NAVG88 datum, to meters, IGLD85 datum.
+
+    Inverse of m_igld85_to_ft_navg88 -- used to translate a NAVG88-ft input (e.g. an
+    equivalent_elevation override expressed in NAVG88 feet) into the meters-IGLD85
+    value the rest of the pipeline (twl curves, magnitude_value) operates in.
+    """
+    ft_igld85 = value_ft_navg88 - _IGLD85_TO_NAVG88_OFFSET_FT
+    return ft_igld85 * _METERS_PER_FOOT
+
 
 def resolve_lake_twl_path(lake: str, data_dir: Path) -> Path:
     """Resolve a lake code to its twl xlsx path under data_dir."""

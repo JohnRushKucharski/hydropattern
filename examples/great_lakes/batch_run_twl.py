@@ -48,6 +48,7 @@ resolve_lake_twl_path = common_twl.resolve_lake_twl_path
 parse_scenario_sheet_name = common_twl.parse_scenario_sheet_name
 _NON_ARI_COLUMNS = common_twl.NON_ARI_COLUMNS
 _load_lake_sheets = common_twl.load_lake_sheets
+_m_igld85_to_ft_navg88 = common_twl.m_igld85_to_ft_navg88
 
 
 def _is_blank(value: Any) -> bool:
@@ -731,14 +732,29 @@ def build_resource_outputs(
 
     If resource.equivalent_elevation is not None (resources sheet's
     'equivalent_elevation' cell is "baseline_magnitude" or a numeric override -- not
-    blank), also computes and writes a second grid csv + plot png: the water level
-    under every scenario equivalent (same ARI) to the baseline scenario's ARI at
-    resource.equivalent_elevation (see compute_equivalent_elevation_metrics). This
-    second plot's z-axis is labeled "Equivalent Elevation", its threshold is
-    resource.equivalent_elevation (a water level, unlike the primary plot's
-    metric-mode-units threshold), and it uses config.plot_color_map as given -- unlike
-    the primary plot, no RdBu-direction auto-reversal or color_map_ticks are applied,
-    since success_pattern/metric_mode semantics don't apply to a raw elevation value.
+    blank), also computes and writes:
+
+    - a second grid csv + plot png: the water level under every scenario equivalent
+      (same ARI) to the baseline scenario's ARI at resource.equivalent_elevation (see
+      compute_equivalent_elevation_metrics). This plot's z-axis is labeled
+      "Equivalent Elevation (ft, NAVG88)", its threshold is resource.equivalent_elevation,
+      and it uses config.plot_color_map as given -- unlike the primary plot, no
+      RdBu-direction auto-reversal or color_map_ticks are applied, since
+      success_pattern/metric_mode semantics don't apply to a raw elevation value.
+    - a third grid csv + plot png: elevation_delta, the increase/decrease (in ft
+      NAVG88) of each scenario's equivalent elevation relative to
+      resource.equivalent_elevation (the comparison/baseline-lookup elevation itself).
+      Its z-axis is labeled "Elevation Delta (ft, NAVG88)" and its colorbar threshold
+      is fixed at 0 (no delta), regardless of resource.threshold or the equivalent
+      elevation plot's own threshold.
+
+    compute_equivalent_elevation_metrics works entirely in meters, IGLD85 datum (the
+    unit of magnitude_value/equivalent_elevation and the twl workbooks' level curves);
+    the equivalent_elevation and elevation_delta grids/plots are the only places that
+    convert to feet, NAVG88 datum (via common_twl.m_igld85_to_ft_navg88), since they are
+    the only outputs of this script that represent a water level rather than a
+    metric_mode value (portion/percentage/return_period), which has no elevation units
+    to convert.
 
     plot_fn is injectable so tests can substitute a recording stub instead of the real
     climate_canvas plotting call (which opens a matplotlib figure).
@@ -758,11 +774,13 @@ def build_resource_outputs(
     plot_path = output_folder / f"{resource.qualified_name}_plot.png"
     elev_grid_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_grid.csv"
     elev_plot_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_plot.png"
+    delta_grid_path = output_folder / f"{resource.qualified_name}_elevation_delta_grid.csv"
+    delta_plot_path = output_folder / f"{resource.qualified_name}_elevation_delta_plot.png"
 
     compute_elevation = resource.equivalent_elevation is not None
     targets = [grid_path, plot_path]
     if compute_elevation:
-        targets += [elev_grid_path, elev_plot_path]
+        targets += [elev_grid_path, elev_plot_path, delta_grid_path, delta_plot_path]
     if not config.overwrite:
         existing = [p for p in targets if p.exists()]
         if existing:
@@ -790,17 +808,42 @@ def build_resource_outputs(
     )
 
     if compute_elevation:
-        elev_values = compute_equivalent_elevation_metrics(resource, twl_path)
-        elev_xs, elev_ys, elev_zs = build_grid(list(elev_values.keys()), elev_values)
+        elev_values_m = compute_equivalent_elevation_metrics(resource, twl_path)
+        elev_values_ft = {
+            suffix: _m_igld85_to_ft_navg88(value) for suffix, value in elev_values_m.items()
+        }
+        comparison_ft = _m_igld85_to_ft_navg88(resource.equivalent_elevation)
+
+        elev_xs, elev_ys, elev_zs = build_grid(list(elev_values_ft.keys()), elev_values_ft)
         write_grid_csv(elev_xs, elev_ys, elev_zs, elev_grid_path)
         plot_fn(
             elev_xs, elev_ys, elev_zs,
             interpolate=config.plot_interpolate,
-            labels=("Precipitation Delta (%)", "Temperature Delta (C)", "Equivalent Elevation"),
+            labels=("Precipitation Delta (%)", "Temperature Delta (C)",
+                    "Equivalent Elevation (ft, NAVG88)"),
             title=f"{resource.qualified_name}_equivalent_elevation",
             save_path=elev_plot_path,
             show=False,
-            threshold=resource.equivalent_elevation,
+            threshold=comparison_ft,
+            color_map=config.plot_color_map,
+            color_map_ticks=None,
+            fillin=config.fillin,
+        )
+
+        delta_values_ft = {
+            suffix: value - comparison_ft for suffix, value in elev_values_ft.items()
+        }
+        delta_xs, delta_ys, delta_zs = build_grid(list(delta_values_ft.keys()), delta_values_ft)
+        write_grid_csv(delta_xs, delta_ys, delta_zs, delta_grid_path)
+        plot_fn(
+            delta_xs, delta_ys, delta_zs,
+            interpolate=config.plot_interpolate,
+            labels=("Precipitation Delta (%)", "Temperature Delta (C)",
+                    "Elevation Delta (ft, NAVG88)"),
+            title=f"{resource.qualified_name}_elevation_delta",
+            save_path=delta_plot_path,
+            show=False,
+            threshold=0.0,
             color_map=config.plot_color_map,
             color_map_ticks=None,
             fillin=config.fillin,

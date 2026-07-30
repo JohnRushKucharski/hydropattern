@@ -8,6 +8,45 @@ import pytest
 
 from examples.great_lakes import common_twl
 
+# ---- m_igld85_to_ft_navg88 -------------------------------------------------------------
+
+# Known conversion pairs from examples/great_lakes/longtailpoint/longtail_waterlevel.xlsx
+# Sheet2's "NAVG88 to IGLD85" table: NAVG88 587ft -> IGLD85 586.56ft, NAVG88 582ft ->
+# IGLD85 581.56ft -- i.e. a flat -0.44ft offset (IGLD85_ft = NAVG88_ft - 0.44), the
+# "USACE team estimate" noted in that workbook's conversion_ex sheet (not the slightly
+# different computed ~0.4093ft offset, which the workbook explicitly says was not used).
+# Meters here are exact (offset ft) * 0.3048, not the workbook's own separately-sourced
+# "Full Set of Elevations" ft->m column, which carries its own independent rounding
+# noise (~0.01ft) from an external survey-based conversion and so isn't a valid oracle
+# for this module's simple, exact offset+scale formula.
+@pytest.mark.parametrize("meters,expected_ft_navg88", [
+    (586.56 * 0.3048, 587.0),
+    (581.56 * 0.3048, 582.0),
+])
+def test_m_igld85_to_ft_navg88_known_pairs(meters, expected_ft_navg88):
+    assert common_twl.m_igld85_to_ft_navg88(meters) == pytest.approx(expected_ft_navg88, abs=1e-6)
+
+
+def test_m_igld85_to_ft_navg88_zero():
+    # 0m IGLD85 -> 0ft IGLD85 -> +0.44ft NAVG88 (offset only, no scale error).
+    assert common_twl.m_igld85_to_ft_navg88(0.0) == pytest.approx(0.44)
+
+
+def test_m_igld85_to_ft_navg88_negative_value():
+    assert common_twl.m_igld85_to_ft_navg88(-30.48) == pytest.approx(-99.56)
+
+
+def test_m_igld85_to_ft_navg88_round_trips_with_ft_navg88_to_m_igld85():
+    original = 178.478688
+    converted = common_twl.m_igld85_to_ft_navg88(original)
+    assert common_twl.ft_navg88_to_m_igld85(converted) == pytest.approx(original)
+
+
+def test_ft_navg88_to_m_igld85_known_value():
+    # 586ft NAVG88 -> 585.56ft IGLD85 -> *0.3048 -> 178.478688m IGLD85.
+    assert common_twl.ft_navg88_to_m_igld85(586.0) == pytest.approx(178.478688)
+
+
 # ---- resolve_lake_avg_path -----------------------------------------------------------
 
 

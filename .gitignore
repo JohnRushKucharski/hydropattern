@@ -240,13 +240,16 @@ examples/great_lakes/*
 !examples/great_lakes/data/
 !examples/great_lakes/docs/
 
-# longtailpoint/ is a user's real-data working folder: track just the .xlsx input
-# workbooks (small, needed to reproduce results) -- generated outputs
-# (batch_*_output/) and the dashboard (dashboard.html/manifest.js) are large,
-# regenerable, and stay untracked.
+# longtailpoint/ is a user's real-data working folder: track the .xlsx input
+# workbooks (small, needed to reproduce results) plus the dashboard viewer files
+# (dashboard.html/manifest.js -- small, needed to browse results without re-running
+# anything). The bulky generated batch outputs (batch_*_output/: _grid.csv/_plot.png
+# per resource row) stay untracked/regenerable.
 !examples/great_lakes/longtailpoint/
 examples/great_lakes/longtailpoint/*
 !examples/great_lakes/longtailpoint/*.xlsx
+!examples/great_lakes/longtailpoint/dashboard.html
+!examples/great_lakes/longtailpoint/manifest.js
 examples/great_lakes/longtailpoint/~$*
 
 examples/great_lakes/data/raw/*
