@@ -47,16 +47,19 @@ magnitude threshold. Out-of-range thresholds are clamped to the nearest end ARI 
 `1000`) with a warning, never extrapolated.
 
 **Equivalent elevation**:
-An optional (`compute_equivalent_elevation` config option, default off) second
+An optional (resources-sheet `equivalent_elevation` column, blank by default) second
 scenario-grid metric alongside a resource row's primary exceedance-probability/ARI
-metric. Computed by first finding the baseline (`_0_0`) scenario's ARI at the row's
-`magnitude_value`, then interpolating the water level at that same ARI under every other
-scenario's own curve — the reverse direction of the ARI lookup used for the primary
-metric. Answers "what water level is equally likely, under this scenario, as
-`magnitude_value` is under the baseline scenario?" Written to its own grid csv + plot
-png (`..._equivalent_elevation_grid.csv` / `_equivalent_elevation_plot.png`), with plot
-z-axis label `"Equivalent Elevation"` and plot threshold equal to `magnitude_value`
-itself (a water level) rather than a metric-mode-units value.
+metric. The column is blank (skip), `"baseline_magnitude"` (case-insensitive; use the
+row's `magnitude_value`), or a number (override `magnitude_value` for this analysis
+only — the primary metric always uses `magnitude_value`). Computed by first finding
+the baseline (`_0_0`) scenario's ARI at the resolved baseline-ARI lookup value, then
+interpolating the water level at that same ARI under every other scenario's own curve
+— the reverse direction of the ARI lookup used for the primary metric. Answers "what
+water level is equally likely, under this scenario, as the lookup value is under the
+baseline scenario?" Written to its own grid csv + plot png
+(`..._equivalent_elevation_grid.csv` / `_equivalent_elevation_plot.png`), with plot
+z-axis label `"Equivalent Elevation"` and plot threshold equal to the resolved
+baseline-ARI lookup value itself (a water level) rather than a metric-mode-units value.
 _Avoid_: Equivalent ARI, equivalent magnitude (the output is a water level, not an ARI
 or the metric-mode value the primary grid produces).
 

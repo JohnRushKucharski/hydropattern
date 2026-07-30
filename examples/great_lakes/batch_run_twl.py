@@ -279,13 +279,30 @@ class ResourceSpec:
     # units (portion 0-1 / percentage 0-100 / return_period years) -- NOT a water level,
     # unlike magnitude_value. See docs/user/reference.md's climate-canvas `threshold`.
     threshold: float | None = None
+    # Resolved from the resources-sheet 'equivalent_elevation' column. None means the
+    # equivalent-elevation analysis is skipped entirely for this row (blank cell).
+    # Otherwise, this is the water-level value used to find the baseline (_0_0)
+    # scenario's ARI in compute_equivalent_elevation_metrics -- either magnitude_value
+    # itself (cell = "baseline_magnitude", case-insensitive) or an explicit numeric
+    # override (cell = a number), which replaces magnitude_value for this analysis
+    # only. The primary scenario-grid metric always uses magnitude_value, unaffected
+    # by this field. See CONTEXT.md's "Equivalent elevation" definition.
+    equivalent_elevation: float | None = None
 
     @property
     def qualified_name(self) -> str:
-        """resource_name+component_name, used as the prefix of every generated output
-        filename. Needed because multiple rows commonly share one output folder (flat
-        mode, the default), so component_name alone would collide across resources."""
-        return f"{self.resource_name}_{self.component_name}"
+        """resource_name+component_name(+save_point_id), used as the prefix of every
+        generated output filename. Needed because multiple rows commonly share one
+        output folder (flat mode, the default), so component_name alone would collide
+        across resources -- and, since a resources sheet may legitimately reuse the
+        same resource_name+component_name label across several save points (e.g. the
+        same site name evaluated at multiple nearby points), save_point_id is appended
+        when given to keep those rows' outputs from colliding too. Rows selected by
+        lat/lon (no save_point_id) omit the suffix, matching prior behavior."""
+        base = f"{self.resource_name}_{self.component_name}"
+        if self.save_point_id is None:
+            return base
+        return f"{base}_{self.save_point_id}"
 
 
 def _validate_lake(lake: str, errors: list[str]) -> None:
@@ -341,6 +358,35 @@ def _parse_threshold(row: dict[str, Any]) -> float | None:
     return float(value)
 
 
+_BASELINE_MAGNITUDE_KEYWORD = "baseline_magnitude"
+
+
+def _parse_equivalent_elevation(
+    row: dict[str, Any], magnitude_value: float | None, errors: list[str]
+) -> float | None:
+    """Resolve the 'equivalent_elevation' column into the value used for the
+    equivalent-elevation baseline ARI lookup (or None to skip that analysis).
+
+    Blank -> None (skip). The keyword "baseline_magnitude" (case-insensitive) ->
+    magnitude_value (current default behavior). A number (or numeric string) -> that
+    value, overriding magnitude_value for the equivalent-elevation analysis only.
+    Anything else is a validation error.
+    """
+    value = row.get("equivalent_elevation")
+    if value is None or _is_blank(value):
+        return None
+    if isinstance(value, str) and value.strip().lower() == _BASELINE_MAGNITUDE_KEYWORD:
+        return magnitude_value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        errors.append(
+            f"'equivalent_elevation' value {value!r} is invalid; must be blank, "
+            f"{_BASELINE_MAGNITUDE_KEYWORD!r}, or a number."
+        )
+        return None
+
+
 def parse_resource_row(row: dict[str, Any]) -> ResourceSpec:
     """Validate and parse one resources-sheet row into a ResourceSpec.
 
@@ -362,6 +408,7 @@ def parse_resource_row(row: dict[str, Any]) -> ResourceSpec:
     save_point_id, lat, lon = _parse_save_point_selector(row, errors)
     success_pattern = _to_bool(row.get("success_pattern"), default=False)
     threshold = _parse_threshold(row)
+    equivalent_elevation = _parse_equivalent_elevation(row, magnitude_value, errors)
 
     if errors:
         raise RowValidationError(errors)
@@ -377,6 +424,7 @@ def parse_resource_row(row: dict[str, Any]) -> ResourceSpec:
         lon=lon,
         success_pattern=success_pattern,
         threshold=threshold,
+        equivalent_elevation=equivalent_elevation,
     )
 
 
@@ -397,10 +445,6 @@ class BatchConfig:
     plot_interpolate: bool = True
     plot_color_map: str = "RdBu"
     plot_color_map_ticks: tuple[float, ...] | None = None
-    # If true, also compute+write a second grid csv + plot png per row: the water level
-    # under every scenario equivalent to the baseline (_0_0) scenario's ARI at this
-    # row's magnitude_value. See compute_equivalent_elevation_metrics.
-    compute_equivalent_elevation: bool = False
     # Forwarded as climate-canvas's plot_response_surface(fillin=...) on every plot_fn
     # call this script makes (primary + equivalent-elevation). Estimates missing (NaN)
     # grid cells via Delaunay triangulation; see climate-canvas's --fillin option.
@@ -450,6 +494,7 @@ _RESOURCE_REQUIRED_COLUMNS = frozenset(
 )
 _RESOURCE_OPTIONAL_COLUMNS = frozenset({
     "component_name", "save_point_id", "lat", "lon", "success_pattern", "threshold",
+    "equivalent_elevation",
 })
 _RESOURCE_ALL_COLUMNS = _RESOURCE_REQUIRED_COLUMNS | _RESOURCE_OPTIONAL_COLUMNS
 
@@ -487,7 +532,7 @@ def read_resources_sheet(path: Path, sheet_name: str = "resources") -> list[dict
 
 
 _CONFIG_BOOL_KEYS = frozenset(
-    {"overwrite", "plot_interpolate", "compute_equivalent_elevation", "fillin"}
+    {"overwrite", "plot_interpolate", "fillin"}
 )
 _CONFIG_STR_KEYS = frozenset(
     {"metric_mode", "output_directory", "subdirectory_structure", "plot_color_map"}
@@ -579,10 +624,6 @@ def read_config_sheet(path: Path, sheet_name: str = "config") -> BatchConfig:
         kwargs["plot_color_map"] = str(values["plot_color_map"]).strip()
     if ticks is not None:
         kwargs["plot_color_map_ticks"] = ticks
-    if not _is_blank(values.get("compute_equivalent_elevation")):
-        kwargs["compute_equivalent_elevation"] = _to_bool(
-            values.get("compute_equivalent_elevation"), defaults.compute_equivalent_elevation
-        )
     if not _is_blank(values.get("fillin")):
         kwargs["fillin"] = _to_bool(values.get("fillin"), defaults.fillin)
 
@@ -629,13 +670,19 @@ def compute_equivalent_elevation_metrics(resource: ResourceSpec, twl_path: Path
                                           ) -> dict[str, float]:
     """Compute one equivalent-elevation value per scenario sheet for one resource.
 
-    First finds the baseline (_0_0) scenario's ARI at resource.magnitude_value (via
-    interpolate_ari), then, for every scenario sheet (including baseline itself), finds
-    the water level at that same ARI under that scenario's curve (via interpolate_level)
-    -- i.e. "what water level, under this scenario, is equally likely (same ARI) as
-    resource.magnitude_value is under the baseline scenario". Keys are the bare
-    `_<precip>_<temp>` scenario-grid suffix (see parse_scenario_sheet_name) -- sheets
-    that don't match that naming convention are skipped.
+    First finds the baseline (_0_0) scenario's ARI at resource.equivalent_elevation
+    (via interpolate_ari) -- this is either resource.magnitude_value itself (resources
+    sheet's 'equivalent_elevation' cell = "baseline_magnitude") or an explicit numeric
+    override, resolved at parse time by parse_resource_row -- then, for every scenario
+    sheet (including baseline itself), finds the water level at that same ARI under
+    that scenario's curve (via interpolate_level) -- i.e. "what water level, under
+    this scenario, is equally likely (same ARI) as resource.equivalent_elevation is
+    under the baseline scenario". Keys are the bare `_<precip>_<temp>` scenario-grid
+    suffix (see parse_scenario_sheet_name) -- sheets that don't match that naming
+    convention are skipped.
+
+    Callers should only invoke this when resource.equivalent_elevation is not None
+    (see build_resource_outputs) -- interpolate_ari requires a numeric threshold.
 
     Raises ValueError if the lake's twl workbook has no baseline (_0_0) scenario sheet.
     """
@@ -659,7 +706,7 @@ def compute_equivalent_elevation_metrics(resource: ResourceSpec, twl_path: Path
             f"No baseline ({_BASELINE_SCENARIO_SUFFIX!r}) scenario sheet found in "
             f"{twl_path}; cannot compute equivalent elevation."
         )
-    baseline_ari = interpolate_ari(baseline_levels, baseline_aris, resource.magnitude_value)
+    baseline_ari = interpolate_ari(baseline_levels, baseline_aris, resource.equivalent_elevation)
 
     equivalent_elevations: dict[str, float] = {}
     for sheet_name, df in sheets.items():
@@ -679,15 +726,19 @@ def build_resource_outputs(
 ) -> tuple[Path, Path]:
     """Compute one resource's scenario-grid metrics and write its grid csv + plot png.
 
-    If config.compute_equivalent_elevation is True, also computes and writes a second
-    grid csv + plot png: the water level under every scenario equivalent (same ARI) to
-    the baseline scenario's ARI at resource.magnitude_value (see
-    compute_equivalent_elevation_metrics). This second plot's z-axis is labeled
-    "Equivalent Elevation", its threshold is resource.magnitude_value (a water level,
-    unlike the primary plot's metric-mode-units threshold), and it uses
-    config.plot_color_map as given -- unlike the primary plot, no RdBu-direction
-    auto-reversal or color_map_ticks are applied, since success_pattern/metric_mode
-    semantics don't apply to a raw elevation value.
+    The primary grid/plot always evaluates resource.magnitude_value, regardless of the
+    resources sheet's 'equivalent_elevation' setting.
+
+    If resource.equivalent_elevation is not None (resources sheet's
+    'equivalent_elevation' cell is "baseline_magnitude" or a numeric override -- not
+    blank), also computes and writes a second grid csv + plot png: the water level
+    under every scenario equivalent (same ARI) to the baseline scenario's ARI at
+    resource.equivalent_elevation (see compute_equivalent_elevation_metrics). This
+    second plot's z-axis is labeled "Equivalent Elevation", its threshold is
+    resource.equivalent_elevation (a water level, unlike the primary plot's
+    metric-mode-units threshold), and it uses config.plot_color_map as given -- unlike
+    the primary plot, no RdBu-direction auto-reversal or color_map_ticks are applied,
+    since success_pattern/metric_mode semantics don't apply to a raw elevation value.
 
     plot_fn is injectable so tests can substitute a recording stub instead of the real
     climate_canvas plotting call (which opens a matplotlib figure).
@@ -708,8 +759,9 @@ def build_resource_outputs(
     elev_grid_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_grid.csv"
     elev_plot_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_plot.png"
 
+    compute_elevation = resource.equivalent_elevation is not None
     targets = [grid_path, plot_path]
-    if config.compute_equivalent_elevation:
+    if compute_elevation:
         targets += [elev_grid_path, elev_plot_path]
     if not config.overwrite:
         existing = [p for p in targets if p.exists()]
@@ -737,7 +789,7 @@ def build_resource_outputs(
         fillin=config.fillin,
     )
 
-    if config.compute_equivalent_elevation:
+    if compute_elevation:
         elev_values = compute_equivalent_elevation_metrics(resource, twl_path)
         elev_xs, elev_ys, elev_zs = build_grid(list(elev_values.keys()), elev_values)
         write_grid_csv(elev_xs, elev_ys, elev_zs, elev_grid_path)
@@ -748,7 +800,7 @@ def build_resource_outputs(
             title=f"{resource.qualified_name}_equivalent_elevation",
             save_path=elev_plot_path,
             show=False,
-            threshold=resource.magnitude_value,
+            threshold=resource.equivalent_elevation,
             color_map=config.plot_color_map,
             color_map_ticks=None,
             fillin=config.fillin,

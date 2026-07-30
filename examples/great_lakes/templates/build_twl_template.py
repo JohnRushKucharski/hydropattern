@@ -33,11 +33,14 @@ RESOURCES_HEADER = [
     "magnitude_operator",
     "magnitude_value",
     "threshold",
+    "equivalent_elevation",
 ]
 
 # Example rows, illustrating: save_point_id selection (row 1), lat/lon nearest-point
 # selection (row 2), and a success_pattern=True low-water row (row 3). component_name
-# is left blank on rows 1-2 to also illustrate its "twl" default.
+# is left blank on rows 1-2 to also illustrate its "twl" default. equivalent_elevation
+# illustrates all three states: blank/skipped (row 1), "baseline_magnitude" (row 2),
+# and a numeric override (row 3).
 EXAMPLE_RESOURCE_ROWS = [
     {
         "resource_name": "duluth_harbor",
@@ -57,6 +60,7 @@ EXAMPLE_RESOURCE_ROWS = [
         "success_pattern": False,
         "magnitude_operator": ">",
         "magnitude_value": 176.0,
+        "equivalent_elevation": "baseline_magnitude",
     },
     {
         "resource_name": "kingston_shoal",
@@ -66,6 +70,7 @@ EXAMPLE_RESOURCE_ROWS = [
         "success_pattern": True,
         "magnitude_operator": "<",
         "magnitude_value": 74.8,
+        "equivalent_elevation": 75.5,
     },
 ]
 
@@ -87,10 +92,6 @@ CONFIG_ROWS = [
      "component based on metric_mode/success_pattern -- see docs/user/reference.md."),
     ("plot_color_map_ticks", "",
      "(Optional) comma-separated explicit colorbar ticks, e.g. \"-1.0, 0.0, 1.0\"."),
-    ("compute_equivalent_elevation", False,
-     "If true, also write a second grid csv + plot png per row: the water level under "
-     "every scenario equivalent (same ARI) to the baseline (_0_0) scenario's ARI at "
-     "magnitude_value. See CONTEXT.md's \"Equivalent elevation\" definition."),
     ("fillin", False,
      "If true, estimate missing (NaN) grid cells in the response surface via Delaunay "
      "triangulation before plotting (climate-canvas's --fillin option). Applies to "
@@ -110,6 +111,19 @@ _THRESHOLD_HEADER_COMMENT = Comment(
     "hydropattern",
 )
 
+# equivalent_elevation column note: per-row toggle for the second "equivalent
+# elevation" grid csv + plot png (see CONTEXT.md's "Equivalent elevation" definition).
+# Blank skips it. "baseline_magnitude" (case-insensitive) runs it using this row's own
+# magnitude_value as the baseline-ARI lookup value. A number overrides magnitude_value
+# for this analysis only -- the primary grid/plot always evaluates magnitude_value
+# regardless of this column.
+_EQUIVALENT_ELEVATION_HEADER_COMMENT = Comment(
+    "Blank = skip. \"baseline_magnitude\" = run using this row's magnitude_value. "
+    "A number = run using that water-level value instead of magnitude_value (for "
+    "this analysis only).",
+    "hydropattern",
+)
+
 
 def build_template(path: Path = TEMPLATE_PATH) -> Path:
     """Write the resources+config template workbook to path (overwriting if present)."""
@@ -125,6 +139,8 @@ def build_template(path: Path = TEMPLATE_PATH) -> Path:
         cell.font = _HEADER_FONT
     resources_ws.cell(row=1, column=RESOURCES_HEADER.index("threshold") + 1).comment = \
         _THRESHOLD_HEADER_COMMENT
+    resources_ws.cell(row=1, column=RESOURCES_HEADER.index("equivalent_elevation") + 1).comment = \
+        _EQUIVALENT_ELEVATION_HEADER_COMMENT
     for example_row in EXAMPLE_RESOURCE_ROWS:
         resources_ws.append([example_row.get(col) for col in RESOURCES_HEADER])
 

@@ -293,6 +293,7 @@ The workbook has two sheets:
 | `lat` / `lon` | no (required together if `save_point_id` omitted) | Selects the nearest save point by simple Euclidean distance in degrees. |
 | `success_pattern` | no (default `false`) | Same meaning as in `hydropattern`: whether the magnitude condition being **true** counts as "success". |
 | `threshold` | no | Climate-canvas plot reference line — in **metric-mode units** (a portion 0–1, a percentage 0–100, or an ARI in years), **not** a water level. |
+| `equivalent_elevation` | no | Per-row toggle for the "equivalent elevation" second grid/plot (see below). Blank (default) skips it entirely. `"baseline_magnitude"` (case-insensitive) runs it using `magnitude_value` as the baseline-ARI lookup value. A number overrides `magnitude_value` for that lookup only — the primary grid/plot is unaffected either way. |
 
 ### `config` sheet — options shared by every row (`option` / `value` columns)
 
@@ -305,7 +306,6 @@ The workbook has two sheets:
 | `plot_interpolate` | `true` | Bilinearly interpolate the plotted response surface. |
 | `plot_color_map` | `RdBu` | Auto-reversed per resource based on `metric_mode`/`success_pattern`, same as `batch_run_avg.py`. |
 | `plot_color_map_ticks` | *(unset)* | Optional comma-separated explicit colorbar ticks. |
-| `compute_equivalent_elevation` | `false` | If `true`, also compute+write a second grid csv + plot png per row: the water level under every scenario equivalent (same ARI) to the baseline (`_0_0`) scenario's ARI at `magnitude_value`. See "Equivalent elevation" below. |
 | `fillin` | `false` | If `true`, estimate missing (NaN) grid cells in the response surface via Delaunay triangulation before plotting (climate-canvas's `--fillin` option). Applies to every plot png the row produces. |
 
 Leave a cell blank to use its default.
@@ -327,37 +327,46 @@ be clamped, a duplicate output target, or pre-existing output with `overwrite=fa
 
 ## 3. Check the output
 
-Each row produces exactly two files, named `<resource_name>_<component_name>...`:
+Each row produces exactly two files, named `<resource_name>_<component_name>...` (with
+`_<save_point_id>` appended when the row selects its save point by `save_point_id` --
+this disambiguates rows that reuse the same `resource_name`+`component_name` label
+across multiple save points):
 
 ```
-duluth_harbor_twl_grid.csv        <- one exceedance-probability/ARI metric per scenario
-duluth_harbor_twl_plot.png        <- climate-canvas response-surface plot
+duluth_harbor_twl_1_grid.csv      <- one exceedance-probability/ARI metric per scenario
+duluth_harbor_twl_1_plot.png      <- climate-canvas response-surface plot
 ```
 
 No `.toml`, no summary/output Excel workbook, and no raw per-scenario CSVs are written —
 this tool's output is deliberately minimal since there's no hydropattern run to summarize.
 
-### Equivalent elevation (`compute_equivalent_elevation`)
+### Equivalent elevation (`equivalent_elevation` resources-sheet column)
 
-If `compute_equivalent_elevation` is `true` on the config sheet, each row also produces:
+If a row's `equivalent_elevation` cell is non-blank (`"baseline_magnitude"` or a number),
+that row also produces:
 
 ```
-duluth_harbor_twl_equivalent_elevation_grid.csv   <- one water level per scenario
-duluth_harbor_twl_equivalent_elevation_plot.png   <- climate-canvas response-surface plot
+duluth_harbor_twl_1_equivalent_elevation_grid.csv   <- one water level per scenario
+duluth_harbor_twl_1_equivalent_elevation_plot.png   <- climate-canvas response-surface plot
 ```
 
-This answers: "the row's `magnitude_value` corresponds to some ARI under the baseline
-(`_0_0`) scenario — what water level is equally likely (same ARI) under every *other*
-scenario?" Concretely: the baseline scenario's ARI at `magnitude_value` is found first
-(the same `interpolate_ari` lookup the primary grid uses), then that ARI is looked up
-against every scenario's own water-level-vs-ARI curve (the reverse interpolation,
-`interpolate_level`) to get that scenario's equivalent elevation. The baseline scenario's
-own cell in this grid is therefore always `magnitude_value` itself (interpolating a curve
-at the ARI you just read off of it returns the same point).
+This answers: "the row's baseline-ARI lookup value corresponds to some ARI under the
+baseline (`_0_0`) scenario — what water level is equally likely (same ARI) under every
+*other* scenario?" The baseline-ARI lookup value is `magnitude_value` itself when the
+cell is `"baseline_magnitude"` (case-insensitive), or the cell's own number when it's a
+numeric override — the override replaces `magnitude_value` for this analysis only; the
+primary grid/plot always evaluates `magnitude_value` regardless of `equivalent_elevation`.
+Concretely: the baseline scenario's ARI at that lookup value is found first (the same
+`interpolate_ari` lookup the primary grid uses), then that ARI is looked up against every
+scenario's own water-level-vs-ARI curve (the reverse interpolation, `interpolate_level`)
+to get that scenario's equivalent elevation. The baseline scenario's own cell in this grid
+is therefore always the lookup value itself (interpolating a curve at the ARI you just
+read off of it returns the same point).
 
 The equivalent-elevation plot differs from the primary plot in three ways: its z-axis
-label is `"Equivalent Elevation"` (not `metric_mode`'s units), its plot threshold is
-`magnitude_value` itself (a water level, not a metric-mode-units value), and it always
+label is `"Equivalent Elevation"` (not `metric_mode`'s units), its plot threshold is the
+row's baseline-ARI lookup value itself (a water level, not a metric-mode-units value),
+and it always
 uses `plot_color_map` as configured with no automatic RdBu-direction reversal and no
 `plot_color_map_ticks` — the auto-reversal and tick logic are keyed to
 `success_pattern`/`metric_mode` semantics, which don't apply to a raw elevation value.
