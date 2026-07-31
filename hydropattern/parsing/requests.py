@@ -100,25 +100,35 @@ def _rate_of_change_spec(metrics: list[Any], order: int) -> Any:
 
 def _frequency_spec(metrics: list[Any], order: int) -> Any:
     parsers_module = import_module('hydropattern.parsers')
+    is_nested_frequency_shape = getattr(parsers_module, 'is_nested_frequency_shape')
     validate_frequency_metrics = getattr(parsers_module, 'validate_frequency_metrics')
+    validate_nested_frequency_metrics = getattr(
+        parsers_module, 'validate_nested_frequency_metrics'
+    )
     characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
     characteristic_type = getattr(parsers_module, 'CharacteristicType')
-    comparison_type = getattr(parsers_module, 'ComparisionType')
-    comp_type = validate_frequency_metrics(metrics)
-    ma_periods = int(metrics[2])
-    if comp_type == comparison_type.SIMPLE:
+    if is_nested_frequency_shape(metrics):
+        base, nested = validate_nested_frequency_metrics(metrics)
         return characteristic_spec_cls(
             type=characteristic_type.FREQUENCY,
-            operator=metrics[0],
-            values=(metrics[1],),
-            ma_periods=ma_periods,
+            operator=base.operator,
+            values=base.values,
+            big_n=base.big_n,
+            event_bool=base.event_bool,
+            is_nested=True,
+            nested_operator=nested.operator,
+            nested_values=nested.values,
+            nested_big_n=nested.big_n,
+            nested_event_bool=nested.event_bool,
             order=order,
         )
+    parsed = validate_frequency_metrics(list(metrics))
     return characteristic_spec_cls(
         type=characteristic_type.FREQUENCY,
-        operator=None,
-        values=(metrics[0], metrics[1]),
-        ma_periods=ma_periods,
+        operator=parsed.operator,
+        values=parsed.values,
+        big_n=parsed.big_n,
+        event_bool=parsed.event_bool,
         order=order,
     )
 

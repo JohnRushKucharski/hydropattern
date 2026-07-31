@@ -35,9 +35,26 @@ def test_is_blank_false_cases(value):
     (False, True, False),
     (1, False, True),
     (0, True, False),
+    ("true", False, True),
+    ("TRUE", False, True),
+    ("  True  ", False, True),
+    ("false", True, False),
+    ("FALSE", True, False),
+    ("  False  ", True, False),
+    ("1", False, True),
+    ("0", True, False),
+    ("yes", False, True),
+    ("no", True, False),
 ])
 def test_to_bool(value, default, expected):
+    # Regression: bool("false") is True in plain Python, which previously made
+    # string-boolean cells like overwrite="false" silently parse as True.
     assert twl_batch_run._to_bool(value, default) is expected
+
+
+def test_to_bool_rejects_unparsable_string():
+    with pytest.raises(ValueError, match="Cannot parse"):
+        twl_batch_run._to_bool("maybe", False)
 
 
 # ---- _require_str -----------------------------------------------------------------

@@ -61,6 +61,15 @@ def source_sheet_name(scenario: str, lake_tag: str) -> str:
     return f"{scenario} ({lake_tag} TWL BE)"
 
 
+def clean_scenario_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows without an `ID` (blank/padding rows in the raw sheet).
+
+    Extracted as its own function so the transform can be unit-tested without
+    reading the real source workbook.
+    """
+    return df.dropna(subset=["ID"])
+
+
 def main() -> None:
     raw_dir = Path(__file__).parent
     clean_dir = raw_dir.parent / "clean"
@@ -95,7 +104,7 @@ def main() -> None:
         with pd.ExcelWriter(out_path, engine="xlsxwriter") as writer:
             for scenario, new_name in SCENARIOS.items():
                 src_name = source_sheet_name(scenario, lake_tag)
-                df = sheets[src_name].dropna(subset=["ID"])
+                df = clean_scenario_frame(sheets[src_name])
                 df.to_excel(writer, sheet_name=new_name, index=False)
                 print(f"  {lake_tag}: {src_name!r} -> {out_filename}::{new_name!r}")
         print(f"Saved: {out_path}")

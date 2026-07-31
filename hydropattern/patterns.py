@@ -118,7 +118,14 @@ class CharacteristicType(StrEnum):
 
 type CharacteristicFx = Callable[[pd.DataFrame, None|np.ndarray], np.ndarray]
 
-Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type'])
+# is_nested marks the terminal (interannual) column of a nested frequency
+# characteristic. evaluate_component() uses this to broadcast the interannual
+# result across each qualifying water year instead of the generic row-wise AND
+# used for every other characteristic (including un-nested frequency and the
+# nested pattern's own intra-annual column). See
+# notes/frequencyEnhancement-resolved.md.
+Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type', 'is_nested'],
+                            defaults=[False])
 
 #region utility functions
 # def is_order_1(order: int, output: None|np.ndarray) -> bool:
@@ -411,87 +418,396 @@ def duration_fx(f: Callable[[float], bool],
 #endregion
 
 #region frequency
-def frequency_fx(f: Callable[[float], bool],
-                 order: int, ma_period: int) -> CharacteristicFx:
+def mark_events(raw: np.ndarray, event_bool: bool = True) -> np.ndarray:
     '''
-    Creates function to evaluate frequency characteristics.
+    Collapses maximal runs of consecutive successes in a raw 0/1/NaN diagnostic
+    array into event-level or timestep-level markers.
+
+    This is the shared event-marking engine used by both un-nested frequency
+    (applied to a sliding-window success diagnostic) and nested frequency
+    (applied to the intra-annual base-pattern diagnostic).
 
     Parameters
     ----------
-        f (Callable[[float], bool]): Comparision function.
+        raw (np.ndarray): a 0/1/NaN array, e.g. a sliding-window success
+            diagnostic. NaN marks insufficient history (no verdict yet).
+        event_bool (bool): if True (default), each maximal run of consecutive
+            1s collapses to a single 1 marked at the run's last trial
+            (event-level); every other trial in the run is set to 0. If False,
+            every trial in a qualifying run is marked 1 (timestep-level) and
+            `raw` is returned unchanged.
+
+    Returns
+    -------
+        np.ndarray: same shape as `raw`. NaNs and 0s always pass through
+        unchanged; only 1s within a run may be zeroed (event_bool=True).
+    '''
+    result = np.array(raw, dtype=float)
+    if not event_bool:
+        return result
+
+    run_start = None
+    for t, value in enumerate(result):
+        if np.isnan(value):
+            run_start = None
+            continue
+        if value == 1:
+            if run_start is None:
+                run_start = t
+        else:
+            if run_start is not None and t - 1 > run_start:
+                result[run_start:t - 1] = 0
+            run_start = None
+    # run continues to the end of the array
+    if run_start is not None and len(result) - 1 > run_start:
+        result[run_start:len(result) - 1] = 0
+    return result
+
+def sliding_window_count(data: np.ndarray, window: int) -> np.ndarray:
+    '''
+    Trailing sliding-window count of successes over a 0/1 array.
+
+    At each trial `t`, sums the trailing window of `window` trials ending at
+    `t` (inclusive). The first `window - 1` trials (insufficient history) are
+    marked NaN, matching legacy moving-average/incomplete-first-year behavior
+    and ADR 0002 (sliding, not fixed/non-overlapping windows).
+
+    Parameters
+    ----------
+        data (np.ndarray): 0/1 success array to count over.
+        window (int): trailing window size (in trials), i.e. N.
+
+    Returns
+    -------
+        np.ndarray: same shape as `data`, float dtype (to allow NaN).
+    '''
+    if window < 1:
+        raise ValueError(f'window: {window} must be at least 1.')
+    result = np.full(len(data), np.nan)
+    for t in range(len(data)):
+        if t < window - 1:
+            continue
+        result[t] = np.sum(data[t - window + 1:t + 1])
+    return result
+
+def identify_full_water_years(dowy: np.ndarray) -> list[tuple[int, int]]:
+    '''
+    Identifies (start_idx, end_idx) index pairs (both inclusive) for each
+    water year in a day-of-water-year array.
+
+    A water year starts at any timestep where `dowy == 1` and runs to the
+    timestep before the next `dowy == 1` (or the end of the series, for the
+    final year). Callers are assumed to supply data trimmed to complete
+    water years (as the CLI's timeseries loading does via
+    `first_day_of_water_year`); a leading partial year -- timesteps before
+    the first `dowy == 1` -- is excluded, since there is no way to recover
+    its missing days.
+
+    Parameters
+    ----------
+        dowy (np.ndarray): day-of-water-year values (1-365).
+
+    Returns
+    -------
+        list[tuple[int, int]]: (start_idx, end_idx) pairs, in series order.
+    '''
+    starts = [i for i, day in enumerate(dowy) if day == 1]
+    if not starts:
+        return []
+    return [
+        (start, starts[i + 1] - 1 if i + 1 < len(starts) else len(dowy) - 1)
+        for i, start in enumerate(starts)
+    ]
+
+def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
+                                 event_bool: bool = True) -> np.ndarray:
+    '''
+    Computes, for each full water year (see identify_full_water_years), the
+    ratio of event-marked successes to timesteps-in-year over an eligible
+    (0/1) trial array -- the core statistic behind a nested frequency
+    pattern's intra-annual `[operator, probability, (event_bool)]` base form.
+
+    The ratio is placed at the water year's *last* timestep and NaN
+    elsewhere (including any leading partial year before the first
+    `dowy == 1`), matching the trailing-window convention used by
+    sliding_window_count: a diagnostic value only becomes known once its
+    full window -- here, the water year -- has elapsed.
+
+    Parameters
+    ----------
+        eligible (np.ndarray): 0/1 trial outcomes (e.g. AND of preceding
+            characteristic columns).
+        dowy (np.ndarray): day-of-water-year values (1-365), same length as
+            `eligible`.
+        event_bool (bool): if True (default), a maximal run of consecutive
+            successes within the year collapses to a single success
+            (event-level) before computing the ratio; if False, every
+            successful timestep counts toward the numerator (timestep-level).
+
+    Returns
+    -------
+        np.ndarray: same shape as `eligible`; ratio at each full water year's
+        last timestep, NaN elsewhere.
+    '''
+    if len(eligible) != len(dowy):
+        raise ValueError(
+            f'eligible (len={len(eligible)}) and dowy (len={len(dowy)}) must be the same length.'
+        )
+    marked = mark_events(eligible, event_bool)
+    result = np.full(len(eligible), np.nan)
+    for start, end in identify_full_water_years(dowy):
+        year_length = end - start + 1
+        successes = np.nansum(marked[start:end + 1])
+        result[end] = successes / year_length
+    return result
+
+def windowed_count_per_water_year(eligible: np.ndarray, dowy: np.ndarray,
+                                  window: int) -> np.ndarray:
+    '''
+    Per full water year (see identify_full_water_years), a trailing
+    sliding-window count of successes -- the count/between-form counterpart
+    to water_year_probability_ratio, used by a nested frequency pattern's
+    intra-annual base when it is a count/between form rather than
+    probability. The window resets at each water year boundary (does not
+    look back into the previous year), matching the "intra-annual" framing.
+
+    Parameters
+    ----------
+        eligible (np.ndarray): 0/1 trial outcomes (e.g. AND of preceding
+            characteristic columns).
+        dowy (np.ndarray): day-of-water-year values (1-365), same length as
+            `eligible`.
+        window (int): trailing window size (in timesteps), i.e. N.
+
+    Returns
+    -------
+        np.ndarray: same shape as `eligible`; trailing-window count at each
+        timestep within a full water year (NaN for the year's first
+        `window - 1` timesteps), NaN throughout any excluded partial year.
+    '''
+    if len(eligible) != len(dowy):
+        raise ValueError(
+            f'eligible (len={len(eligible)}) and dowy (len={len(dowy)}) must be the same length.'
+        )
+    result = np.full(len(eligible), np.nan)
+    for start, end in identify_full_water_years(dowy):
+        result[start:end + 1] = sliding_window_count(eligible[start:end + 1], window)
+    return result
+
+def or_reduce_per_water_year(diag: np.ndarray, dowy: np.ndarray) -> np.ndarray:
+    '''
+    Per full water year (see identify_full_water_years), OR-reduces a 0/1/NaN
+    diagnostic column (e.g. an intra_annual column) to a single year verdict,
+    placed at the year's last timestep (NaN elsewhere, including any excluded
+    partial year) -- matching the trailing-window "value known only at window
+    end" convention used throughout this module.
+
+    Verdict rule: `1` if any `1` is present among the year's non-NaN cells;
+    `0` if only `0`s are present; `NaN` only if every cell in the year is NaN
+    (insufficient history all year).
+
+    Parameters
+    ----------
+        diag (np.ndarray): 0/1/NaN diagnostic column (e.g. intra_annual).
+        dowy (np.ndarray): day-of-water-year values (1-365), same length as
+            `diag`.
+
+    Returns
+    -------
+        np.ndarray: same shape as `diag`; year verdict at each full water
+        year's last timestep, NaN elsewhere.
+    '''
+    if len(diag) != len(dowy):
+        raise ValueError(
+            f'diag (len={len(diag)}) and dowy (len={len(dowy)}) must be the same length.'
+        )
+    result = np.full(len(diag), np.nan)
+    for start, end in identify_full_water_years(dowy):
+        year = diag[start:end + 1]
+        non_nan = year[~np.isnan(year)]
+        if len(non_nan) == 0:
+            continue  # remains NaN: entire year is insufficient-history
+        result[end] = 1.0 if np.any(non_nan == 1) else 0.0
+    return result
+
+def frequency_fx(f: Callable[[float], bool], order: int,
+                 big_n: int | None = None, event_bool: bool = True) -> CharacteristicFx:
+    '''
+    Creates function to evaluate an un-nested frequency characteristic.
+
+    Parameters
+    ----------
+        f (Callable[[float], bool]): Comparision function, applied to either a
+            probability (successes/trials ratio) or a trial count, depending on form.
         order (int): Position in which characteristic is evaluated
-            within list of component characteristics.
-        ma_period (int): window (in years) over which f is evaluated.
+            within list of component characteristics. Must be the last
+            characteristic in the component (enforced upstream in builders.py).
+        big_n (int | None): trailing trial-window size (in timesteps) for the
+            [op, n, N] and [min_n, max_n, N] forms. None for the
+            [op, probability] form (whole-series ratio, no windowing) -- not
+            yet implemented as an un-nested form (dropped; see
+            notes/frequencyEnhancement-resolved.md -- probability only exists
+            as a nested base pattern, task freq-core-probability).
+        event_bool (bool): if True (default), a maximal run of consecutive
+            qualifying trials counts as a single success, marked at the trial
+            where the run ends (event-level). If False, every trial in the run
+            is marked a success (timestep-level).
     Returns
     -------
         Characteristic_fx: evaluates characteristic over timeseries.
+
+    Note
+    ----
+        Windows over the AND-combined success of preceding characteristics in
+        the component (same eligibility rule as duration_fx), then compares
+        each trailing-window count via `f` (op vs n, or inclusive between vs
+        [min_n, max_n]), then collapses to event/timestep level via mark_events.
     '''
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray) -> np.ndarray:
-        # uses dowy (last) df column
-        data = np.asarray(df.iloc[:, -1].values)
-
         validate_order(order, output, CharacteristicType.FREQUENCY)
         assert output is not None # for mypy: checked by validate_order
-        if not is_dowy_timeseries(data):
-            raise ValueError('''Frequency characteristics must be evaluated on a
-                             day of water year timeseries.''')
-        nyr: list[int] = []
-        is_true = False
-        n, T = 0, len(data) # pylint: disable=invalid-name
-        for t in range(T):
-            # last day of water year
-            if data[t] == 365:
-                # first yr is full yr
-                if not nyr and data[0] == 1:
-                    nyr.append(n)
-                # not first year
-                if nyr:
-                    nyr.append(n)
-                # # excludes first year if it
-                # # starts on a day other than 1
-                # if t > 0:
-                #     # number of times condition
-                #     # was met in previous water year
-                #     print(f'COUNTING: {n} at {t}')
-                #     in_yr_count.append(n)
-                # n = 0
-            if np.all(output[t][-order+1:]==1):
-                # count up if mets condition
-                # did not meet condition in t-1
-                if not is_true:
-                    n += 1
-                    is_true = True
-            else:
-                # in t-1 met condition but
-                # in t does not meet condition
-                if is_true:
-                    is_true = False
 
-        result = np.zeros(T)
-        yr = 0 if data[0] == 1 else -1
-        mayr = moving_average(np.array(nyr), ma_period, 0)
-        # 2nd loop to fill in result values
-        # probably a faster way to do this but this is clear.
-        for t in range(T):
-            # starts on less than full yr.
-            if yr == -1:
-                # this could cause problems
-                result[t] = np.nan
-            # starts on full yr
-            # or past first year
-            else:
-                result[t] = f(mayr[yr]) and np.all(output[t][-order+1:]==1)
-            if data[t] == 365:
-                yr += 1
-            # # won't start until
-            # # 1st full water year
-            # if data[t] == 1:
-            #     yr += 1
-            #     is_true = f(btw_yr_count[yr])
-            # # criteria met for water year
-            # if is_true and np.all(output[t][-order+1:]==1):
-            #     result[t] = 1
+        if big_n is None:
+            raise NotImplementedError(
+                'un-nested [operator, probability] frequency form is not valid; '
+                'probability form is only implemented as a nested base pattern '
+                '(see notes/frequencyEnhancement-resolved.md).'
+            )
+
+        precedents = output[:, :order-1]
+        eligible = (precedents == 1).all(axis=1).astype(int)
+        counts = sliding_window_count(eligible, big_n)
+
+        diag = np.full(len(counts), np.nan)
+        has_count = ~np.isnan(counts)
+        diag[has_count] = [1 if f(c) else 0 for c in counts[has_count]]
+
+        return mark_events(diag, event_bool)
+    return closure
+
+def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable[[float], bool],
+                             big_n: int | None) -> np.ndarray:
+    '''Shared raw-diagnostic computation for the nested base (intra-annual)
+    pattern: per full water year, a probability ratio (big_n is None) or a
+    per-year-reset trailing window count (big_n is int), compared via `f`.
+    NaN wherever the underlying statistic is undefined (excluded partial
+    years, or insufficient in-year window history).
+    '''
+    stat = (water_year_probability_ratio(eligible, dowy, event_bool=True) if big_n is None
+            else windowed_count_per_water_year(eligible, dowy, big_n))
+    diag = np.full(len(stat), np.nan)
+    has_stat = ~np.isnan(stat)
+    diag[has_stat] = [1 if f(value) else 0 for value in stat[has_stat]]
+    return diag
+
+def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
+                                     big_n: int | None = None,
+                                     event_bool: bool = True) -> CharacteristicFx:
+    '''
+    Creates function to evaluate the intra-annual (base) column of a nested
+    frequency characteristic.
+
+    Per notes/frequencyEnhancement-resolved.md: intra_annual = AND(preceding
+    characteristic columns, base-pattern diagnostic), where the base pattern
+    may be probability (per-water-year ratio, big_n=None), count, or between
+    (windowed within each water year, big_n=N). `event_bool` is display-only:
+    it is applied to the AND'd result (not the raw diagnostic), which never
+    changes whether a `1` survives somewhere in a qualifying year -- only
+    where, within a run, it is marked -- so the eventual year-OR-reduction
+    (freq-nested-eval's or_reduce_per_water_year) is unaffected either way.
+
+    Parameters
+    ----------
+        f (Callable[[float], bool]): Comparison function for the base pattern.
+        order (int): Position in the component's characteristic sequence.
+        big_n (int | None): trailing trial-window size for count/between base
+            forms; None for the probability base form.
+        event_bool (bool): base pattern's own event_bool (display-only for the
+            eventual per-year OR-reduction; does not change year verdicts).
+    Returns
+    -------
+        Characteristic_fx: evaluates the intra-annual diagnostic column.
+    '''
+    def closure(df: pd.DataFrame,
+                output: None|np.ndarray) -> np.ndarray:
+        validate_order(order, output, CharacteristicType.FREQUENCY)
+        assert output is not None # for mypy: checked by validate_order
+
+        dowy = np.asarray(df.iloc[:, -1].values, dtype=float)
+        precedents = output[:, :order-1]
+        eligible = (precedents == 1).all(axis=1).astype(int)
+
+        diag = _intra_annual_diagnostic(eligible, dowy, f, big_n)
+
+        intra_annual_raw = np.full(len(diag), np.nan)
+        has_diag = ~np.isnan(diag)
+        intra_annual_raw[has_diag] = [
+            1 if (e == 1 and d == 1) else 0
+            for e, d in zip(eligible[has_diag], diag[has_diag])
+        ]
+        return mark_events(intra_annual_raw, event_bool)
+    return closure
+
+def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
+                                    big_n: int | None = None,
+                                    event_bool: bool = True) -> CharacteristicFx:
+    '''
+    Creates function to evaluate the interannual (nested) column of a nested
+    frequency characteristic -- the terminal column whose result determines
+    the component's final pass/fail, broadcast across each qualifying water
+    year (see notes/frequencyEnhancement-resolved.md).
+
+    Unlike the base pattern's `event_bool` (display-only), this level's
+    `event_bool` changes the actual pass/fail result: a run of consecutive
+    qualifying years collapses to a single event-year before broadcasting.
+
+    Parameters
+    ----------
+        f (Callable[[float], bool]): Comparison function for the nested pattern.
+        order (int): Position in the component's characteristic sequence.
+            The intra-annual column (this pattern's input) must immediately
+            precede this characteristic, at column index `order - 2`.
+        big_n (int | None): trailing trial-window size (in years) for count/
+            between nested forms. Probability form is not valid at this
+            level (enforced upstream in validate_nested_frequency_metrics).
+        event_bool (bool): nested pattern's own event_bool; changes the
+            actual pass/fail result (a run of qualifying years collapses to
+            a single event-year).
+    Returns
+    -------
+        Characteristic_fx: evaluates the interannual column, already
+        broadcast across each qualifying water year -- this is directly the
+        component's final value when the characteristic is nested (see
+        evaluate_component).
+    '''
+    def closure(df: pd.DataFrame,
+                output: None|np.ndarray) -> np.ndarray:
+        validate_order(order, output, CharacteristicType.FREQUENCY)
+        assert output is not None # for mypy: checked by validate_order
+        if big_n is None:
+            raise NotImplementedError(
+                'nested [operator, probability] interannual frequency form is not valid; '
+                'probability is only valid as the intra-annual base pattern '
+                '(see notes/frequencyEnhancement-resolved.md).'
+            )
+
+        dowy = np.asarray(df.iloc[:, -1].values, dtype=float)
+        intra_annual = output[:, order - 2]
+        year_verdicts = or_reduce_per_water_year(intra_annual, dowy)
+
+        full_years = identify_full_water_years(dowy)
+        compact_verdicts = np.array([year_verdicts[end] for _, end in full_years])
+        counts = sliding_window_count(compact_verdicts, big_n)
+
+        compact_diag = np.full(len(counts), np.nan)
+        has_count = ~np.isnan(counts)
+        compact_diag[has_count] = [1 if f(c) else 0 for c in counts[has_count]]
+        compact_diag = mark_events(compact_diag, event_bool)
+
+        result = np.full(len(intra_annual), np.nan)
+        for (start, end), verdict in zip(full_years, compact_diag):
+            result[start:end + 1] = verdict
         return result
     return closure
 #endregion
@@ -680,14 +996,25 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
     # This function expects one flow column + trailing dowy column.
     validate_timeseries(df)
     # length of timeseries, one row per characteristics
-    output = np.zeros((len(df), len(component.characteristics)), dtype=int)
+    # float dtype (not int) preserves NaN emitted by frequency's sliding-window
+    # diagnostic (insufficient trailing history) instead of silently casting it.
+    output = np.zeros((len(df), len(component.characteristics)), dtype=float)
     for i, characteristic in enumerate(component.characteristics):
         output[:, i] = characteristic.fx(df, output)
     # evaluate component
     success_value = 1 if component.is_success_pattern else 0
-    # (output==1).all(axis=1) converts to booleans, row-wise if true operation
-    # .reshape(-1, 1) makes it column vector and concatenation as final column
-    success = (output==success_value).all(axis=1).astype(int).reshape(-1, 1)
+    # Nested frequency's terminal (interannual) column is already the fully
+    # broadcast per-water-year verdict (see nested_frequency_interannual_fx);
+    # it replaces the generic AND-of-all-columns rule used everywhere else,
+    # since frequency here operates at the water-year grain, not the
+    # per-timestep grain of magnitude/duration (see
+    # notes/frequencyEnhancement-resolved.md, "Nested: final component").
+    if component.characteristics and component.characteristics[-1].is_nested:
+        success = (output[:, -1] == success_value).astype(int).reshape(-1, 1)
+    else:
+        # (output==success_value).all(axis=1) converts to booleans, row-wise if true operation
+        # .reshape(-1, 1) makes it column vector and concatenation as final column
+        success = (output==success_value).all(axis=1).astype(int).reshape(-1, 1)
     results = np.concatenate((output, success), axis=1)
     # add 2D array to dataframe
     cols = [j.name for j in component.characteristics] + [component.name]

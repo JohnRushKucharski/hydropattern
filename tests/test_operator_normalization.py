@@ -105,7 +105,7 @@ class TestParserNormalizationIntegration(unittest.TestCase):
         self.assertIn('le', char.name)
 
     def test_frequency_parser_accepts_padded_operator(self):
-        char = frequency_parser([' >= ', 0.5, 5], order=2)
+        char = frequency_parser([' >= ', 1, 2], order=2)
         self.assertIsNotNone(char)
         self.assertIn('ge', char.name)
 

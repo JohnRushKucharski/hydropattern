@@ -7,13 +7,26 @@ import numpy as np
 import pandas as pd
 
 from hydropattern.patterns import (
+    Characteristic,
+    CharacteristicType,
+    Component,
     comparison_fx,
     duration_fx,
+    evaluate_component,
+    frequency_fx,
+    identify_full_water_years,
     is_dowy_timeseries,
     magnitude_fx,
+    mark_events,
     moving_average,
+    nested_frequency_interannual_fx,
+    nested_frequency_intra_annual_fx,
+    or_reduce_per_water_year,
     rate_of_change_fx,
+    sliding_window_count,
     timing_fx,
+    water_year_probability_ratio,
+    windowed_count_per_water_year,
 )
 
 # used in some simple characteristic function tests.
@@ -320,3 +333,419 @@ class TestPatterns(unittest.TestCase):
         self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
     #endregion
     #endregion
+
+class TestMarkEvents(unittest.TestCase):
+    '''Tests for the mark_events frequency event-detection/marking engine.'''
+
+    def test_event_bool_false_returns_raw_unchanged(self):
+        '''event_bool=False: timestep-level, every trial in a run stays marked.'''
+        raw = np.array([np.nan, np.nan, 1, 1, 0, 1])
+        result = mark_events(raw, event_bool=False)
+        np.testing.assert_array_equal(result, raw)
+
+    def test_single_run_collapses_to_last_trial(self):
+        '''A single maximal run of 1s collapses to a 1 at its last trial.'''
+        raw = np.array([0.0, 1.0, 1.0, 1.0, 0.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, np.array([0, 0, 0, 1, 0]))
+
+    def test_run_ending_at_end_of_array(self):
+        '''A run that continues through the last trial marks the final trial.'''
+        raw = np.array([0.0, 1.0, 1.0, 1.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, np.array([0, 0, 0, 1]))
+
+    def test_single_trial_run_stays_marked(self):
+        '''A run of length 1 is already correctly marked at its own trial.'''
+        raw = np.array([0.0, 1.0, 0.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, np.array([0, 1, 0]))
+
+    def test_multiple_separate_runs_each_collapse(self):
+        '''Each maximal run collapses independently to its own last trial.'''
+        raw = np.array([1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, np.array([0, 1, 0, 0, 0, 1, 0]))
+
+    def test_leading_nan_preserved_and_does_not_bridge_runs(self):
+        '''NaN (insufficient history) is preserved and starts a fresh run boundary.'''
+        raw = np.array([np.nan, np.nan, 1.0, 1.0, 0.0, 0.0])
+        result = mark_events(raw, event_bool=True)
+        self.assertTrue(np.isnan(result[0]))
+        self.assertTrue(np.isnan(result[1]))
+        np.testing.assert_array_equal(result[2:], np.array([0, 1, 0, 0]))
+
+    def test_all_zeros_unchanged(self):
+        '''No runs present: array of all 0s is unchanged.'''
+        raw = np.array([0.0, 0.0, 0.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, raw)
+
+    def test_all_ones_collapses_to_last_trial_only(self):
+        '''A run spanning the whole array collapses to a single 1 at the end.'''
+        raw = np.array([1.0, 1.0, 1.0, 1.0])
+        result = mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(result, np.array([0, 0, 0, 1]))
+
+    def test_does_not_mutate_input_array(self):
+        '''mark_events must not mutate the caller's raw array in place.'''
+        raw = np.array([0.0, 1.0, 1.0, 0.0])
+        original = raw.copy()
+        mark_events(raw, event_bool=True)
+        np.testing.assert_array_equal(raw, original)
+
+
+class TestSlidingWindowCount(unittest.TestCase):
+    '''Tests for the sliding_window_count trailing-window count engine.'''
+
+    def test_first_window_minus_1_trials_are_nan(self):
+        data = np.array([1, 1, 1, 0, 1])
+        result = sliding_window_count(data, window=3)
+        self.assertTrue(np.isnan(result[0]))
+        self.assertTrue(np.isnan(result[1]))
+
+    def test_counts_trailing_window_inclusive_of_current_trial(self):
+        data = np.array([1, 1, 1, 0, 1])
+        result = sliding_window_count(data, window=3)
+        # windows: [1,1,1]=3, [1,1,0]=2, [1,0,1]=2
+        np.testing.assert_array_equal(result[2:], np.array([3, 2, 2]))
+
+    def test_window_of_1_equals_input(self):
+        data = np.array([1, 0, 1, 1])
+        result = sliding_window_count(data, window=1)
+        np.testing.assert_array_equal(result, np.array([1, 0, 1, 1]))
+
+    def test_invalid_window_raises(self):
+        with self.assertRaises(ValueError):
+            sliding_window_count(np.array([1, 0]), window=0)
+
+
+class TestIdentifyFullWaterYears(unittest.TestCase):
+    '''Tests for identify_full_water_years water-year boundary detection.'''
+
+    def test_two_full_years(self):
+        # 6-day years: year1 = idx 0-5, year2 = idx 6-11 (trailing year included)
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        self.assertEqual(identify_full_water_years(dowy), [(0, 5), (6, 11)])
+
+    def test_three_starts_gives_three_years(self):
+        dowy = np.array([1, 2, 3, 1, 2, 3, 1, 2, 3])
+        self.assertEqual(identify_full_water_years(dowy), [(0, 2), (3, 5), (6, 8)])
+
+    def test_leading_partial_year_excluded(self):
+        # series starts mid-year (dowy=4), first full year starts at idx 2
+        dowy = np.array([4, 5, 1, 2, 3, 1, 2, 3])
+        self.assertEqual(identify_full_water_years(dowy), [(2, 4), (5, 7)])
+
+    def test_trailing_year_included_even_without_subsequent_start(self):
+        # last (short) year has no subsequent dowy==1 but is still included --
+        # callers are assumed to supply data trimmed to complete water years.
+        dowy = np.array([1, 2, 3, 1, 2])
+        self.assertEqual(identify_full_water_years(dowy), [(0, 2), (3, 4)])
+
+    def test_no_starts_returns_empty(self):
+        dowy = np.array([2, 3, 4, 5])
+        self.assertEqual(identify_full_water_years(dowy), [])
+
+    def test_single_start_covers_whole_series(self):
+        dowy = np.array([1, 2, 3, 4, 5])
+        self.assertEqual(identify_full_water_years(dowy), [(0, 4)])
+
+
+class TestWaterYearProbabilityRatio(unittest.TestCase):
+    '''Tests for water_year_probability_ratio (nested frequency base-probability engine).'''
+
+    def test_ratio_placed_at_last_day_of_year_event_level(self):
+        # 6-day years; eligible run of 3 consecutive successes -> 1 event.
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        eligible = np.array([1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        result = water_year_probability_ratio(eligible, dowy, event_bool=True)
+        self.assertAlmostEqual(result[5], 1 / 6)
+        self.assertAlmostEqual(result[11], 0.0)  # second year: no successes
+
+    def test_event_bool_false_counts_every_success(self):
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
+        result = water_year_probability_ratio(eligible, dowy, event_bool=False)
+        self.assertAlmostEqual(result[5], 3 / 6)
+
+    def test_event_bool_true_collapses_run_to_single_success(self):
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
+        result = water_year_probability_ratio(eligible, dowy, event_bool=True)
+        self.assertAlmostEqual(result[5], 1 / 6)
+
+    def test_non_last_timesteps_are_nan(self):
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
+        result = water_year_probability_ratio(eligible, dowy, event_bool=True)
+        for t in [0, 1, 2, 3, 4, 6, 7, 8, 9, 10]:
+            self.assertTrue(np.isnan(result[t]))
+
+    def test_leading_partial_year_is_nan(self):
+        dowy = np.array([4, 5, 1, 2, 3, 1, 2])
+        eligible = np.array([1, 1, 1, 1, 1, 1, 1])
+        result = water_year_probability_ratio(eligible, dowy, event_bool=True)
+        # idx 0-1 (leading partial) excluded; idx 2-4 and 5-6 are full years
+        self.assertFalse(np.isnan(result[4]))
+        self.assertFalse(np.isnan(result[6]))
+        for t in [0, 1, 2, 3, 5]:
+            self.assertTrue(np.isnan(result[t]))
+
+    def test_mismatched_lengths_raise(self):
+        with self.assertRaises(ValueError):
+            water_year_probability_ratio(np.array([1, 0]), np.array([1, 2, 3]))
+
+
+class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
+    '''
+    frequency_fx count/between forms, per notes/frequencyEnhancement-resolved.md
+    Examples 1 and 2 (component = AND(magnitude, frequency), same-grain rule).
+    '''
+
+    def test_example_1_count_form_event_level(self):
+        # flow: t0=4 t1=6 t2=6 t3=6 t4=4 t5=6; magnitude_gt5 = [0,1,1,1,0,1]
+        magnitude = np.array([0, 1, 1, 1, 0, 1])
+        f = comparison_fx('>=', 1)  # [op, n, N] with n=1, N=2
+        fx = frequency_fx(f, order=2, big_n=2, event_bool=True)
+        output = magnitude.reshape(-1, 1)
+        result = fx(pd.DataFrame({'x': range(6)}), output)
+        # windows (N=2): nan, [0,1]=1, [1,1]=2, [1,1]=2, [1,0]=1, [0,1]=1
+        # diag (count>=1): nan, 1, 1, 1, 1, 1
+        # event_bool=True collapses the run [t1..t5] to a single 1 at t5
+        np.testing.assert_array_equal(
+            result, np.array([np.nan, 0, 0, 0, 0, 1])
+        )
+
+    def test_example_2_count_form_timestep_level(self):
+        magnitude = np.array([0, 1, 1, 1, 0, 1])
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=2, event_bool=False)
+        output = magnitude.reshape(-1, 1)
+        result = fx(pd.DataFrame({'x': range(6)}), output)
+        np.testing.assert_array_equal(
+            result, np.array([np.nan, 1, 1, 1, 1, 1])
+        )
+
+    def test_windows_over_and_of_preceding_characteristics(self):
+        # eligibility = AND(magnitude, duration) -- both must be 1 for a trial
+        # to count as a frequency-window success.
+        magnitude = np.array([1, 1, 1, 1])
+        duration = np.array([0, 1, 1, 1])
+        output = np.column_stack([magnitude, duration])
+        f = comparison_fx('>=', 2)  # n=2, N=3
+        fx = frequency_fx(f, order=3, big_n=3, event_bool=False)
+        result = fx(pd.DataFrame({'x': range(4)}), output)
+        # eligible = AND(magnitude, duration) = [0,1,1,1]
+        # window(N=3): nan, nan, [0,1,1]=2, [1,1,1]=3
+        # diag (count>=2): nan, nan, 1, 1
+        np.testing.assert_array_equal(result, np.array([np.nan, np.nan, 1, 1]))
+
+    def test_between_form(self):
+        magnitude = np.array([1, 1, 0, 1, 1])
+        f = comparison_fx('<=', 1, '<=', 2)  # between [1, 2] inclusive
+        fx = frequency_fx(f, order=2, big_n=2, event_bool=False)
+        output = magnitude.reshape(-1, 1)
+        result = fx(pd.DataFrame({'x': range(5)}), output)
+        # windows (N=2): nan, [1,1]=2, [1,0]=1, [0,1]=1, [1,1]=2
+        # between [1,2] inclusive: nan, 1, 1, 1, 1
+        np.testing.assert_array_equal(result, np.array([np.nan, 1, 1, 1, 1]))
+
+    def test_probability_form_not_yet_implemented(self):
+        f = comparison_fx('>', 0.5)
+        fx = frequency_fx(f, order=2, big_n=None, event_bool=True)
+        output = np.array([[1], [0], [1]])
+        with self.assertRaises(NotImplementedError):
+            fx(pd.DataFrame({'x': range(3)}), output)
+
+
+class TestWindowedCountPerWaterYear(unittest.TestCase):
+    '''windowed_count_per_water_year: intra-annual count/between engine, resets per year.'''
+
+    def test_window_resets_at_year_boundary(self):
+        dowy = np.array([1, 2, 3, 1, 2, 3])
+        eligible = np.array([1, 1, 0, 0, 1, 1])
+        result = windowed_count_per_water_year(eligible, dowy, window=2)
+        # year1: nan, [1,1]=2, [1,0]=1 ; year2: nan, [0,1]=1, [1,1]=2
+        np.testing.assert_array_equal(result, np.array([np.nan, 2, 1, np.nan, 1, 2]))
+
+    def test_mismatched_lengths_raise(self):
+        with self.assertRaises(ValueError):
+            windowed_count_per_water_year(np.array([1, 0]), np.array([1, 2, 3]), window=1)
+
+
+class TestOrReducePerWaterYear(unittest.TestCase):
+    '''or_reduce_per_water_year: per-year OR-reduction of an intra_annual diagnostic column.'''
+
+    def test_year_with_a_one_is_true(self):
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        diag = np.array([np.nan, np.nan, 1, 0, 0, 0, np.nan, np.nan, 0, 0, 0, 0])
+        result = or_reduce_per_water_year(diag, dowy)
+        self.assertEqual(result[5], 1.0)
+        self.assertEqual(result[11], 0.0)
+
+    def test_all_nan_year_stays_nan(self):
+        dowy = np.array([1, 2, 3])
+        diag = np.array([np.nan, np.nan, np.nan])
+        result = or_reduce_per_water_year(diag, dowy)
+        self.assertTrue(np.isnan(result[2]))
+
+    def test_non_last_timesteps_are_nan(self):
+        dowy = np.array([1, 2, 3, 4, 5, 6])
+        diag = np.array([np.nan, np.nan, 1, 0, 0, 0])
+        result = or_reduce_per_water_year(diag, dowy)
+        for t in [0, 1, 2, 3, 4]:
+            self.assertTrue(np.isnan(result[t]))
+
+    def test_mismatched_lengths_raise(self):
+        with self.assertRaises(ValueError):
+            or_reduce_per_water_year(np.array([1, 0]), np.array([1, 2, 3]))
+
+
+class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
+    '''
+    nested_frequency_intra_annual_fx, reproducing notes/frequencyEnhancement-resolved.md
+    Example 3's intra_annual column (base pattern narrower than a full year).
+    '''
+
+    def test_example_3_intra_annual_column(self):
+        # Water year = 6 timesteps. magnitude_gt5 = [1,1,1,0,0,1].
+        # Base (intra-annual) pattern [>=,2,3], event_bool=False for illustration.
+        magnitude = np.array([1, 1, 1, 0, 0, 1])
+        output = magnitude.reshape(-1, 1).astype(float)
+        dowy = np.array([1, 2, 3, 4, 5, 6])
+        df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
+        f = comparison_fx('>=', 2)  # [op, n, N] with n=2, N=3
+        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=3, event_bool=False)
+        result = fx(df, output)
+        np.testing.assert_array_equal(
+            result, np.array([np.nan, np.nan, 1, 0, 0, 0])
+        )
+
+    def test_example_3_event_bool_does_not_change_which_ones_survive(self):
+        # Per the resolved doc: event_bool is display-only for the year verdict --
+        # it never removes the only 1 an OR-reduction is looking for.
+        magnitude = np.array([1, 1, 1, 0, 0, 1])
+        output = magnitude.reshape(-1, 1).astype(float)
+        dowy = np.array([1, 2, 3, 4, 5, 6])
+        df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
+        f = comparison_fx('>=', 2)
+        fx_event = nested_frequency_intra_annual_fx(f, order=2, big_n=3, event_bool=True)
+        fx_timestep = nested_frequency_intra_annual_fx(f, order=2, big_n=3, event_bool=False)
+        result_event = fx_event(df, output)
+        result_timestep = fx_timestep(df, output)
+        self.assertEqual(
+            np.nansum(result_event == 1), np.nansum(result_timestep == 1)
+        )
+        self.assertTrue(np.any(result_event[~np.isnan(result_event)] == 1))
+
+    def test_probability_base_form(self):
+        # eligible with a run of 3 plus an isolated success at year's last day
+        # (so magnitude also holds where the ratio-based diag is placed).
+        magnitude = np.array([1, 1, 1, 0, 0, 1])
+        output = magnitude.reshape(-1, 1).astype(float)
+        dowy = np.array([1, 2, 3, 4, 5, 6])
+        df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
+        f = comparison_fx('>', 0.1)  # ratio > 0.1; 2 events / 6 ~= 0.333 -> True
+        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=None, event_bool=True)
+        result = fx(df, output)
+        self.assertEqual(result[5], 1)
+        for t in range(5):
+            self.assertTrue(np.isnan(result[t]))
+
+
+class TestNestedFrequencyInterannualFx(unittest.TestCase):
+    '''
+    nested_frequency_interannual_fx: sliding N-year window over per-year verdicts,
+    broadcast across each qualifying water year.
+    '''
+
+    def test_broadcasts_verdict_across_qualifying_year(self):
+        # Two 6-day years. intra_annual (already computed) year1 OR-reduces to
+        # True (a 1 at idx5); year2 has no 1s -> False.
+        intra_annual = np.array(
+            [np.nan, np.nan, 1, 0, 0, 0, np.nan, np.nan, 0, 0, 0, 0]
+        )
+        dummy = np.zeros(12)
+        output = np.column_stack([dummy, intra_annual])
+        dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
+        df = pd.DataFrame({'flow': range(12), 'dowy': dowy})
+        f = comparison_fx('>=', 1)  # nested [op, n, N] with n=1, N=2 (years)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=2, event_bool=True)
+        result = fx(df, output)
+        # year1 (idx0-5): insufficient interannual history (only 1 year seen) -> NaN
+        for t in range(6):
+            self.assertTrue(np.isnan(result[t]))
+        # year2 (idx6-11): 2-year window count = 1 (only year1's True) -> >=1 -> 1
+        for t in range(6, 12):
+            self.assertEqual(result[t], 1)
+
+    def test_probability_form_not_valid_at_interannual_level(self):
+        intra_annual = np.array([np.nan, np.nan, 1, 0, 0, 0])
+        output = np.column_stack([np.zeros(6), intra_annual])
+        df = pd.DataFrame({'flow': range(6), 'dowy': [1, 2, 3, 4, 5, 6]})
+        f = comparison_fx('>', 0.5)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=None, event_bool=True)
+        with self.assertRaises(NotImplementedError):
+            fx(df, output)
+
+
+class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
+    '''evaluate_component: nested frequency's terminal column replaces AND-of-all-columns.'''
+
+    def test_nested_terminal_column_broadcasts_without_and(self):
+        # magnitude column would fail AND at some timesteps, but since the
+        # last characteristic is_nested, component == the nested column value.
+        magnitude_values = np.array([0, 1, 0, 1])
+
+        def magnitude_stub_fx(df, output):
+            return magnitude_values
+
+        def nested_stub_fx(df, output):
+            # nested (interannual) column: 1 everywhere, unrelated to magnitude
+            return np.array([1, 1, 1, 1], dtype=float)
+
+        component = Component(
+            name='comp',
+            characteristics=[
+                Characteristic('magnitude_stub', magnitude_stub_fx,
+                               CharacteristicType.MAGNITUDE, False),
+                Characteristic('nested_stub', nested_stub_fx,
+                               CharacteristicType.FREQUENCY, True),
+            ],
+            is_success_pattern=True,
+        )
+        df = pd.DataFrame(
+            {'flow': [1.0, 2.0, 3.0, 4.0], 'dowy': [1.0, 2.0, 3.0, 4.0]},
+            index=pd.to_datetime(['2020-01-01', '2020-01-02', '2020-01-03', '2020-01-04']),
+        )
+        df.index.name = 'time'
+        result = evaluate_component(df, component)
+        # component should equal the nested column (all 1s), NOT AND(magnitude, nested)
+        np.testing.assert_array_equal(result.df['comp'].values, np.array([1, 1, 1, 1]))
+
+    def test_nan_in_nested_column_is_not_a_success(self):
+        def magnitude_stub_fx(df, output):
+            return np.array([1, 1], dtype=float)
+
+        def nested_stub_fx(df, output):
+            return np.array([np.nan, 1], dtype=float)
+
+        component = Component(
+            name='comp',
+            characteristics=[
+                Characteristic('magnitude_stub', magnitude_stub_fx,
+                               CharacteristicType.MAGNITUDE, False),
+                Characteristic('nested_stub', nested_stub_fx,
+                               CharacteristicType.FREQUENCY, True),
+            ],
+            is_success_pattern=True,
+        )
+        df = pd.DataFrame(
+            {'flow': [1.0, 2.0], 'dowy': [1.0, 2.0]},
+            index=pd.to_datetime(['2020-01-01', '2020-01-02']),
+        )
+        df.index.name = 'time'
+        result = evaluate_component(df, component)
+        np.testing.assert_array_equal(result.df['comp'].values, np.array([0, 1]))
+

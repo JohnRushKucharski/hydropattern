@@ -32,6 +32,31 @@ over the whole record (the `'total'` row of `build_summary_sheet`). Z-axis of th
 response-surface plot.
 _Avoid_: score, value (too generic).
 
+**Trial**:
+One unit counted in a frequency characteristic's denominator: a timestep for
+un-nested and intra-annual (base) frequency patterns, a water year for interannual
+(nested) frequency patterns.
+_Avoid_: timestep, period (too generic outside this context).
+
+**Event**:
+A maximal run of consecutive trials that satisfy a frequency characteristic's
+underlying condition, collapsed to a single success when `event_bool=true`
+(the default) — marked at the trial where the run ends. At the interannual level an
+event is a run of consecutive qualifying water years, not days.
+_Avoid_: success, occurrence (ambiguous with per-trial marking).
+
+**Base pattern**:
+The un-nested frequency form (`[op, probability]`, `[op, n, N]`, or
+`[min_n, max_n, N]`) evaluated first in a frequency characteristic — intra-annual
+when nested, the whole characteristic when not.
+_Avoid_: inner pattern, first pattern.
+
+**Nested pattern**:
+The optional second base pattern in `frequency = [<base pattern>, [nested pattern]]`,
+evaluated on the base pattern's per-water-year event outcomes across years
+(interannual). Absent nested pattern means the frequency characteristic is un-nested.
+_Avoid_: outer pattern, second pattern.
+
 ## Example dialogue
 
 > **Dev**: The great_lakes example has scenario columns like `_0_1.5`, `_5_3`. What are

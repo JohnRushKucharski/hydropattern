@@ -378,6 +378,52 @@ class TestBuildComponents(unittest.TestCase):
         components = build_components(request)
         self.assertEqual(components[0].characteristics[0].name, 'timing_1-90')
 
+    def test_build_frequency_as_last_characteristic_succeeds(self):
+        request = parse_request({
+            'comp': {'magnitude': ['>', 1.0], 'frequency': ['>', 1, 2]},
+        })
+        components = build_components(request)
+        self.assertEqual(len(components[0].characteristics), 2)
+
+    def test_build_frequency_not_last_raises_frequency_not_last(self):
+        request = parse_request({
+            'comp': {
+                'magnitude': ['>', 1.0],
+                'frequency': ['>', 1, 2],
+                'duration': ['>', 1],
+            },
+        })
+        with self.assertRaises(HydropatternError) as ctx:
+            build_components(request)
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.FREQUENCY_NOT_LAST)
+
+    def test_build_multiple_frequency_characteristics_raises_frequency_not_last(self):
+        freq_spec = CharacteristicSpec(
+            type=CharacteristicType.FREQUENCY,
+            operator='>',
+            values=(0.5,),
+            ma_periods=2,
+            order=2,
+        )
+        request = Request(components=(
+            ComponentSpec(
+                name='comp',
+                characteristics=(
+                    CharacteristicSpec(
+                        type=CharacteristicType.MAGNITUDE,
+                        operator='>',
+                        values=(1.0,),
+                        order=1,
+                    ),
+                    freq_spec,
+                    freq_spec,
+                ),
+            ),
+        ))
+        with self.assertRaises(HydropatternError) as ctx:
+            build_components(request)
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.FREQUENCY_NOT_LAST)
+
 
 # ===========================================================================
 # 6. Round-trip tests
@@ -433,3 +479,155 @@ class TestRoundTrip(unittest.TestCase):
             exact_result[0].df['comp'].values,
             padded_result[0].df['comp'].values,
         )
+
+
+def _make_frequency_example_df() -> pd.DataFrame:
+    '''6-row fixture matching notes/frequencyEnhancement-resolved.md's worked examples.'''
+    df = pd.DataFrame(
+        {
+            'flow': [4.0, 6.0, 6.0, 6.0, 4.0, 6.0],
+            'dowy': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        },
+        index=pd.to_datetime(
+            ['2020-01-01', '2020-01-02', '2020-01-03',
+             '2020-01-04', '2020-01-05', '2020-01-06']
+        ),
+    )
+    df.index.name = 'time'
+    return df
+
+
+def _make_nested_frequency_example_4_df() -> pd.DataFrame:
+    '''3-year, 2-timestep-per-year fixture matching resolved-doc Example 4:
+    magnitude_gt5 per year = [0,1], [1,1], [1,0] (2010, 2011, 2012).'''
+    df = pd.DataFrame(
+        {
+            'flow': [4.0, 6.0, 6.0, 6.0, 6.0, 4.0],
+            'dowy': [1.0, 2.0, 1.0, 2.0, 1.0, 2.0],
+        },
+        index=pd.to_datetime(
+            ['2010-01-01', '2010-06-01', '2011-01-01',
+             '2011-06-01', '2012-01-01', '2012-06-01']
+        ),
+    )
+    df.index.name = 'time'
+    return df
+
+
+class TestNestedFrequencyRoundTrip(unittest.TestCase):
+    '''Nested frequency: Request -> build_components -> evaluate_components,
+    reproducing notes/frequencyEnhancement-resolved.md Example 4.'''
+
+    def test_example_4_full_year_base_pattern(self):
+        request = parse_request(
+            {'comp': {'magnitude': ['>', 5], 'frequency': [['>', 1, 2], ['>', 1, 2]]}}
+        )
+        components = build_components(request)
+        results = evaluate_components(self.df, components)
+
+        df = results[0].df
+        expected_magnitude = np.array([0, 1, 1, 1, 1, 0])
+        # year-verdicts (per resolved doc): 2010=0, 2011=1, 2012=0
+        expected_intra_annual = np.array([np.nan, 0, np.nan, 1, np.nan, 0])
+        # interannual: 2010 insufficient history -> component=0 (NaN never
+        # counts as a success, matching every other characteristic's convention);
+        # 2011 and 2012 both fail the interannual pattern -> component=0.
+        expected_comp = np.array([0, 0, 0, 0, 0, 0])
+
+        magnitude_col = [c for c in df.columns if c.startswith('magnitude')][0]
+        intra_col = 'frequency_gt1in2(event)'
+        interannual_col = 'frequency_gt1in2(interannual_event)'
+        np.testing.assert_array_equal(df[magnitude_col].values, expected_magnitude)
+        np.testing.assert_array_equal(df[intra_col].values, expected_intra_annual)
+        self.assertIn(interannual_col, df.columns)
+        np.testing.assert_array_equal(df['comp'].values, expected_comp)
+
+    def setUp(self):
+        self.df = _make_nested_frequency_example_4_df()
+
+
+def _make_nested_frequency_example_3_df() -> pd.DataFrame:
+    '''Two 6-day water years matching resolved-doc Example 3's magnitude_gt5
+    = [1,1,1,0,0,1] for year 1; year 2 has no successes at all.'''
+    df = pd.DataFrame(
+        {
+            'flow': [6.0, 6.0, 6.0, 4.0, 4.0, 6.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0],
+            'dowy': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        },
+        index=pd.date_range('2020-01-01', periods=12, freq='D'),
+    )
+    df.index.name = 'time'
+    return df
+
+
+class TestNestedFrequencyBroadcastRoundTrip(unittest.TestCase):
+    '''Nested frequency: reproduces resolved-doc Example 3's intra_annual column
+    and demonstrates the interannual broadcast rule end-to-end.'''
+
+    def setUp(self):
+        self.df = _make_nested_frequency_example_3_df()
+
+    def test_example_3_intra_annual_and_broadcast(self):
+        request = parse_request(
+            {'comp': {'magnitude': ['>', 5],
+                      'frequency': [['>=', 2, 3, False], ['>=', 1, 2]]}}
+        )
+        components = build_components(request)
+        results = evaluate_components(self.df, components)
+        df = results[0].df
+
+        intra_col = 'frequency_ge2in3(timestep)'
+        expected_intra_annual = np.array([
+            np.nan, np.nan, 1, 0, 0, 0,  # year 1 (matches Example 3's table)
+            np.nan, np.nan, 0, 0, 0, 0,  # year 2: no successes
+        ])
+        np.testing.assert_array_equal(df[intra_col].values, expected_intra_annual)
+
+        # interannual: year 1 alone is insufficient history for a 2-year window
+        # (component=0, NaN never counts as a success); year 2's window covers
+        # [year1=True, year2=False] -> count=1, satisfies [>=,1,2] ->
+        # component broadcasts 1 across all of year 2.
+        for t in range(6):
+            self.assertEqual(df['comp'].values[t], 0)
+        for t in range(6, 12):
+            self.assertEqual(df['comp'].values[t], 1)
+
+
+class TestFrequencyRoundTrip(unittest.TestCase):
+    '''Un-nested frequency: Request -> build_components -> evaluate_components,
+    reproducing notes/frequencyEnhancement-resolved.md Examples 1 and 2.'''
+
+    def setUp(self):
+        self.df = _make_frequency_example_df()
+
+    def test_example_1_count_form_event_level(self):
+        request = parse_request(
+            {'comp': {'magnitude': ['>', 5], 'frequency': ['>=', 1, 2]}}
+        )
+        components = build_components(request)
+        results = evaluate_components(self.df, components)
+
+        expected_magnitude = np.array([0, 1, 1, 1, 0, 1])
+        expected_frequency = np.array([np.nan, 0, 0, 0, 0, 1])
+        expected_comp = np.array([0, 0, 0, 0, 0, 1])
+        np.testing.assert_array_equal(
+            results[0].df['magnitude_gt5'].values, expected_magnitude
+        )
+        np.testing.assert_array_equal(
+            results[0].df['frequency_ge1in2(event)'].values, expected_frequency
+        )
+        np.testing.assert_array_equal(results[0].df['comp'].values, expected_comp)
+
+    def test_example_2_count_form_timestep_level(self):
+        request = parse_request(
+            {'comp': {'magnitude': ['>', 5], 'frequency': ['>=', 1, 2, False]}}
+        )
+        components = build_components(request)
+        results = evaluate_components(self.df, components)
+
+        expected_frequency = np.array([np.nan, 1, 1, 1, 1, 1])
+        expected_comp = np.array([0, 1, 1, 1, 0, 1])
+        np.testing.assert_array_equal(
+            results[0].df['frequency_ge1in2(timestep)'].values, expected_frequency
+        )
+        np.testing.assert_array_equal(results[0].df['comp'].values, expected_comp)

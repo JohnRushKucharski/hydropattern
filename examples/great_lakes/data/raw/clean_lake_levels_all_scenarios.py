@@ -38,6 +38,19 @@ LAKES = {
 DATE_COLUMN = "Unnamed: 0"
 
 
+def clean_lake_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop `month`, rename the date column to `time`, and format dates as strings.
+
+    Dates span 1970-2999, beyond pandas' nanosecond datetime64 range, so the existing
+    python datetime objects are formatted directly rather than round-tripped through
+    pd.to_datetime (which would overflow). Extracted as its own function so the
+    transform can be unit-tested without reading the real source workbook.
+    """
+    df = df.drop(columns=["month"]).rename(columns={DATE_COLUMN: "time"})
+    df["time"] = df["time"].apply(lambda d: d.strftime("%Y-%m-%d"))
+    return df
+
+
 def main() -> None:
     raw_dir = Path(__file__).parent
     clean_dir = raw_dir.parent / "clean"
@@ -60,11 +73,10 @@ def main() -> None:
     )
 
     for sheet_name, out_filename in LAKES.items():
-        df = sheets[sheet_name].drop(columns=["month"]).rename(columns={DATE_COLUMN: "time"})
+        df = clean_lake_frame(sheets[sheet_name])
         # Dates span 1970-2999, beyond pandas' nanosecond datetime64 range, so
         # format the existing python datetime objects directly rather than
         # round-tripping through pd.to_datetime (which would overflow).
-        df["time"] = df["time"].apply(lambda d: d.strftime("%Y-%m-%d"))
         out_path = out_paths[sheet_name]
         df.to_csv(out_path, index=False)
         print(f"  {sheet_name!r} -> {out_path}")

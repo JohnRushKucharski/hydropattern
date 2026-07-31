@@ -250,6 +250,38 @@ def test_resolve_lake_csv_path(lake, expected_name):
     assert result == data_dir / expected_name
 
 
+# ---- _to_bool ------------------------------------------------------------------------
+
+@pytest.mark.parametrize("value,default,expected", [
+    (None, False, False),
+    (None, True, True),
+    ("", True, True),
+    (True, False, True),
+    (False, True, False),
+    (1, False, True),
+    (0, True, False),
+    ("true", False, True),
+    ("TRUE", False, True),
+    ("  True  ", False, True),
+    ("false", True, False),
+    ("FALSE", True, False),
+    ("  False  ", True, False),
+    ("1", False, True),
+    ("0", True, False),
+    ("yes", False, True),
+    ("no", True, False),
+])
+def test_to_bool(value, default, expected):
+    # Regression: bool("false") is True in plain Python, which previously made
+    # string-boolean cells like overwrite="false" silently parse as True.
+    assert avg_batch_run._to_bool(value, default) is expected
+
+
+def test_to_bool_rejects_unparsable_string():
+    with pytest.raises(ValueError, match="Cannot parse"):
+        avg_batch_run._to_bool("maybe", False)
+
+
 # ---- build_toml_text -----------------------------------------------------------------
 
 def default_config(**overrides):

@@ -112,9 +112,21 @@ def _is_blank(value: Any) -> bool:
 
 
 def _to_bool(value: Any, default: bool) -> bool:
-    """Coerce a spreadsheet cell to bool; blank -> default."""
+    """Coerce a spreadsheet cell to bool; blank -> default.
+
+    Excel string cells like "false" must be parsed by value, not by Python
+    truthiness -- bool("false") is True, which would silently invert any
+    string-boolean config cell (e.g. overwrite="false" -> True).
+    """
     if _is_blank(value):
         return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes"):
+            return True
+        if normalized in ("false", "0", "no"):
+            return False
+        raise ValueError(f"Cannot parse {value!r} as a boolean.")
     return bool(value)
 
 
