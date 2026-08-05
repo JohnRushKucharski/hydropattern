@@ -72,6 +72,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from matplotlib.colors import Normalize
 
 GREAT_LAKES_DIR = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(GREAT_LAKES_DIR))
@@ -202,21 +203,75 @@ def build_grid(columns: dict[str, np.ndarray],
     return np.array(ALL_PRECIPS, dtype=float), np.array(ALL_TEMPS, dtype=float), z
 
 
+def one_sided_color_style(zs: np.ndarray, threshold: float, tail: str | None) -> tuple | None:
+    """When every grid cell falls on one side of `threshold`, climate_canvas's
+    default RdBu/TwoSlopeNorm can't place `threshold` at its usual colorbar
+    center (TwoSlopeNorm requires vmin < vcenter < vmax) -- it silently falls
+    back to the *data range's own midpoint* instead (see
+    climate_canvas.data_utilities.check_threshold), which breaks the
+    "colorbar center = baseline lake level" convention this whole module
+    relies on: e.g. a low-ARI grid (every cell's level is, by definition,
+    below the baseline average) would render with red/blue split around some
+    arbitrary in-range value instead of showing "every cell is below
+    baseline".
+
+    Returns None for the normal (threshold falls strictly inside the
+    grid's z-range) case, so the caller keeps climate_canvas's default RdBu
+    diverging behavior. Otherwise returns (color_map, norm, levels, widths)
+    for a one-sided sequential scale anchored at `threshold`:
+    - low tail, all levels <= threshold: 'Reds_r' colormap, lightest (white)
+      at `threshold`, darkest red at the grid's most extreme (lowest) level.
+    - high tail, all levels >= threshold: 'Blues' colormap, lightest at
+      `threshold`, darkest blue at the grid's most extreme (highest) level.
+    `levels`/`widths` mark `threshold` plus 5 evenly-spaced points between it
+    and the extreme (bold at threshold, matching the normal RdBu contour
+    convention) -- these become the colorbar ticks; several (including
+    threshold's own bold line) may fall outside the actual [min, max] of the
+    plotted grid and simply won't have a visible contour line, but still
+    label the colorbar so its scale stays legible.
+
+    Tail-agnostic (mean) plots always pass tail=None and keep the default
+    RdBu behavior, since the mean's threshold is not expected to fall outside
+    its own grid's range the way an extreme-tail ARI level does.
+    """
+    if tail is None:
+        return None
+    z_min, z_max = float(np.nanmin(zs)), float(np.nanmax(zs))
+    if z_min < threshold < z_max:
+        return None
+    if tail == "low" and z_max <= threshold:
+        extreme, color_map = z_min, "Reds_r"
+    elif tail == "high" and z_min >= threshold:
+        extreme, color_map = z_max, "Blues"
+    else:
+        return None
+    mids = [threshold + i * (extreme - threshold) / 6 for i in range(1, 6)]
+    ascending = sorted([extreme, threshold] + mids)
+    widths = tuple(2.0 if lvl == threshold else 1.0 for lvl in ascending)
+    return color_map, Normalize(vmin=min(threshold, extreme), vmax=max(threshold, extreme)), \
+        tuple(ascending), widths
+
+
 def plot_pair(xs: np.ndarray, ys: np.ndarray, zs: np.ndarray, title: str,
-              save_path: Path, threshold: float, labels: tuple[str, str, str]) -> None:
+              save_path: Path, threshold: float, labels: tuple[str, str, str],
+              tail: str | None = None) -> None:
     """Write both the raw (interpolate=False) plot and its interpolated
     (interpolate=True, fillin=True) companion, `<name>.png` / `<name>_interpolated.png`.
     """
+    style = one_sided_color_style(zs, threshold, tail)
+    color_map = style[0] if style else "RdBu"
+    extra = dict(norm=style[1], levels=style[2], widths=style[3]) if style else {}
+
     plot_response_surface(
         xs, ys, zs, interpolate=False, labels=labels, title=title,
-        save_path=save_path, show=False, threshold=threshold,
+        save_path=save_path, show=False, threshold=threshold, color_map=color_map, **extra,
     )
     print(f"Wrote {save_path}")
 
     interpolated_path = save_path.with_name(save_path.stem + "_interpolated.png")
     plot_response_surface(
         xs, ys, zs, interpolate=True, fillin=True, labels=labels, title=title,
-        save_path=interpolated_path, show=False, threshold=threshold,
+        save_path=interpolated_path, show=False, threshold=threshold, color_map=color_map, **extra,
     )
     print(f"Wrote {interpolated_path}")
 
@@ -257,7 +312,7 @@ def main() -> None:
                              f"{decl_note} (baseline avg={baseline_avg_ft:.2f} ft)")
                     plot_pair(xs, ys, zs, title, subdir / f"{lake}_{ari_label}.png",
                               baseline_avg_ft,
-                              ("precip_delta", "temp_delta", "lake level (ft)"))
+                              ("precip_delta", "temp_delta", "lake level (ft)"), tail=tail)
 
 
 if __name__ == "__main__":
