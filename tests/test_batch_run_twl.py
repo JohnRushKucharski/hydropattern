@@ -681,6 +681,103 @@ def test_read_config_sheet_blank_optional_rows_use_defaults(tmp_path):
     assert config.metric_mode == twl_batch_run.BatchConfig().metric_mode
 
 
+# ---- filename_style config option / resolve_output_stem -------------------------------
+
+
+def test_batch_config_filename_style_defaults_to_qualified_name():
+    assert twl_batch_run.BatchConfig().filename_style == "qualified_name"
+
+
+def test_read_config_sheet_filename_style_elevation_runup_savepoint(tmp_path):
+    path = make_workbook(
+        tmp_path,
+        config_pairs=[
+            ("output_directory", "out"),
+            ("filename_style", "elevation_runup_savepoint"),
+        ],
+    )
+    config = twl_batch_run.read_config_sheet(path)
+    assert config.filename_style == "elevation_runup_savepoint"
+
+
+def test_read_config_sheet_filename_style_invalid_raises(tmp_path):
+    path = make_workbook(
+        tmp_path,
+        config_pairs=[("output_directory", "out"), ("filename_style", "bogus")],
+    )
+    with pytest.raises(twl_batch_run.SheetValidationError, match="filename_style"):
+        twl_batch_run.read_config_sheet(path)
+
+
+def test_resolve_output_stem_default_uses_qualified_name():
+    resource = twl_batch_run.parse_resource_row(base_row(save_point_id=1968))
+    config = default_config(output_directory="out")
+    assert twl_batch_run.resolve_output_stem(resource, config) == resource.qualified_name
+
+
+def test_resolve_output_stem_elevation_runup_savepoint_style():
+    resource = twl_batch_run.parse_resource_row(base_row(
+        resource_name="longtail_17877", component_name="run25", save_point_id=1968,
+        magnitude_operator=">=", magnitude_value=178.774764,
+    ))
+    config = default_config(
+        output_directory="out", filename_style="elevation_runup_savepoint",
+    )
+    stem = twl_batch_run.resolve_output_stem(resource, config)
+    expected_ft = common_twl.m_igld85_to_ft_NAVD88(178.774764)
+    assert stem == common_twl.output_file_stem(expected_ft, "run25", 1968)
+
+
+def test_resolve_output_stem_savepoint_elevation_runup_style():
+    resource = twl_batch_run.parse_resource_row(base_row(
+        resource_name="longtail_17877", component_name="run25", save_point_id=1968,
+        magnitude_operator=">=", magnitude_value=178.774764,
+    ))
+    config = default_config(
+        output_directory="out", filename_style="savepoint_elevation_runup",
+    )
+    stem = twl_batch_run.resolve_output_stem(resource, config)
+    expected_ft = common_twl.m_igld85_to_ft_NAVD88(178.774764)
+    assert stem == common_twl.output_file_stem_savepoint_elevation_runup(
+        expected_ft, "run25", 1968
+    )
+
+
+def test_resolve_plot_title_default_style_uses_qualified_name():
+    resource = twl_batch_run.parse_resource_row(base_row(save_point_id=1968))
+    config = default_config(output_directory="out")
+    assert twl_batch_run.resolve_plot_title("primary", resource, config) == resource.qualified_name
+    assert twl_batch_run.resolve_plot_title(
+        "equivalent_elevation", resource, config
+    ) == f"{resource.qualified_name}_equivalent_elevation"
+
+
+def test_resolve_plot_title_elevation_runup_savepoint_style():
+    resource = twl_batch_run.parse_resource_row(base_row(
+        resource_name="longtail_17877", component_name="run25", save_point_id=1968,
+        magnitude_operator=">=", magnitude_value=178.774764,
+    ))
+    config = default_config(
+        output_directory="out", filename_style="elevation_runup_savepoint",
+    )
+    title = twl_batch_run.resolve_plot_title("primary", resource, config)
+    expected_ft = common_twl.m_igld85_to_ft_NAVD88(178.774764)
+    assert title == common_twl.build_plot_title("primary", expected_ft, "run25", 1968)
+
+
+def test_resolve_plot_title_savepoint_elevation_runup_style():
+    resource = twl_batch_run.parse_resource_row(base_row(
+        resource_name="longtail_17877", component_name="run25", save_point_id=1968,
+        magnitude_operator=">=", magnitude_value=178.774764,
+    ))
+    config = default_config(
+        output_directory="out", filename_style="savepoint_elevation_runup",
+    )
+    title = twl_batch_run.resolve_plot_title("primary", resource, config)
+    expected_ft = common_twl.m_igld85_to_ft_NAVD88(178.774764)
+    assert title == common_twl.build_plot_title("primary", expected_ft, "run25", 1968)
+
+
 # ---- compute_scenario_metrics / build_resource_outputs ---------------------------------
 
 def make_twl_workbook(path, sheet_frames: dict):
@@ -727,6 +824,31 @@ def test_compute_scenario_metrics_skips_non_grid_sheets(tmp_path):
     resource = twl_batch_run.parse_resource_row(base_row())
     values = twl_batch_run.compute_scenario_metrics(resource, path, "portion")
     assert set(values.keys()) == {"_0_0"}
+
+
+def test_compute_scenario_metrics_return_period_is_monotonic_with_success_pattern_true(tmp_path):
+    # Regression guard: for an exceedance-type resource (">=" threshold, dune-overtopping
+    # semantics), a HIGHER magnitude_value must never have a LOWER return_period than a
+    # lower magnitude_value -- a higher water level is rarer, not more frequent. This was
+    # previously violated when success_pattern was left False (the default), because
+    # compute_metric then measured the return period of the complement (staying below the
+    # threshold) rather than of exceeding it -- collapsing to ~1.0 once the threshold was
+    # clamped to the curve's max ARI. success_pattern=True fixes this.
+    path = make_twl_workbook(
+        tmp_path / "lake_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    low = twl_batch_run.parse_resource_row(
+        base_row(magnitude_operator=">=", magnitude_value=112.0, success_pattern=True)
+    )
+    high = twl_batch_run.parse_resource_row(
+        # Above the curve's tabulated max (120.0) -- triggers ARI-clamping.
+        base_row(magnitude_operator=">=", magnitude_value=130.0, success_pattern=True)
+    )
+    low_values = twl_batch_run.compute_scenario_metrics(low, path, "return_period")
+    high_values = twl_batch_run.compute_scenario_metrics(high, path, "return_period")
+    for scenario in low_values:
+        assert high_values[scenario] >= low_values[scenario]
 
 
 # ---- compute_equivalent_elevation_metrics ----------------------------------------------
@@ -842,6 +964,79 @@ def test_build_resource_outputs_writes_grid_csv_and_calls_plot_fn(tmp_path):
     assert calls[0]["fillin"] is False
 
 
+def test_build_resource_outputs_primary_one_sided_style_when_threshold_outside_range(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    # All 4 grid sheets share identical levels -> the primary z-grid (ARI at
+    # magnitude_value=110.0, exactly on-curve) is constant at ARI=5 everywhere, so
+    # z_range collapses to (5.0, 5.0). threshold=-1 falls below that -> one-sided.
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(
+        base_row(magnitude_operator=">", magnitude_value=110.0, threshold=-1.0)
+    )
+    config = default_config(output_directory=str(tmp_path / "out"), plot_color_map="RdBu")
+    calls = []
+    twl_batch_run.build_resource_outputs(
+        resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
+    )
+    primary_call = calls[0]
+    z_range = (float(np.nanmin(primary_call["zs"])), float(np.nanmax(primary_call["zs"])))
+    expected_style = common_twl.one_sided_color_style(z_range, -1.0)
+    assert expected_style is not None
+    assert primary_call["color_map"] == expected_style[0]
+    assert primary_call["levels"] == expected_style[2]
+    assert primary_call["widths"] == expected_style[3]
+
+
+def test_build_resource_outputs_primary_default_style_when_no_threshold(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row())
+    config = default_config(output_directory=str(tmp_path / "out"), plot_color_map="RdBu")
+    calls = []
+    twl_batch_run.build_resource_outputs(
+        resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
+    )
+    assert calls[0]["color_map"] == "RdBu"
+    assert "levels" not in calls[0]
+    assert "widths" not in calls[0]
+    assert "norm" not in calls[0]
+
+
+def test_build_resource_outputs_elevation_runup_savepoint_filename_style(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    make_twl_workbook(
+        data_dir / "superior_twl.xlsx",
+        {name: _twl_sheet_frame() for name in GRID_SHEET_NAMES},
+    )
+    resource = twl_batch_run.parse_resource_row(base_row(
+        resource_name="longtail_17877", component_name="run25", save_point_id=1,
+        magnitude_operator=">", magnitude_value=110.0,
+    ))
+    config = default_config(
+        output_directory=str(tmp_path / "out"), filename_style="elevation_runup_savepoint",
+    )
+    calls = []
+    grid_path, plot_path = twl_batch_run.build_resource_outputs(
+        resource, data_dir, config, plot_fn=_recording_plot_fn(calls)
+    )
+    expected_stem = common_twl.output_file_stem(
+        common_twl.m_igld85_to_ft_NAVD88(110.0), "run25", 1
+    )
+    assert grid_path == tmp_path / "out" / f"{expected_stem}_grid.csv"
+    assert plot_path == tmp_path / "out" / f"{expected_stem}_plot.png"
+    assert grid_path.exists()
+    assert plot_path.exists() or calls[0]["save_path"] == plot_path
+
+
 def test_build_resource_outputs_overwrite_false_raises_on_existing(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -919,17 +1114,21 @@ def test_build_resource_outputs_equivalent_elevation_writes_second_grid_and_plot
     assert len(calls) == 3
     assert calls[0]["fillin"] is True
     elev_call = calls[1]
-    assert elev_call["labels"][2] == "Equivalent Elevation (ft, NAVG88)"
-    # threshold/zs are converted from meters (IGLD85) to feet (NAVG88) at output time --
+    assert elev_call["labels"][2] == "Equivalent Elevation (ft, NAVD88)"
+    # threshold/zs are converted from meters (IGLD85) to feet (NAVD88) at output time --
     # the underlying analysis (compute_equivalent_elevation_metrics) still works in
     # meters; build_resource_outputs converts only when writing the grid/plot.
-    assert elev_call["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_navg88(110.0))
+    assert elev_call["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(110.0))
     assert elev_call["save_path"] == elev_plot
-    assert elev_call["color_map"] == "viridis"
-    assert elev_call["color_map_ticks"] is None
+    # This fixture's equivalent-elevation grid is degenerate (every cell equals the
+    # comparison threshold exactly), so one_sided_color_style treats it as one-sided
+    # (all cells <= threshold) and overrides viridis with Reds_r; color_map_ticks are
+    # always the rounded contour levels now (point 5), never None/config-provided.
+    assert elev_call["color_map"] == "Reds_r"
+    assert elev_call["color_map_ticks"] is not None
     assert elev_call["fillin"] is True
     for value in elev_call["zs"]:
-        assert value == pytest.approx(common_twl.m_igld85_to_ft_navg88(110.0))
+        assert value == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(110.0))
 
 
 def test_build_resource_outputs_equivalent_elevation_numeric_override_uses_value_as_threshold(
@@ -952,8 +1151,8 @@ def test_build_resource_outputs_equivalent_elevation_numeric_override_uses_value
     assert len(calls) == 3
     # The elevation plot's threshold tracks the override value (115.0), not
     # magnitude_value (110.0) -- the primary plot (calls[0]) is unaffected either way --
-    # and is expressed in ft NAVG88, not the raw meters override.
-    assert calls[1]["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_navg88(115.0))
+    # and is expressed in ft NAVD88, not the raw meters override.
+    assert calls[1]["threshold"] == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(115.0))
 
 
 def test_build_resource_outputs_primary_grid_unaffected_by_equivalent_elevation_value(tmp_path):
@@ -1034,7 +1233,7 @@ def test_build_resource_outputs_elevation_delta_writes_third_grid_and_plot(tmp_p
     assert delta_grid.exists()
     assert len(calls) == 3
     delta_call = calls[2]
-    assert delta_call["labels"][2] == "Elevation Delta (ft, NAVG88)"
+    assert delta_call["labels"][2] == "Elevation Delta (ft, NAVD88)"
     assert delta_call["save_path"] == delta_plot
     # Fixed colorbar center of 0 (no delta), regardless of resource.threshold or the
     # equivalent_elevation plot's own threshold.
@@ -1045,13 +1244,21 @@ def test_build_resource_outputs_elevation_delta_writes_third_grid_and_plot(tmp_p
     # equivalent_elevation values, converted to ft and differenced from the
     # ft-converted lookup value (resource.equivalent_elevation resolves to
     # magnitude_value == 110.0 via "baseline_magnitude").
-    lookup_ft = common_twl.m_igld85_to_ft_navg88(110.0)
-    baseline_delta_ft = common_twl.m_igld85_to_ft_navg88(110.0) - lookup_ft
-    other_delta_ft = common_twl.m_igld85_to_ft_navg88(116.0) - lookup_ft
+    lookup_ft = common_twl.m_igld85_to_ft_NAVD88(110.0)
+    baseline_delta_ft = common_twl.m_igld85_to_ft_NAVD88(110.0) - lookup_ft
+    other_delta_ft = common_twl.m_igld85_to_ft_NAVD88(116.0) - lookup_ft
     assert baseline_delta_ft == pytest.approx(0.0)
-    assert other_delta_ft == pytest.approx(common_twl.m_igld85_to_ft_navg88(116.0) - lookup_ft)
+    assert other_delta_ft == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(116.0) - lookup_ft)
     assert min(np.ravel(delta_call["zs"])) <= other_delta_ft + 1e-9
     assert any(v == pytest.approx(0.0, abs=1e-9) for v in np.ravel(delta_call["zs"]))
+    # levels/widths/color_map_ticks come from common_twl.symmetric_delta_levels,
+    # centered on 0, independent of whether this particular range is one-sided.
+    delta_z_range = (float(np.nanmin(delta_call["zs"])), float(np.nanmax(delta_call["zs"])))
+    expected_levels, expected_widths = common_twl.symmetric_delta_levels(delta_z_range)
+    assert delta_call["levels"] == expected_levels
+    assert delta_call["widths"] == expected_widths
+    assert delta_call["color_map_ticks"] == expected_levels
+    assert 0.0 in expected_levels
 
 
 def test_build_resource_outputs_elevation_delta_off_when_equivalent_elevation_blank(tmp_path):
@@ -1144,6 +1351,71 @@ def test_run_batch_all_rows_succeed(tmp_path):
     assert calls == ["duluth_harbor", "green_bay"]
 
 
+def test_resolve_all_output_paths_primary_only_without_equivalent_elevation(tmp_path):
+    resource = twl_batch_run.parse_resource_row(base_row())
+    config = default_config(output_directory=str(tmp_path / "out"))
+    paths = twl_batch_run.resolve_all_output_paths(resource, config)
+    assert paths == [
+        tmp_path / "out" / "duluth_harbor_twl_1_grid.csv",
+        tmp_path / "out" / "duluth_harbor_twl_1_plot.png",
+    ]
+
+
+def test_resolve_all_output_paths_includes_elevation_plots_when_set(tmp_path):
+    resource = twl_batch_run.parse_resource_row(
+        base_row(equivalent_elevation="baseline_magnitude")
+    )
+    config = default_config(output_directory=str(tmp_path / "out"))
+    paths = twl_batch_run.resolve_all_output_paths(resource, config)
+    assert paths == [
+        tmp_path / "out" / "duluth_harbor_twl_1_grid.csv",
+        tmp_path / "out" / "duluth_harbor_twl_1_plot.png",
+        tmp_path / "out" / "duluth_harbor_twl_1_equivalent_elevation_grid.csv",
+        tmp_path / "out" / "duluth_harbor_twl_1_equivalent_elevation_plot.png",
+        tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_grid.csv",
+        tmp_path / "out" / "duluth_harbor_twl_1_elevation_delta_plot.png",
+    ]
+
+
+def test_run_batch_populates_row_result_output_paths(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "lake", "magnitude_operator", "magnitude_value",
+                          "save_point_id"],
+        resources_rows=[
+            ("duluth_harbor", "superior", ">", 110.0, 1),
+        ],
+    )
+    config = twl_batch_run.BatchConfig(output_directory=str(tmp_path / "out"))
+    summary = twl_batch_run.run_batch(
+        resources_path, tmp_path, config,
+        build_outputs=lambda r, d, c: (Path("g.csv"), Path("p.png")),
+        progress=lambda *a: None,
+    )
+    assert summary.results[0].output_paths == (
+        tmp_path / "out" / "duluth_harbor_twl_1_grid.csv",
+        tmp_path / "out" / "duluth_harbor_twl_1_plot.png",
+    )
+
+
+def test_run_batch_failed_row_has_empty_output_paths(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "lake", "magnitude_operator", "magnitude_value",
+                          "save_point_id"],
+        resources_rows=[
+            ("", "superior", ">", 110.0, 1),  # invalid: blank resource_name
+        ],
+    )
+    config = twl_batch_run.BatchConfig(output_directory=str(tmp_path / "out"))
+    summary = twl_batch_run.run_batch(
+        resources_path, tmp_path, config,
+        build_outputs=lambda r, d, c: (Path("g.csv"), Path("p.png")),
+        progress=lambda *a: None,
+    )
+    assert summary.results[0].output_paths == ()
+
+
 def test_run_batch_continues_past_row_validation_failure(tmp_path):
     resources_path = make_workbook(
         tmp_path,
@@ -1218,6 +1490,50 @@ def test_run_batch_duplicate_output_target_fails_second_row(tmp_path):
     assert "Duplicate output target" in summary.failed[0].message
 
 
+def test_run_batch_writes_naming_readme_for_longtailpoint_filename_style(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "component_name", "lake", "magnitude_operator",
+                          "magnitude_value", "save_point_id"],
+        resources_rows=[
+            ("duluth_harbor", "base", "superior", ">", 110.0, 1),
+        ],
+    )
+    out_dir = tmp_path / "out"
+    config = twl_batch_run.BatchConfig(
+        output_directory=str(out_dir), filename_style="savepoint_elevation_runup",
+    )
+    twl_batch_run.run_batch(
+        resources_path, tmp_path, config,
+        build_outputs=lambda r, d, c: (Path("g.csv"), Path("p.png")),
+        progress=lambda *a: None,
+    )
+    readme_path = out_dir / "README.txt"
+    assert readme_path.exists()
+    text = readme_path.read_text()
+    assert "<save point ID>_<elevation>_<runup>" in text
+    assert "NAVD88" in text
+
+
+def test_run_batch_no_naming_readme_for_qualified_name_filename_style(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "lake", "magnitude_operator", "magnitude_value",
+                          "save_point_id"],
+        resources_rows=[
+            ("duluth_harbor", "superior", ">", 110.0, 1),
+        ],
+    )
+    out_dir = tmp_path / "out"
+    config = twl_batch_run.BatchConfig(output_directory=str(out_dir))
+    twl_batch_run.run_batch(
+        resources_path, tmp_path, config,
+        build_outputs=lambda r, d, c: (Path("g.csv"), Path("p.png")),
+        progress=lambda *a: None,
+    )
+    assert not (out_dir / "README.txt").exists()
+
+
 def test_format_summary_includes_failure_details(tmp_path):
     resources_path = make_workbook(
         tmp_path,
@@ -1235,3 +1551,68 @@ def test_format_summary_includes_failure_details(tmp_path):
     assert "1 succeeded, 1 failed" not in text  # sanity: only 1 row total here
     assert "0 succeeded, 1 failed" in text
     assert "Row 1" in text
+
+
+# ---- write_results_workbook --------------------------------------------------------
+
+
+def test_write_results_workbook_adds_output_location_column(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "lake", "magnitude_operator", "magnitude_value",
+                          "save_point_id"],
+        resources_rows=[
+            ("duluth_harbor", "superior", ">", 110.0, 1),
+            ("", "superior", ">", 110.0, 2),  # invalid -> failed row, blank cell
+        ],
+        config_pairs=[("output_directory", str(tmp_path / "out"))],
+    )
+    workspace_root = tmp_path
+    out_dir = tmp_path / "out"
+    summary = twl_batch_run.BatchSummary(results=[
+        twl_batch_run.RowResult(
+            1, "duluth_harbor", "twl", "succeeded", None,
+            (out_dir / "duluth_harbor_twl_1_grid.csv", out_dir / "duluth_harbor_twl_1_plot.png"),
+        ),
+        twl_batch_run.RowResult(2, None, None, "failed", "blank resource_name"),
+    ])
+    out_path = tmp_path / "results.xlsx"
+    result_path = twl_batch_run.write_results_workbook(
+        resources_path, summary, out_path, workspace_root=workspace_root,
+    )
+    assert result_path == out_path
+    assert out_path.exists()
+
+    resources_df = pd.read_excel(out_path, sheet_name="resources", engine="calamine")
+    config_df = pd.read_excel(out_path, sheet_name="config", engine="calamine")
+    assert "output location" in resources_df.columns
+    assert resources_df.loc[0, "output location"] == ";".join([
+        str(Path("out/duluth_harbor_twl_1_grid.csv")),
+        str(Path("out/duluth_harbor_twl_1_plot.png")),
+    ])
+    assert resources_df.loc[1, "output location"] == "" or pd.isna(
+        resources_df.loc[1, "output location"]
+    )
+    assert "output_directory" in config_df["option"].values
+
+
+def test_write_results_workbook_falls_back_to_absolute_path_outside_workspace(tmp_path):
+    resources_path = make_workbook(
+        tmp_path,
+        resources_header=["resource_name", "lake", "magnitude_operator", "magnitude_value",
+                          "save_point_id"],
+        resources_rows=[("duluth_harbor", "superior", ">", 110.0, 1)],
+        config_pairs=[("output_directory", "out")],
+    )
+    other_root = tmp_path / "elsewhere"
+    other_root.mkdir()
+    outside_path = other_root / "grid.csv"
+    summary = twl_batch_run.BatchSummary(results=[
+        twl_batch_run.RowResult(1, "duluth_harbor", "twl", "succeeded", None, (outside_path,)),
+    ])
+    out_path = tmp_path / "results.xlsx"
+    twl_batch_run.write_results_workbook(
+        resources_path, summary, out_path, workspace_root=tmp_path / "not_a_parent",
+    )
+    resources_df = pd.read_excel(out_path, sheet_name="resources", engine="calamine")
+    assert resources_df.loc[0, "output location"] == str(outside_path.resolve())

@@ -58,14 +58,14 @@ interpolating the water level at that same ARI under every other scenario's own 
 water level is equally likely, under this scenario, as the lookup value is under the
 baseline scenario?" All twl-workbook levels, `magnitude_value`, and `equivalent_elevation`
 are in meters, IGLD85 datum (the analysis itself never converts units), but the written
-output is converted to feet, NAVG88 datum (see `common_twl.m_igld85_to_ft_navg88`, a flat
+output is converted to feet, NAVD88 datum (see `common_twl.m_igld85_to_ft_NAVD88`, a flat
 +0.44ft offset plus a standard 0.3048 m/ft scale — see
-`longtailpoint/longtail_waterlevel.xlsx` Sheet2's "NAVG88 to IGLD85" table) since a water
+`longtailpoint/longtail_waterlevel.xlsx` Sheet2's "NAVD88 to IGLD85" table) since a water
 level, unlike the primary metric's portion/percentage/return_period units, has physical
 elevation units to convert. Written to its own grid csv + plot png
 (`..._equivalent_elevation_grid.csv` / `_equivalent_elevation_plot.png`), with plot
-z-axis label `"Equivalent Elevation (ft, NAVG88)"` and plot threshold equal to the
-resolved baseline-ARI lookup value itself (converted to ft NAVG88) rather than a
+z-axis label `"Equivalent Elevation (ft, NAVD88)"` and plot threshold equal to the
+resolved baseline-ARI lookup value itself (converted to ft NAVD88) rather than a
 metric-mode-units value.
 _Avoid_: Equivalent ARI, equivalent magnitude (the output is a water level, not an ARI
 or the metric-mode value the primary grid produces).
@@ -74,10 +74,10 @@ or the metric-mode value the primary grid produces).
 A third grid csv + plot png (`..._elevation_delta_grid.csv` / `_elevation_delta_plot.png`),
 written alongside equivalent elevation whenever a resource row's `equivalent_elevation`
 column is not blank (same gating). Each scenario cell is that scenario's equivalent
-elevation (in ft, NAVG88) minus the resolved baseline-ARI lookup value itself (also
-converted to ft, NAVG88) — i.e. how much higher or lower this scenario's equivalent
+elevation (in ft, NAVD88) minus the resolved baseline-ARI lookup value itself (also
+converted to ft, NAVD88) — i.e. how much higher or lower this scenario's equivalent
 elevation is than the comparison/lookup elevation, not a difference between two
-scenarios. Plot z-axis label `"Elevation Delta (ft, NAVG88)"`; plot threshold (colorbar
+scenarios. Plot z-axis label `"Elevation Delta (ft, NAVD88)"`; plot threshold (colorbar
 center) is always `0` (no delta), regardless of the resource row's `threshold` or the
 equivalent elevation plot's own threshold.
 _Avoid_: Elevation change, elevation difference (delta is the established short form
@@ -97,7 +97,7 @@ elevation**/**elevation delta** outputs were computed against — derived from t
 resolved `equivalent_elevation` value, not the raw resources-sheet cell itself. One of:
 blank (`equivalent_elevation` is `None`; no equivalent-elevation/elevation-delta outputs
 exist for this row), `"baseline_magnitude"` (row's own `magnitude_value` was used), or an
-explicit override elevation (always displayed/compared in ft, NAVG88, even though the
+explicit override elevation (always displayed/compared in ft, NAVD88, even though the
 resources-sheet cell holds it in meters, IGLD85). Two rows can share every other
 attribute (save point, magnitude, runup allowance) yet differ only by basis — e.g. one
 workbook run with every row's basis `"baseline_magnitude"`, another with every row's

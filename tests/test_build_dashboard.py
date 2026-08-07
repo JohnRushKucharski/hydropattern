@@ -30,9 +30,9 @@ def _resource(**overrides):
     return twl.ResourceSpec(**fields)
 
 
-def test_compute_magnitude_ft_converts_m_igld85_to_ft_navg88():
+def test_compute_magnitude_ft_converts_m_igld85_to_ft_NAVD88():
     resource = _resource(magnitude_value=178.7747637915269)
-    expected = common_twl.m_igld85_to_ft_navg88(178.7747637915269)
+    expected = common_twl.m_igld85_to_ft_NAVD88(178.7747637915269)
     assert dash.compute_magnitude_ft(resource) == pytest.approx(expected)
 
 
@@ -56,16 +56,18 @@ def test_basis_is_baseline_magnitude_case_insensitive():
     assert dash.compute_equivalent_elevation_basis(row, resource) == "baseline_magnitude"
 
 
-def test_basis_is_override_label_in_ft_navg88_for_numeric_cell():
+def test_basis_is_override_label_in_ft_NAVD88_for_numeric_cell():
     resource = _resource(magnitude_value=178.77, equivalent_elevation=178.7)
     row = {"equivalent_elevation": 178.7}
-    expected_ft = common_twl.m_igld85_to_ft_navg88(178.7)
+    expected_ft = common_twl.m_igld85_to_ft_NAVD88(178.7)
     assert dash.compute_equivalent_elevation_basis(row, resource) == f"{expected_ft:.2f} ft override"
 
 
 # ---- ManifestEntry / build_entries ---------------------------------------------------
 
-def _write_workbook(tmp_path, output_directory, resources_rows, resources_header=None):
+def _write_workbook(
+    tmp_path, output_directory, resources_rows, resources_header=None, filename_style=None,
+):
     from openpyxl import Workbook
 
     header = resources_header or [
@@ -82,6 +84,8 @@ def _write_workbook(tmp_path, output_directory, resources_rows, resources_header
     cfg.append(["option", "value"])
     cfg.append(["output_directory", str(output_directory)])
     cfg.append(["metric_mode", "return_period"])
+    if filename_style is not None:
+        cfg.append(["filename_style", filename_style])
     path = tmp_path / "workbook.xlsx"
     wb.save(path)
     return path
@@ -102,7 +106,7 @@ def test_build_entries_reads_rows_and_resolves_output_dir(tmp_path):
     assert entry.qualified_name == "longtail_17877_base_1968"
     assert entry.output_dir == out_dir
     assert entry.equivalent_elevation_basis == "baseline_magnitude"
-    assert entry.magnitude_ft == pytest.approx(common_twl.m_igld85_to_ft_navg88(178.7747637915269))
+    assert entry.magnitude_ft == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(178.7747637915269))
     assert entry.workbook_path == wb_path
     assert entry.analysis_type == "twl"
 
@@ -115,6 +119,53 @@ def test_build_entries_basis_none_when_blank(tmp_path):
     )
     entries = dash.build_entries(wb_path)
     assert entries[0].equivalent_elevation_basis is None
+
+
+def test_build_entries_file_stem_defaults_to_qualified_name(tmp_path):
+    out_dir = tmp_path / "out"
+    wb_path = _write_workbook(
+        tmp_path, out_dir,
+        [["longtail_17877", "base", "michigan", ">=", 178.7747637915269, 1968, None]],
+    )
+    entries = dash.build_entries(wb_path)
+    assert entries[0].file_stem == entries[0].qualified_name == "longtail_17877_base_1968"
+
+
+def test_build_entries_file_stem_elevation_runup_savepoint_style(tmp_path):
+    out_dir = tmp_path / "out"
+    wb_path = _write_workbook(
+        tmp_path, out_dir,
+        [["longtail_17877", "base", "michigan", ">=", 178.7747637915269, 1968, None]],
+        filename_style="elevation_runup_savepoint",
+    )
+    entries = dash.build_entries(wb_path)
+    expected_stem = common_twl.output_file_stem(
+        common_twl.m_igld85_to_ft_NAVD88(178.7747637915269), "base", 1968,
+    )
+    assert entries[0].file_stem == expected_stem
+    assert entries[0].qualified_name == "longtail_17877_base_1968"  # identity unchanged
+
+
+def test_build_entries_elevation_ft_is_magnitude_plus_runup(tmp_path):
+    out_dir = tmp_path / "out"
+    wb_path = _write_workbook(
+        tmp_path, out_dir,
+        [["longtail_17877", "run25", "michigan", ">=", 178.7747637915269, 1968, None]],
+    )
+    entries = dash.build_entries(wb_path)
+    magnitude_ft = common_twl.m_igld85_to_ft_NAVD88(178.7747637915269)
+    assert entries[0].elevation_ft == pytest.approx(magnitude_ft + 2.5)
+
+
+def test_build_avg_entries_elevation_ft_equals_magnitude_ft():
+    # avg entries have no runup allowance concept -- elevation_ft mirrors magnitude_ft.
+    entry = dash.ManifestEntry(
+        workbook_path=Path("x.xlsx"), analysis_type="avg", resource_name="r",
+        component_name="c", save_point_id=None, magnitude_ft=580.0,
+        equivalent_elevation_basis=None, qualified_name="r_c",
+        output_dir=Path("out"), file_stem="r_c", elevation_ft=580.0,
+    )
+    assert entry.elevation_ft == entry.magnitude_ft
 
 
 # ---- resolve_files --------------------------------------------------------------------
@@ -130,6 +181,8 @@ def _make_entry(output_dir, qualified_name="longtail_17877_base_1968", basis="ba
         equivalent_elevation_basis=basis,
         qualified_name=qualified_name,
         output_dir=output_dir,
+        file_stem=qualified_name,
+        elevation_ft=586.44,
     )
     fields.update(overrides)
     return dash.ManifestEntry(**fields)
@@ -341,7 +394,7 @@ def test_build_avg_entries_reads_rows_and_marks_analysis_type_avg(tmp_path):
     assert entry.equivalent_elevation_basis is None
     assert entry.qualified_name == "longtail_17877_mo_avg"
     assert entry.output_dir == out_dir
-    assert entry.magnitude_ft == pytest.approx(common_twl.m_igld85_to_ft_navg88(178.7747637915269))
+    assert entry.magnitude_ft == pytest.approx(common_twl.m_igld85_to_ft_NAVD88(178.7747637915269))
 
 
 def test_build_avg_entries_requires_magnitude_characteristic(tmp_path):

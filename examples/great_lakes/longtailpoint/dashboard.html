@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Longtail Point TWL results dashboard</title>
+<title>Long Tail Point Dashboard</title>
 <script src="manifest.js"></script>
 <style>
   body { font-family: sans-serif; margin: 1.5rem; }
@@ -19,23 +19,23 @@
 </style>
 </head>
 <body>
-<h1>Longtail Point TWL results dashboard</h1>
+<h1>Long Tail Point Dashboard</h1>
 
 <div class="filters">
-  <label>Analysis type
+  <label>Water Level Type
     <select id="analysis-select"></select>
+  </label>
+  <label>Analysis
+    <select id="metric-select">
+      <option value="primary">Return Interval</option>
+      <option value="equivalent_elevation" class="twl-only">Equivalent Elevation</option>
+      <option value="elevation_delta" class="twl-only">Elevation Delta</option>
+    </select>
   </label>
   <label>Form
     <select id="form-select">
       <option value="plot">Plot</option>
       <option value="grid">Grid</option>
-    </select>
-  </label>
-  <label>Metric
-    <select id="metric-select">
-      <option value="primary">Primary metric</option>
-      <option value="equivalent_elevation" class="twl-only">Equivalent elevation</option>
-      <option value="elevation_delta" class="twl-only">Elevation delta</option>
     </select>
   </label>
 </div>
@@ -46,15 +46,14 @@
 
 <div class="panels">
   <div class="panel-column">
-    <h2>Selection A</h2>
     <div class="filters">
       <label id="save-point-wrap">Save point
         <select id="save-point-select"></select>
       </label>
-      <label>Magnitude (ft, NAVG88)
+      <label>Elevation (NAVD88)
         <select id="magnitude-select"></select>
       </label>
-      <label id="runup-wrap">Runup allowance
+      <label id="runup-wrap">Runup (ft)
         <select id="runup-select"></select>
       </label>
       <label id="basis-wrap">Equivalent-elevation basis
@@ -64,15 +63,14 @@
     <div class="panel" id="panel-a"></div>
   </div>
   <div class="panel-column" id="panel-b-column" style="display:none">
-    <h2>Selection B</h2>
     <div class="filters">
       <label id="save-point-wrap-b">Save point
         <select id="save-point-select-b"></select>
       </label>
-      <label>Magnitude (ft, NAVG88)
+      <label>Elevation (NAVD88)
         <select id="magnitude-select-b"></select>
       </label>
-      <label id="runup-wrap-b">Runup allowance
+      <label id="runup-wrap-b">Runup (ft)
         <select id="runup-select-b"></select>
       </label>
       <label id="basis-wrap-b">Equivalent-elevation basis
@@ -113,7 +111,7 @@ function currentFilters(suffix) {
   return {
     analysis_type: document.getElementById("analysis-select").value,
     save_point_id: document.getElementById(`save-point-select${suffix}`).value,
-    magnitude_ft: document.getElementById(`magnitude-select${suffix}`).value,
+    elevation_ft: document.getElementById(`magnitude-select${suffix}`).value,
     component_name: document.getElementById(`runup-select${suffix}`).value,
     equivalent_elevation_basis: document.getElementById(`basis-select${suffix}`).value,
   };
@@ -129,7 +127,7 @@ function entriesForAnalysisType(analysisType) {
 // picker sets used in compare mode.
 const FACET_FIELDS = [
   { field: "save_point_id", selectIdBase: "save-point-select" },
-  { field: "magnitude_ft", selectIdBase: "magnitude-select" },
+  { field: "elevation_ft", selectIdBase: "magnitude-select" },
   { field: "component_name", selectIdBase: "runup-select" },
   { field: "equivalent_elevation_basis", selectIdBase: "basis-select" },
 ];
@@ -191,7 +189,7 @@ function findEntry(filters) {
     (e) =>
       e.analysis_type === filters.analysis_type &&
       String(e.save_point_id) === filters.save_point_id &&
-      String(e.magnitude_ft) === filters.magnitude_ft &&
+      String(e.elevation_ft) === filters.elevation_ft &&
       e.component_name === filters.component_name &&
       String(e.equivalent_elevation_basis) === filters.equivalent_elevation_basis
   );
@@ -205,9 +203,6 @@ function renderPanel(panelEl, entry, form, metric) {
   }
   const kind = KIND_BY_FORM_METRIC[`${form},${metric}`];
   const file = entry.files[kind];
-  const title = document.createElement("h3");
-  title.textContent = entry.qualified_name;
-  panelEl.appendChild(title);
   if (!file) {
     panelEl.appendChild(document.createTextNode("Not available for this row."));
     return;

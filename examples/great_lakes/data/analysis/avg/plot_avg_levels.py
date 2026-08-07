@@ -204,52 +204,21 @@ def build_grid(columns: dict[str, np.ndarray],
 
 
 def one_sided_color_style(zs: np.ndarray, threshold: float, tail: str | None) -> tuple | None:
-    """When every grid cell falls on one side of `threshold`, climate_canvas's
-    default RdBu/TwoSlopeNorm can't place `threshold` at its usual colorbar
-    center (TwoSlopeNorm requires vmin < vcenter < vmax) -- it silently falls
-    back to the *data range's own midpoint* instead (see
-    climate_canvas.data_utilities.check_threshold), which breaks the
-    "colorbar center = baseline lake level" convention this whole module
-    relies on: e.g. a low-ARI grid (every cell's level is, by definition,
-    below the baseline average) would render with red/blue split around some
-    arbitrary in-range value instead of showing "every cell is below
-    baseline".
-
-    Returns None for the normal (threshold falls strictly inside the
-    grid's z-range) case, so the caller keeps climate_canvas's default RdBu
-    diverging behavior. Otherwise returns (color_map, norm, levels, widths)
-    for a one-sided sequential scale anchored at `threshold`:
-    - low tail, all levels <= threshold: 'Reds_r' colormap, lightest (white)
-      at `threshold`, darkest red at the grid's most extreme (lowest) level.
-    - high tail, all levels >= threshold: 'Blues' colormap, lightest at
-      `threshold`, darkest blue at the grid's most extreme (highest) level.
-    `levels`/`widths` mark `threshold` plus 5 evenly-spaced points between it
-    and the extreme (bold at threshold, matching the normal RdBu contour
-    convention) -- these become the colorbar ticks; several (including
-    threshold's own bold line) may fall outside the actual [min, max] of the
-    plotted grid and simply won't have a visible contour line, but still
-    label the colorbar so its scale stays legible.
-
-    Tail-agnostic (mean) plots always pass tail=None and keep the default
-    RdBu behavior, since the mean's threshold is not expected to fall outside
+    """Thin tail-gated wrapper around common_twl.one_sided_color_style (see there for
+    the shared math/rationale): only low-tail plots may get the 'Reds_r'
+    all-below-threshold treatment, and only high-tail plots may get 'Blues'
+    all-above-threshold -- tail-agnostic (mean, tail=None) plots always keep the
+    default RdBu behavior, since the mean's threshold is not expected to fall outside
     its own grid's range the way an extreme-tail ARI level does.
     """
     if tail is None:
         return None
     z_min, z_max = float(np.nanmin(zs)), float(np.nanmax(zs))
-    if z_min < threshold < z_max:
+    if tail == "low" and not (z_max <= threshold):
         return None
-    if tail == "low" and z_max <= threshold:
-        extreme, color_map = z_min, "Reds_r"
-    elif tail == "high" and z_min >= threshold:
-        extreme, color_map = z_max, "Blues"
-    else:
+    if tail == "high" and not (z_min >= threshold):
         return None
-    mids = [threshold + i * (extreme - threshold) / 6 for i in range(1, 6)]
-    ascending = sorted([extreme, threshold] + mids)
-    widths = tuple(2.0 if lvl == threshold else 1.0 for lvl in ascending)
-    return color_map, Normalize(vmin=min(threshold, extreme), vmax=max(threshold, extreme)), \
-        tuple(ascending), widths
+    return common_twl.one_sided_color_style((z_min, z_max), threshold)
 
 
 def plot_pair(xs: np.ndarray, ys: np.ndarray, zs: np.ndarray, title: str,

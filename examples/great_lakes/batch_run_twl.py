@@ -48,7 +48,7 @@ resolve_lake_twl_path = common_twl.resolve_lake_twl_path
 parse_scenario_sheet_name = common_twl.parse_scenario_sheet_name
 _NON_ARI_COLUMNS = common_twl.NON_ARI_COLUMNS
 _load_lake_sheets = common_twl.load_lake_sheets
-_m_igld85_to_ft_navg88 = common_twl.m_igld85_to_ft_navg88
+_m_igld85_to_ft_NAVD88 = common_twl.m_igld85_to_ft_NAVD88
 
 
 def _is_blank(value: Any) -> bool:
@@ -445,6 +445,9 @@ def parse_resource_row(row: dict[str, Any]) -> ResourceSpec:
 
 _VALID_SUBDIRECTORY_STRUCTURES = ("flat", "resource", "row")
 _VALID_METRIC_MODES = frozenset({"portion", "percentage", "return_period"})
+_VALID_FILENAME_STYLES = frozenset({
+    "qualified_name", "elevation_runup_savepoint", "savepoint_elevation_runup",
+})
 
 
 @dataclass(frozen=True)
@@ -454,6 +457,10 @@ class BatchConfig:
     output_directory: str = ""  # base output directory; required, no sensible default
     subdirectory_structure: str = "flat"  # "flat" | "resource" | "row"
     metric_mode: str = "return_period"  # portion | percentage | return_period
+    # "qualified_name" -> <resource_name>_<component_name>[_<save_point_id>] (default,
+    # generic). "elevation_runup_savepoint" -> longtailpoint-specific
+    # <elev>ft_plus<runup>ft-runup_savepoint<id> (see common_twl.output_file_stem).
+    filename_style: str = "qualified_name"
     overwrite: bool = False
     plot_interpolate: bool = True
     plot_color_map: str = "RdBu"
@@ -487,6 +494,92 @@ def resolve_output_folder(resource: ResourceSpec, config: BatchConfig) -> Path:
     if config.subdirectory_structure == "resource":
         return base / resource.resource_name
     return base / resource.resource_name / resource.component_name
+
+
+def resolve_output_stem(resource: ResourceSpec, config: BatchConfig) -> str:
+    """Compute the file-name stem (no suffix/extension) used for this row's output
+    files.
+
+    "qualified_name" (default) -> resource.qualified_name, unchanged generic behavior.
+    "elevation_runup_savepoint" -> longtailpoint-specific ft-based naming
+    "<elevation>ft_plus<runup>ft-runup_savepoint<id>"; requires resource.magnitude_value
+    to be an IGLD85-meters elevation and resource.component_name to be one of
+    common_twl.RUNUP_FT_BY_COMPONENT's keys (raises ValueError otherwise).
+    "savepoint_elevation_runup" -> longtailpoint-specific naming
+    "<save point>_<elevation>_<runup>", elevation = magnitude + runup combined; same
+    resource requirements as "elevation_runup_savepoint".
+    """
+    if config.filename_style == "qualified_name":
+        return resource.qualified_name
+    if config.filename_style == "elevation_runup_savepoint":
+        magnitude_ft = common_twl.m_igld85_to_ft_NAVD88(resource.magnitude_value)
+        return common_twl.output_file_stem(
+            magnitude_ft, resource.component_name, resource.save_point_id
+        )
+    if config.filename_style == "savepoint_elevation_runup":
+        magnitude_ft = common_twl.m_igld85_to_ft_NAVD88(resource.magnitude_value)
+        return common_twl.output_file_stem_savepoint_elevation_runup(
+            magnitude_ft, resource.component_name, resource.save_point_id
+        )
+    raise ValueError(
+        f"Invalid filename_style {config.filename_style!r}; "
+        f"must be one of {sorted(_VALID_FILENAME_STYLES)}."
+    )
+
+
+# filename_style values that are longtailpoint-specific (require resource.component_name
+# to be a known runup-allowance code and drive the 3-line build_plot_title title).
+_LONGTAILPOINT_FILENAME_STYLES = frozenset({
+    "elevation_runup_savepoint", "savepoint_elevation_runup",
+})
+
+
+def resolve_plot_title(plot_kind: str, resource: ResourceSpec, config: BatchConfig) -> str:
+    """Compute one plot's title.
+
+    Only longtailpoint-style runs (config.filename_style in
+    _LONGTAILPOINT_FILENAME_STYLES, the same gate resolve_output_stem uses) get the
+    3-line "Longtail Point <type>/elevation.../save point..." title from
+    common_twl.build_plot_title -- resource.component_name is only guaranteed to be a
+    known runup-allowance code (common_twl.RUNUP_FT_BY_COMPONENT) for those runs.
+    Every other filename_style keeps the original, generic
+    "<resource>_<component>[_<save point>]" title (resource.qualified_name), optionally
+    suffixed with the plot kind for the equivalent-elevation/elevation-delta plots so
+    they remain distinguishable from the primary plot.
+    """
+    if config.filename_style not in _LONGTAILPOINT_FILENAME_STYLES:
+        if plot_kind == "primary":
+            return resource.qualified_name
+        return f"{resource.qualified_name}_{plot_kind}"
+    magnitude_ft = common_twl.m_igld85_to_ft_NAVD88(resource.magnitude_value)
+    return common_twl.build_plot_title(
+        plot_kind, magnitude_ft, resource.component_name, resource.save_point_id
+    )
+
+
+def resolve_all_output_paths(resource: ResourceSpec, config: BatchConfig) -> list[Path]:
+    """Compute every output file path build_resource_outputs will write for this row:
+    always the primary grid+plot, plus (when resource.equivalent_elevation is not
+    None) the equivalent-elevation and elevation-delta grid+plot pairs.
+
+    Pure/stateless (mirrors build_resource_outputs' own path construction) so callers
+    (e.g. run_batch, for the results workbook's "output location" column) can learn a
+    row's full output-file list without re-running the actual grid/plot generation.
+    """
+    output_folder = resolve_output_folder(resource, config)
+    stem = resolve_output_stem(resource, config)
+    paths = [
+        output_folder / f"{stem}_grid.csv",
+        output_folder / f"{stem}_plot.png",
+    ]
+    if resource.equivalent_elevation is not None:
+        paths += [
+            output_folder / f"{stem}_equivalent_elevation_grid.csv",
+            output_folder / f"{stem}_equivalent_elevation_plot.png",
+            output_folder / f"{stem}_elevation_delta_grid.csv",
+            output_folder / f"{stem}_elevation_delta_plot.png",
+        ]
+    return paths
 
 
 class SheetValidationError(ValueError):
@@ -548,7 +641,10 @@ _CONFIG_BOOL_KEYS = frozenset(
     {"overwrite", "plot_interpolate", "fillin"}
 )
 _CONFIG_STR_KEYS = frozenset(
-    {"metric_mode", "output_directory", "subdirectory_structure", "plot_color_map"}
+    {
+        "metric_mode", "output_directory", "subdirectory_structure", "plot_color_map",
+        "filename_style",
+    }
 )
 _CONFIG_TICKS_KEY = "plot_color_map_ticks"
 _CONFIG_KNOWN_KEYS = _CONFIG_BOOL_KEYS | _CONFIG_STR_KEYS | {_CONFIG_TICKS_KEY}
@@ -616,6 +712,14 @@ def read_config_sheet(path: Path, sheet_name: str = "config") -> BatchConfig:
             f"must be one of {sorted(_VALID_METRIC_MODES)}."
         )
 
+    filename_style = values.get("filename_style")
+    if not _is_blank(filename_style) \
+            and str(filename_style).strip() not in _VALID_FILENAME_STYLES:
+        errors.append(
+            f"Config sheet option 'filename_style' {filename_style!r} "
+            f"must be one of {sorted(_VALID_FILENAME_STYLES)}."
+        )
+
     ticks = _parse_color_map_ticks(values.get(_CONFIG_TICKS_KEY), errors)
 
     if errors:
@@ -629,6 +733,8 @@ def read_config_sheet(path: Path, sheet_name: str = "config") -> BatchConfig:
         kwargs["overwrite"] = _to_bool(values.get("overwrite"), defaults.overwrite)
     if not _is_blank(subdirectory_structure):
         kwargs["subdirectory_structure"] = str(subdirectory_structure).strip()
+    if not _is_blank(filename_style):
+        kwargs["filename_style"] = str(filename_style).strip()
     if not _is_blank(values.get("plot_interpolate")):
         kwargs["plot_interpolate"] = _to_bool(
             values.get("plot_interpolate"), defaults.plot_interpolate
@@ -749,21 +855,21 @@ def build_resource_outputs(
     - a second grid csv + plot png: the water level under every scenario equivalent
       (same ARI) to the baseline scenario's ARI at resource.equivalent_elevation (see
       compute_equivalent_elevation_metrics). This plot's z-axis is labeled
-      "Equivalent Elevation (ft, NAVG88)", its threshold is resource.equivalent_elevation,
+      "Equivalent Elevation (ft, NAVD88)", its threshold is resource.equivalent_elevation,
       and it uses config.plot_color_map as given -- unlike the primary plot, no
       RdBu-direction auto-reversal or color_map_ticks are applied, since
       success_pattern/metric_mode semantics don't apply to a raw elevation value.
     - a third grid csv + plot png: elevation_delta, the increase/decrease (in ft
-      NAVG88) of each scenario's equivalent elevation relative to
+      NAVD88) of each scenario's equivalent elevation relative to
       resource.equivalent_elevation (the comparison/baseline-lookup elevation itself).
-      Its z-axis is labeled "Elevation Delta (ft, NAVG88)" and its colorbar threshold
+      Its z-axis is labeled "Elevation Delta (ft, NAVD88)" and its colorbar threshold
       is fixed at 0 (no delta), regardless of resource.threshold or the equivalent
       elevation plot's own threshold.
 
     compute_equivalent_elevation_metrics works entirely in meters, IGLD85 datum (the
     unit of magnitude_value/equivalent_elevation and the twl workbooks' level curves);
     the equivalent_elevation and elevation_delta grids/plots are the only places that
-    convert to feet, NAVG88 datum (via common_twl.m_igld85_to_ft_navg88), since they are
+    convert to feet, NAVD88 datum (via common_twl.m_igld85_to_ft_NAVD88), since they are
     the only outputs of this script that represent a water level rather than a
     metric_mode value (portion/percentage/return_period), which has no elevation units
     to convert.
@@ -782,12 +888,13 @@ def build_resource_outputs(
     xs, ys, zs = build_grid(scenario_names, metric_values)
 
     output_folder = resolve_output_folder(resource, config)
-    grid_path = output_folder / f"{resource.qualified_name}_grid.csv"
-    plot_path = output_folder / f"{resource.qualified_name}_plot.png"
-    elev_grid_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_grid.csv"
-    elev_plot_path = output_folder / f"{resource.qualified_name}_equivalent_elevation_plot.png"
-    delta_grid_path = output_folder / f"{resource.qualified_name}_elevation_delta_grid.csv"
-    delta_plot_path = output_folder / f"{resource.qualified_name}_elevation_delta_plot.png"
+    stem = resolve_output_stem(resource, config)
+    grid_path = output_folder / f"{stem}_grid.csv"
+    plot_path = output_folder / f"{stem}_plot.png"
+    elev_grid_path = output_folder / f"{stem}_equivalent_elevation_grid.csv"
+    elev_plot_path = output_folder / f"{stem}_equivalent_elevation_plot.png"
+    delta_grid_path = output_folder / f"{stem}_elevation_delta_grid.csv"
+    delta_plot_path = output_folder / f"{stem}_elevation_delta_plot.png"
 
     compute_elevation = resource.equivalent_elevation is not None
     targets = [grid_path, plot_path]
@@ -806,40 +913,58 @@ def build_resource_outputs(
     color_map = _resolve_color_map(
         config.plot_color_map, resource.success_pattern, MetricMode(config.metric_mode)
     )
+    primary_extra: dict[str, Any] = {}
+    if resource.threshold is not None:
+        primary_z_range = (float(np.nanmin(zs)), float(np.nanmax(zs)))
+        primary_style = common_twl.one_sided_color_style(primary_z_range, resource.threshold)
+        if primary_style is not None:
+            color_map = primary_style[0]
+            primary_extra = dict(
+                norm=primary_style[1], levels=primary_style[2], widths=primary_style[3]
+            )
     plot_fn(
         xs, ys, zs,
         interpolate=config.plot_interpolate,
         labels=("Precipitation Delta (%)", "Temperature Delta (C)", config.metric_mode),
-        title=resource.qualified_name,
+        title=resolve_plot_title("primary", resource, config),
         save_path=plot_path,
         show=False,
         threshold=resource.threshold,
         color_map=color_map,
         color_map_ticks=config.plot_color_map_ticks,
         fillin=config.fillin,
+        **primary_extra,
     )
 
     if compute_elevation:
         elev_values_m = compute_equivalent_elevation_metrics(resource, twl_path)
         elev_values_ft = {
-            suffix: _m_igld85_to_ft_navg88(value) for suffix, value in elev_values_m.items()
+            suffix: _m_igld85_to_ft_NAVD88(value) for suffix, value in elev_values_m.items()
         }
-        comparison_ft = _m_igld85_to_ft_navg88(resource.equivalent_elevation)
+        comparison_ft = _m_igld85_to_ft_NAVD88(resource.equivalent_elevation)
 
         elev_xs, elev_ys, elev_zs = build_grid(list(elev_values_ft.keys()), elev_values_ft)
         write_grid_csv(elev_xs, elev_ys, elev_zs, elev_grid_path)
+        elev_z_range = (float(np.nanmin(elev_zs)), float(np.nanmax(elev_zs)))
+        elev_levels, elev_widths = common_twl.rounded_levels(elev_z_range, comparison_ft)
+        elev_style = common_twl.one_sided_color_style(elev_z_range, comparison_ft)
+        elev_color_map = elev_style[0] if elev_style is not None else config.plot_color_map
+        elev_norm = elev_style[1] if elev_style is not None else None
         plot_fn(
             elev_xs, elev_ys, elev_zs,
             interpolate=config.plot_interpolate,
             labels=("Precipitation Delta (%)", "Temperature Delta (C)",
-                    "Equivalent Elevation (ft, NAVG88)"),
-            title=f"{resource.qualified_name}_equivalent_elevation",
+                    "Equivalent Elevation (ft, NAVD88)"),
+            title=resolve_plot_title("equivalent_elevation", resource, config),
             save_path=elev_plot_path,
             show=False,
             threshold=comparison_ft,
-            color_map=config.plot_color_map,
-            color_map_ticks=None,
+            color_map=elev_color_map,
+            color_map_ticks=elev_levels,
             fillin=config.fillin,
+            norm=elev_norm,
+            levels=elev_levels,
+            widths=elev_widths,
         )
 
         delta_values_ft = {
@@ -847,18 +972,26 @@ def build_resource_outputs(
         }
         delta_xs, delta_ys, delta_zs = build_grid(list(delta_values_ft.keys()), delta_values_ft)
         write_grid_csv(delta_xs, delta_ys, delta_zs, delta_grid_path)
+        delta_z_range = (float(np.nanmin(delta_zs)), float(np.nanmax(delta_zs)))
+        delta_levels, delta_widths = common_twl.symmetric_delta_levels(delta_z_range)
+        delta_style = common_twl.one_sided_color_style(delta_z_range, 0.0)
+        delta_color_map = delta_style[0] if delta_style is not None else config.plot_color_map
+        delta_norm = delta_style[1] if delta_style is not None else None
         plot_fn(
             delta_xs, delta_ys, delta_zs,
             interpolate=config.plot_interpolate,
             labels=("Precipitation Delta (%)", "Temperature Delta (C)",
-                    "Elevation Delta (ft, NAVG88)"),
-            title=f"{resource.qualified_name}_elevation_delta",
+                    "Elevation Delta (ft, NAVD88)"),
+            title=resolve_plot_title("elevation_delta", resource, config),
             save_path=delta_plot_path,
             show=False,
             threshold=0.0,
-            color_map=config.plot_color_map,
-            color_map_ticks=None,
+            color_map=delta_color_map,
+            color_map_ticks=delta_levels,
             fillin=config.fillin,
+            norm=delta_norm,
+            levels=delta_levels,
+            widths=delta_widths,
         )
 
     return (grid_path, plot_path)
@@ -875,6 +1008,10 @@ class RowResult:
     component_name: str | None
     status: str  # "succeeded" | "failed"
     message: str | None = None
+    # Every output file path written for this row (empty for failed rows). Populated
+    # via resolve_all_output_paths; see write_results_workbook's "output location"
+    # column.
+    output_paths: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -937,8 +1074,11 @@ def run_batch(
     seen_targets: set[tuple[Path, str]] = set()
 
     def _finish(row_index: int, resource_name: str | None, component_name: str | None,
-               status: str, message: str | None = None) -> None:
-        results.append(RowResult(row_index, resource_name, component_name, status, message))
+               status: str, message: str | None = None,
+               output_paths: tuple[Path, ...] = ()) -> None:
+        results.append(
+            RowResult(row_index, resource_name, component_name, status, message, output_paths)
+        )
         progress(row_index, total_rows, resource_name, component_name, status)
 
     for row_index, raw_row in enumerate(raw_rows, start=1):
@@ -971,9 +1111,85 @@ def run_batch(
                    "failed", str(exc))
             continue
 
-        _finish(row_index, resource.resource_name, resource.component_name, "succeeded")
+        output_paths = tuple(resolve_all_output_paths(resource, config))
+        _finish(row_index, resource.resource_name, resource.component_name, "succeeded",
+               output_paths=output_paths)
 
+    _write_naming_readmes(results, config)
     return BatchSummary(results=results)
+
+
+def _write_naming_readmes(results: list[RowResult], config: BatchConfig) -> None:
+    """Write one README.txt per output_directory (config.output_directory itself,
+    regardless of subdirectory_structure -- the naming scheme is the same everywhere
+    under it) explaining config.filename_style's naming convention, when that style has
+    a dedicated convention worth documenting (see common_twl.naming_scheme_readme_text).
+    No-op for "qualified_name" (the generic, self-explanatory default) or if the batch
+    produced no successful rows.
+    """
+    if not any(r.status == "succeeded" for r in results):
+        return
+    try:
+        text = common_twl.naming_scheme_readme_text(config.filename_style)
+    except ValueError:
+        return
+    readme_path = Path(config.output_directory) / "README.txt"
+    readme_path.parent.mkdir(parents=True, exist_ok=True)
+    readme_path.write_text(text)
+
+
+# ---- results workbook (adds an "output location" column) --------------------------
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _output_location_cell(output_paths: Sequence[Path], workspace_root: Path) -> str:
+    """Semicolon-joined list of `output_paths`, each expressed relative to
+    `workspace_root` (falls back to the absolute path if a path isn't actually under
+    workspace_root, e.g. in ad-hoc/test scenarios).
+    """
+    labels = []
+    for path in output_paths:
+        resolved = Path(path).resolve()
+        try:
+            labels.append(str(resolved.relative_to(workspace_root)))
+        except ValueError:
+            labels.append(str(resolved))
+    return ";".join(labels)
+
+
+def write_results_workbook(
+    resources_path: Path,
+    summary: BatchSummary,
+    out_path: Path,
+    workspace_root: Path = WORKSPACE_ROOT,
+) -> Path:
+    """Write a new workbook (copy of resources_path's 'resources' and 'config' sheets)
+    with an extra 'output location' column on the resources sheet: one row per
+    resources-sheet row (aligned by position, matching summary.results' row order),
+    holding a ';'-joined list of every output file this row produced (empty string for
+    a failed row), each path expressed relative to `workspace_root` (defaults to the
+    hydropattern repo root).
+
+    Does not modify resources_path itself -- always writes a brand-new workbook at
+    out_path.
+    """
+    resources_df = pd.read_excel(resources_path, sheet_name="resources", engine="calamine")
+    config_df = pd.read_excel(resources_path, sheet_name="config", engine="calamine")
+
+    locations = [""] * len(resources_df)
+    for result in summary.results:
+        if 1 <= result.row_index <= len(locations):
+            locations[result.row_index - 1] = _output_location_cell(
+                result.output_paths, workspace_root
+            )
+    resources_df["output location"] = locations
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with pd.ExcelWriter(out_path) as writer:
+        resources_df.to_excel(writer, sheet_name="resources", index=False)
+        config_df.to_excel(writer, sheet_name="config", index=False)
+    return out_path
 
 
 # ---- CLI entry point --------------------------------------------------------------

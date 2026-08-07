@@ -66,13 +66,13 @@ MISSING = "__missing__"
 
 
 def compute_magnitude_ft(resource: "twl.ResourceSpec") -> float:
-    """Convert resource.magnitude_value (meters, IGLD85) to feet, NAVG88.
+    """Convert resource.magnitude_value (meters, IGLD85) to feet, NAVD88.
 
     Used for dashboard filtering/display, since the raw meters-IGLD85 value (and the
-    filename numbers derived from it) aren't a human-friendly/authoritative NAVG88
+    filename numbers derived from it) aren't a human-friendly/authoritative NAVD88
     elevation on their own -- see CONTEXT.md's "Equivalent elevation" definition.
     """
-    return common_twl.m_igld85_to_ft_navg88(resource.magnitude_value)
+    return common_twl.m_igld85_to_ft_NAVD88(resource.magnitude_value)
 
 
 def compute_equivalent_elevation_basis(row: dict[str, Any], resource: "twl.ResourceSpec") -> str | None:
@@ -81,7 +81,7 @@ def compute_equivalent_elevation_basis(row: dict[str, Any], resource: "twl.Resou
     None -> None (resource.equivalent_elevation is None; row has no
     equivalent_elevation/elevation_delta outputs). The raw resources-sheet cell
     (case-insensitive) equal to "baseline_magnitude" -> "baseline_magnitude". Anything
-    else (a numeric override) -> an explicit override label in ft, NAVG88 (e.g.
+    else (a numeric override) -> an explicit override label in ft, NAVD88 (e.g.
     "586.44 ft override"), converted from resource.equivalent_elevation (meters,
     IGLD85) -- see CONTEXT.md's "Equivalent-elevation basis" definition.
     """
@@ -90,7 +90,7 @@ def compute_equivalent_elevation_basis(row: dict[str, Any], resource: "twl.Resou
     raw = row.get("equivalent_elevation")
     if isinstance(raw, str) and raw.strip().lower() == _BASELINE_MAGNITUDE_KEYWORD:
         return _BASELINE_MAGNITUDE_KEYWORD
-    override_ft = common_twl.m_igld85_to_ft_navg88(resource.equivalent_elevation)
+    override_ft = common_twl.m_igld85_to_ft_NAVD88(resource.equivalent_elevation)
     return f"{override_ft:.2f} ft override"
 
 
@@ -112,6 +112,18 @@ class ManifestEntry:
     equivalent_elevation_basis: str | None
     qualified_name: str
     output_dir: Path
+    # On-disk file-name stem (no suffix), per the workbook's config.filename_style --
+    # equals qualified_name for "qualified_name" style (and always for avg entries,
+    # which have no filename_style concept) or common_twl.output_file_stem's ft-based
+    # stem for "elevation_runup_savepoint" style. resolve_files uses this (not
+    # qualified_name) to find each entry's actual output files.
+    file_stem: str
+    # The actual crest elevation being evaluated: magnitude_ft + this component's
+    # runup allowance (common_twl.RUNUP_FT_BY_COMPONENT), or just magnitude_ft for avg
+    # entries (no runup allowance concept there). Used by the dashboard's "Elevation
+    # (NAVD88)" picker instead of the raw magnitude_ft, since the runup allowance
+    # itself is already a separate picker ("Runup (ft)").
+    elevation_ft: float
 
 
 def build_entries(workbook_path: Path) -> list[ManifestEntry]:
@@ -127,6 +139,8 @@ def build_entries(workbook_path: Path) -> list[ManifestEntry]:
     for row in rows:
         resource = twl.parse_resource_row(row)
         output_dir = twl.resolve_output_folder(resource, config)
+        magnitude_ft = compute_magnitude_ft(resource)
+        runup_ft = common_twl.RUNUP_FT_BY_COMPONENT.get(resource.component_name, 0.0)
         entries.append(
             ManifestEntry(
                 workbook_path=workbook_path,
@@ -134,10 +148,12 @@ def build_entries(workbook_path: Path) -> list[ManifestEntry]:
                 resource_name=resource.resource_name,
                 component_name=resource.component_name,
                 save_point_id=resource.save_point_id,
-                magnitude_ft=compute_magnitude_ft(resource),
+                magnitude_ft=magnitude_ft,
                 equivalent_elevation_basis=compute_equivalent_elevation_basis(row, resource),
                 qualified_name=resource.qualified_name,
                 output_dir=output_dir,
+                file_stem=twl.resolve_output_stem(resource, config),
+                elevation_ft=magnitude_ft + runup_ft,
             )
         )
     return entries
@@ -165,6 +181,7 @@ def build_avg_entries(workbook_path: Path) -> list[ManifestEntry]:
             )
         output_dir = avg.resolve_output_folder(resource, config)
         magnitude_value = resource.magnitude[1]
+        magnitude_ft = common_twl.m_igld85_to_ft_NAVD88(magnitude_value)
         entries.append(
             ManifestEntry(
                 workbook_path=workbook_path,
@@ -172,10 +189,12 @@ def build_avg_entries(workbook_path: Path) -> list[ManifestEntry]:
                 resource_name=resource.resource_name,
                 component_name=resource.component_name,
                 save_point_id=None,
-                magnitude_ft=common_twl.m_igld85_to_ft_navg88(magnitude_value),
+                magnitude_ft=magnitude_ft,
                 equivalent_elevation_basis=None,
                 qualified_name=resource.qualified_name,
                 output_dir=output_dir,
+                file_stem=resource.qualified_name,
+                elevation_ft=magnitude_ft,
             )
         )
     return entries
@@ -197,7 +216,7 @@ def resolve_files(entry: ManifestEntry) -> dict[str, Path | None | str]:
         if kind in _EQUIVALENT_ELEVATION_KINDS and entry.equivalent_elevation_basis is None:
             files[kind] = None
             continue
-        path = entry.output_dir / f"{entry.qualified_name}{suffix}"
+        path = entry.output_dir / f"{entry.file_stem}{suffix}"
         if not path.exists():
             if kind in _PRIMARY_KINDS:
                 files[kind] = MISSING
@@ -299,6 +318,7 @@ def build_manifest(entries: list[ManifestEntry], dashboard_dir: Path) -> dict[st
                 "component_name": entry.component_name,
                 "save_point_id": entry.save_point_id,
                 "magnitude_ft": round(entry.magnitude_ft, 2),
+                "elevation_ft": round(entry.elevation_ft, 2),
                 "equivalent_elevation_basis": entry.equivalent_elevation_basis,
                 "qualified_name": entry.qualified_name,
                 "files": file_entries,
@@ -321,7 +341,7 @@ _DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Longtail Point TWL results dashboard</title>
+<title>Long Tail Point Dashboard</title>
 <script src="manifest.js"></script>
 <style>
   body { font-family: sans-serif; margin: 1.5rem; }
@@ -338,23 +358,23 @@ _DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>Longtail Point TWL results dashboard</h1>
+<h1>Long Tail Point Dashboard</h1>
 
 <div class="filters">
-  <label>Analysis type
+  <label>Water Level Type
     <select id="analysis-select"></select>
+  </label>
+  <label>Analysis
+    <select id="metric-select">
+      <option value="primary">Return Interval</option>
+      <option value="equivalent_elevation" class="twl-only">Equivalent Elevation</option>
+      <option value="elevation_delta" class="twl-only">Elevation Delta</option>
+    </select>
   </label>
   <label>Form
     <select id="form-select">
       <option value="plot">Plot</option>
       <option value="grid">Grid</option>
-    </select>
-  </label>
-  <label>Metric
-    <select id="metric-select">
-      <option value="primary">Primary metric</option>
-      <option value="equivalent_elevation" class="twl-only">Equivalent elevation</option>
-      <option value="elevation_delta" class="twl-only">Elevation delta</option>
     </select>
   </label>
 </div>
@@ -365,15 +385,14 @@ _DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
 <div class="panels">
   <div class="panel-column">
-    <h2>Selection A</h2>
     <div class="filters">
       <label id="save-point-wrap">Save point
         <select id="save-point-select"></select>
       </label>
-      <label>Magnitude (ft, NAVG88)
+      <label>Elevation (NAVD88)
         <select id="magnitude-select"></select>
       </label>
-      <label id="runup-wrap">Runup allowance
+      <label id="runup-wrap">Runup (ft)
         <select id="runup-select"></select>
       </label>
       <label id="basis-wrap">Equivalent-elevation basis
@@ -383,15 +402,14 @@ _DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="panel" id="panel-a"></div>
   </div>
   <div class="panel-column" id="panel-b-column" style="display:none">
-    <h2>Selection B</h2>
     <div class="filters">
       <label id="save-point-wrap-b">Save point
         <select id="save-point-select-b"></select>
       </label>
-      <label>Magnitude (ft, NAVG88)
+      <label>Elevation (NAVD88)
         <select id="magnitude-select-b"></select>
       </label>
-      <label id="runup-wrap-b">Runup allowance
+      <label id="runup-wrap-b">Runup (ft)
         <select id="runup-select-b"></select>
       </label>
       <label id="basis-wrap-b">Equivalent-elevation basis
@@ -432,7 +450,7 @@ function currentFilters(suffix) {
   return {
     analysis_type: document.getElementById("analysis-select").value,
     save_point_id: document.getElementById(`save-point-select${suffix}`).value,
-    magnitude_ft: document.getElementById(`magnitude-select${suffix}`).value,
+    elevation_ft: document.getElementById(`magnitude-select${suffix}`).value,
     component_name: document.getElementById(`runup-select${suffix}`).value,
     equivalent_elevation_basis: document.getElementById(`basis-select${suffix}`).value,
   };
@@ -448,7 +466,7 @@ function entriesForAnalysisType(analysisType) {
 // picker sets used in compare mode.
 const FACET_FIELDS = [
   { field: "save_point_id", selectIdBase: "save-point-select" },
-  { field: "magnitude_ft", selectIdBase: "magnitude-select" },
+  { field: "elevation_ft", selectIdBase: "magnitude-select" },
   { field: "component_name", selectIdBase: "runup-select" },
   { field: "equivalent_elevation_basis", selectIdBase: "basis-select" },
 ];
@@ -510,7 +528,7 @@ function findEntry(filters) {
     (e) =>
       e.analysis_type === filters.analysis_type &&
       String(e.save_point_id) === filters.save_point_id &&
-      String(e.magnitude_ft) === filters.magnitude_ft &&
+      String(e.elevation_ft) === filters.elevation_ft &&
       e.component_name === filters.component_name &&
       String(e.equivalent_elevation_basis) === filters.equivalent_elevation_basis
   );
@@ -524,9 +542,6 @@ function renderPanel(panelEl, entry, form, metric) {
   }
   const kind = KIND_BY_FORM_METRIC[`${form},${metric}`];
   const file = entry.files[kind];
-  const title = document.createElement("h3");
-  title.textContent = entry.qualified_name;
-  panelEl.appendChild(title);
   if (!file) {
     panelEl.appendChild(document.createTextNode("Not available for this row."));
     return;
