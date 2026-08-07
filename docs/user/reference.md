@@ -344,8 +344,8 @@ response-surface plot per component, using scenario results as the z-axis. This 
 timeseries's scenario columns (excluding the trailing `dowy` column) to encode a **scenario
 grid**: each scenario column name must follow the `_<precip_delta>_<temp_delta>` convention
 (e.g. `_0_1.5` → precipitation delta 0%, temperature delta 1.5°C), with at least two
-distinct values on each axis. See `examples/great_lakes/example_1.toml` /
-`examples/great_lakes/superior.xlsx` for a worked example.
+distinct values on each axis. See `tests/test_scenario_grid.py` /
+`tests/test_files/cli_smoke_grid_input.csv` for a worked example.
 
 For each component, `--plot` writes two files to the run's output directory:
 

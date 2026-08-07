@@ -228,34 +228,7 @@ Data_comparing/
 frio/
 Luvuvhu/
 
-# Great Lakes example (examples/great_lakes/): expose top-level scripts/docs plus the
-# templates/, data/, and docs/ subdirectories only (manual_tests/ and __pycache__/ stay
-# ignored via the catch-all below). Within data/, raw/ is script-only (its data files
-# are too bulky/regenerable to commit); clean/ and filled/ are small enough to commit
-# in full.
-examples/great_lakes/*
-!examples/great_lakes/*.py
-!examples/great_lakes/*.md
-!examples/great_lakes/templates/
-!examples/great_lakes/data/
-!examples/great_lakes/docs/
-
-# longtailpoint/ is a user's real-data working folder: track the .xlsx input
-# workbooks (small, needed to reproduce results) plus the dashboard viewer files
-# (dashboard.html/manifest.js -- small, needed to browse results without re-running
-# anything). The bulky generated batch outputs (batch_*_output/: _grid.csv/_plot.png
-# per resource row) stay untracked/regenerable.
-!examples/great_lakes/longtailpoint/
-examples/great_lakes/longtailpoint/*
-!examples/great_lakes/longtailpoint/*.xlsx
-!examples/great_lakes/longtailpoint/dashboard.html
-!examples/great_lakes/longtailpoint/manifest.js
-examples/great_lakes/longtailpoint/~$*
-
-examples/great_lakes/data/raw/*
-!examples/great_lakes/data/raw/*.py
 *.code-workspace
 
 README.html
 README_files/
-examples/great_lakes/data/analysis/twl/known_scenario_directionality.csv
