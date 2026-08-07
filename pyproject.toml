@@ -1,6 +1,6 @@
 [project]
 name = "hydropattern"
-version = "0.0.0"
+version = "0.1.0"
 description = "A python command line application and package that finds natural flow regime like patterns in time series data."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -9,7 +9,7 @@ authors = [
 	{ name = "John Kucharski", email = "johnkucharski@gmail.com" },
 ]
 dependencies = [
-	"climate-canvas @ git+https://github.com/JohnRushKucharski/climate-canvas.git",
+	"climate-canvas>=0.1.0,<0.2.0",
 	"numpy>=2.0.1,<3.0.0",
 	"pandas>=2.2.2,<3.0.0",
 	"matplotlib>=3.9.2,<4.0.0",
@@ -42,9 +42,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["hydropattern"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.ruff]
 target-version = "py312"

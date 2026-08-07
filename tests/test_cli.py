@@ -1,6 +1,7 @@
 '''Tests for CLI module functionality.'''
 # pylint: disable=line-too-long
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,6 +25,16 @@ from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOpt
 from hydropattern.patterns import Component, Result
 
 RUNNER = CliRunner()
+
+_ANSI_ESCAPE_RE = re.compile(r'\x1b\[[0-9;]*m')
+
+
+def _strip_ansi(text: str) -> str:
+    '''Remove ANSI color/style escape codes so substring checks are
+    terminal-color-agnostic. Rich colorizes --help output character-by-
+    character in some environments (e.g. CI), which can split option names
+    like '--threshold' with escape codes between the two leading dashes.'''
+    return _ANSI_ESCAPE_RE.sub('', text)
 
 
 class TestCLI(unittest.TestCase):
@@ -248,12 +259,13 @@ class TestCLICommand(unittest.TestCase):
     def test_run_help_includes_new_climate_canvas_options(self):
         '''Run help exposes the new response-surface tuning CLI options.'''
         result = RUNNER.invoke(app, ['run', '--help'])
+        stdout = _strip_ansi(result.stdout)
 
         self.assertEqual(result.exit_code, 0, msg=result.stdout)
-        self.assertIn('--threshold', result.stdout)
-        self.assertIn('--color-map', result.stdout)
-        self.assertIn('--color-map-ticks', result.stdout)
-        self.assertIn('--fillin', result.stdout)
+        self.assertIn('--threshold', stdout)
+        self.assertIn('--color-map', stdout)
+        self.assertIn('--color-map-ticks', stdout)
+        self.assertIn('--fillin', stdout)
 
     def test_run_help_groups_options_into_rich_help_panels(self):
         '''Output-related and climate-canvas-plot-related options are grouped into
