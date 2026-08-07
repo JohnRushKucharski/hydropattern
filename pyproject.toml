@@ -40,9 +40,6 @@ dev = [
 requires = ["hatchling>=1.24.0"]
 build-backend = "hatchling.build"
 
-[tool.uv.sources]
-climate-canvas = { path = "../climate-canvas", editable = true }
-
 [tool.hatch.build.targets.wheel]
 packages = ["hydropattern"]
 
