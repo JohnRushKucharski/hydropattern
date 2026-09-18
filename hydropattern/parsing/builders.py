@@ -39,6 +39,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     timing_window_fx = getattr(parsers_module, 'timing_window_fx')
     magnitude_parser = getattr(parsers_module, 'magnitude_parser')
     duration_parser = getattr(parsers_module, 'duration_parser')
+    rate_of_change_parser = getattr(parsers_module, 'rate_of_change_parser')
 
     label = spec.type.name.lower()
     match spec.type:
@@ -68,19 +69,20 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
             )
             return duration_parser(metrics, order=spec.order)
         case characteristic_type.RATE_OF_CHANGE:
-            if spec.operator is None:
-                comp_fx = patterns.comparison_fx('<', spec.values[0], '<', spec.values[1])
-                name = f'{label}_{spec.values[0]}-{spec.values[1]}'
-            else:
-                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
-                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
-            return patterns.Characteristic(
-                name=name,
-                fx=patterns.rate_of_change_fx(
-                    comp_fx, spec.order, spec.ma_periods, spec.look_back, spec.min_val
-                ),
-                type=spec.type,
+            # Reuse parsers.rate_of_change_parser (single source of truth for
+            # rate_of_change name/fx construction) instead of reimplementing it here.
+            metrics = (
+                [spec.values[0], spec.values[1]] if spec.operator is None
+                else [spec.operator, spec.values[0]]
             )
+            # ma_periods/look_back/min_val are positional; only trailing defaults
+            # can be omitted, any non-default value requires its predecessors too.
+            optional_args = [spec.ma_periods, spec.look_back, spec.min_val]
+            defaults = [1, 1, 0.0]
+            while optional_args and optional_args[-1] == defaults[len(optional_args) - 1]:
+                optional_args.pop()
+            metrics.extend(optional_args)
+            return rate_of_change_parser(metrics, order=spec.order)
         case characteristic_type.FREQUENCY:
             if spec.is_nested:
                 raise ValueError(
