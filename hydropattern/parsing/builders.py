@@ -5,6 +5,7 @@ from typing import Any
 
 from hydropattern import patterns
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.parsers import nested_frequency_parser
 
 
 def _validate_frequency_position(spec: Any) -> None:
@@ -40,6 +41,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     magnitude_parser = getattr(parsers_module, 'magnitude_parser')
     duration_parser = getattr(parsers_module, 'duration_parser')
     rate_of_change_parser = getattr(parsers_module, 'rate_of_change_parser')
+    frequency_parser = getattr(parsers_module, 'frequency_parser')
 
     label = spec.type.name.lower()
     match spec.type:
@@ -88,29 +90,29 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
                     'Nested frequency specs must be built via _build_nested_frequency_characteristics, '
                     'not _build_characteristic (which only produces a single Characteristic).'
                 )
-            marker = '(event)' if spec.event_bool else '(timestep)'
-            if spec.operator is None:
-                # BETWEEN form: [min_n, max_n, N], inclusive bounds (see ADR 0001).
-                comp_fx = patterns.comparison_fx(
-                    '<=', spec.values[0], '<=', spec.values[1]
-                )
-                name = f'{label}_{spec.values[0]}-{spec.values[1]}in{spec.big_n}{marker}'
-            elif spec.big_n is None:
-                # PROBABILITY form: [operator, probability].
+            if spec.operator is not None and spec.big_n is None:
+                # PROBABILITY form: [operator, probability]. Un-nested probability specs
+                # are rejected upstream in requests.py's validate_frequency_metrics call
+                # (see parsers.py), so this branch is unreachable via the public parsing
+                # seam; kept only as defensive fallback, not delegated to frequency_parser
+                # (which would reject it without allow_probability=True).
+                marker = '(event)' if spec.event_bool else '(timestep)'
                 comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
                 name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}{marker}'
-            else:
-                # COUNT form: [operator, n, N].
-                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
-                name = (
-                    f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
-                    f'in{spec.big_n}{marker}'
+                return patterns.Characteristic(
+                    name=name,
+                    fx=patterns.frequency_fx(comp_fx, spec.order, spec.big_n, spec.event_bool),
+                    type=spec.type,
                 )
-            return patterns.Characteristic(
-                name=name,
-                fx=patterns.frequency_fx(comp_fx, spec.order, spec.big_n, spec.event_bool),
-                type=spec.type,
+            # Reuse parsers.frequency_parser (single source of truth for frequency
+            # name/fx construction) instead of reimplementing it here.
+            metrics = (
+                [spec.values[0], spec.values[1], spec.big_n] if spec.operator is None
+                else [spec.operator, spec.values[0], spec.big_n]
             )
+            if not spec.event_bool:
+                metrics.append(spec.event_bool)
+            return frequency_parser(metrics, order=spec.order)
     raise ValueError(f'Unknown characteristic type: {spec.type}')  # unreachable
 
 
@@ -119,8 +121,6 @@ def _build_nested_frequency_characteristics(spec: Any) -> list[patterns.Characte
     Characteristics via parsers.nested_frequency_parser (reuses the same
     validation/comparison-building logic the parsing-seam already ran).
     '''
-    parsers_module = import_module('hydropattern.parsers')
-    nested_frequency_parser = getattr(parsers_module, 'nested_frequency_parser')
     base_metrics: list[Any] = (
         [spec.operator, *spec.values]
         if spec.operator is not None else list(spec.values)
