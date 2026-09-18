@@ -38,6 +38,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     symbol_to_string = getattr(parsers_module, 'symbol_to_string')
     timing_window_fx = getattr(parsers_module, 'timing_window_fx')
     magnitude_parser = getattr(parsers_module, 'magnitude_parser')
+    duration_parser = getattr(parsers_module, 'duration_parser')
 
     label = spec.type.name.lower()
     match spec.type:
@@ -59,17 +60,13 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
                 metrics.append(spec.ma_periods)
             return magnitude_parser(metrics, order=spec.order)
         case characteristic_type.DURATION:
-            if spec.operator is None:
-                comp_fx = patterns.comparison_fx('<', spec.values[0], '>', spec.values[1])
-                name = f'{label}_{spec.values[0]}-{spec.values[1]}'
-            else:
-                comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
-                name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}'
-            return patterns.Characteristic(
-                name=name,
-                fx=patterns.duration_fx(comp_fx, spec.order),
-                type=spec.type,
+            # Reuse parsers.duration_parser (single source of truth for
+            # duration name/fx construction) instead of reimplementing it here.
+            metrics = (
+                [spec.values[0], spec.values[1]] if spec.operator is None
+                else [spec.operator, spec.values[0]]
             )
+            return duration_parser(metrics, order=spec.order)
         case characteristic_type.RATE_OF_CHANGE:
             if spec.operator is None:
                 comp_fx = patterns.comparison_fx('<', spec.values[0], '<', spec.values[1])
