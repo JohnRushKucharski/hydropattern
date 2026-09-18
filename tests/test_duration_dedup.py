@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from hydropattern import parsers
+from hydropattern.parsing import builders
 from hydropattern.parsing.builders import build_components
 
 
@@ -16,7 +17,7 @@ class TestDurationDelegatesToDurationParser(unittest.TestCase):
             {'comp': {'magnitude': ['>', 5.0], 'duration': ['>', 1]}}
         )
         sentinel = parsers.duration_parser(['>', 1], order=2)
-        with patch.object(parsers, 'duration_parser', return_value=sentinel) as mock_parser:
+        with patch.object(builders, 'duration_parser', return_value=sentinel) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with(['>', 1], order=2)
         self.assertIs(components[0].characteristics[1], sentinel)
@@ -26,7 +27,7 @@ class TestDurationDelegatesToDurationParser(unittest.TestCase):
             {'comp': {'magnitude': ['>', 5.0], 'duration': [1, 5]}}
         )
         sentinel = parsers.duration_parser([1, 5], order=2)
-        with patch.object(parsers, 'duration_parser', return_value=sentinel) as mock_parser:
+        with patch.object(builders, 'duration_parser', return_value=sentinel) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with([1, 5], order=2)
         self.assertIs(components[0].characteristics[1], sentinel)
@@ -34,3 +35,4 @@ class TestDurationDelegatesToDurationParser(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

@@ -19,7 +19,7 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
             name='sentinel', fx=lambda df, output: df, type=patterns.CharacteristicType.FREQUENCY
         )
         with patch.object(
-            parsers, 'frequency_parser', return_value=sentinel
+            builders, 'frequency_parser', return_value=sentinel
         ) as mock_parser:
             request = parse_request({'comp': {'magnitude': ['>', 5.0], 'frequency': ['>', 1, 3]}})
             components = build_components(request)
@@ -32,7 +32,7 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
             name='sentinel', fx=lambda df, output: df, type=patterns.CharacteristicType.FREQUENCY
         )
         with patch.object(
-            parsers, 'frequency_parser', return_value=sentinel
+            builders, 'frequency_parser', return_value=sentinel
         ) as mock_parser:
             request = parse_request({'comp': {'magnitude': ['>', 5.0], 'frequency': [1, 3, 5]}})
             components = build_components(request)
@@ -45,7 +45,7 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
             name='sentinel', fx=lambda df, output: df, type=patterns.CharacteristicType.FREQUENCY
         )
         with patch.object(
-            parsers, 'frequency_parser', return_value=sentinel
+            builders, 'frequency_parser', return_value=sentinel
         ) as mock_parser:
             request = parse_request(
                 {'comp': {'magnitude': ['>', 5.0], 'frequency': ['>', 1, 3, False]}}
@@ -80,3 +80,4 @@ class TestNestedFrequencyDelegatesToNestedFrequencyParser(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

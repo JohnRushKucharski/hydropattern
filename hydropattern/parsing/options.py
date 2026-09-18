@@ -1,20 +1,23 @@
 '''Option parsing seam extracted from hydropattern.parsers.'''
 
 from dataclasses import replace
-from importlib import import_module
 from typing import Any
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.parsing.specs import (
+    ClimateCanvasPlotOptions,
+    MetricMode,
+    MetricOptions,
+    OutputOptions,
+    PlotOptions,
+)
 
 
-def parse_metric_options(section: Any = None, section_name: str = 'metric') -> Any:
+def parse_metric_options(section: Any = None, section_name: str = 'metric') -> MetricOptions:
     '''Parse an already-extracted metric options section into MetricOptions.'''
-    parsers_module = import_module('hydropattern.parsers')
-    metric_mode_enum = getattr(parsers_module, 'MetricMode')
-    metric_options_cls = getattr(parsers_module, 'MetricOptions')
-    valid_metric_modes: frozenset[str] = frozenset(m.value for m in metric_mode_enum)
+    valid_metric_modes: frozenset[str] = frozenset(m.value for m in MetricMode)
     if section is None:
-        return metric_options_cls()
+        return MetricOptions()
     if not isinstance(section, dict):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
@@ -22,7 +25,7 @@ def parse_metric_options(section: Any = None, section_name: str = 'metric') -> A
             section=section_name,
         )
 
-    mode = metric_mode_enum.PORTION
+    mode = MetricMode.PORTION
     for key, value in section.items():
         match key:
             case 'mode':
@@ -35,7 +38,7 @@ def parse_metric_options(section: Any = None, section_name: str = 'metric') -> A
                         field='mode',
                         value=value,
                     )
-                mode = metric_mode_enum(value)
+                mode = MetricMode(value)
             case _:
                 raise_parser_error(
                     ParserErrorCode.UNKNOWN_OPTION,
@@ -43,7 +46,7 @@ def parse_metric_options(section: Any = None, section_name: str = 'metric') -> A
                     section=section_name,
                     field=key,
                 )
-    return metric_options_cls(mode=mode)
+    return MetricOptions(mode=mode)
 
 
 def _require_type(value: Any, expected: type | tuple[type, ...], section: str, field_name: str,
@@ -59,15 +62,11 @@ def _require_type(value: Any, expected: type | tuple[type, ...], section: str, f
         )
 
 
-def parse_climate_canvas_plot_options(section: Any = None) -> Any:
+def parse_climate_canvas_plot_options(section: Any = None) -> ClimateCanvasPlotOptions:
     '''Parse optional [output.plot.climate-canvas] section into ClimateCanvasPlotOptions.'''
     name = 'output.plot.climate-canvas'
-    climate_canvas_plot_options_cls = getattr(
-        import_module('hydropattern.parsers'),
-        'ClimateCanvasPlotOptions',
-    )
     if section is None:
-        return climate_canvas_plot_options_cls()
+        return ClimateCanvasPlotOptions()
     if not isinstance(section, dict):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
@@ -75,7 +74,7 @@ def parse_climate_canvas_plot_options(section: Any = None) -> Any:
             section=name,
         )
 
-    opts = climate_canvas_plot_options_cls()
+    opts = ClimateCanvasPlotOptions()
     for key, value in section.items():
         match key:
             case 'interpolate':
@@ -120,14 +119,11 @@ def parse_climate_canvas_plot_options(section: Any = None) -> Any:
     return opts
 
 
-def parse_plot_options(section: Any = None) -> Any:
+def parse_plot_options(section: Any = None) -> PlotOptions:
     '''Parse optional [output.plot] section into PlotOptions.'''
     name = 'output.plot'
-    parsers_module = import_module('hydropattern.parsers')
-    plot_options_cls = getattr(parsers_module, 'PlotOptions')
-    climate_canvas_plot_options_cls = getattr(parsers_module, 'ClimateCanvasPlotOptions')
     if section is None:
-        return plot_options_cls()
+        return PlotOptions()
     if not isinstance(section, dict):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
@@ -136,7 +132,7 @@ def parse_plot_options(section: Any = None) -> Any:
         )
 
     enabled = False
-    climate_canvas = climate_canvas_plot_options_cls()
+    climate_canvas = ClimateCanvasPlotOptions()
     for key, value in section.items():
         match key:
             case 'enabled':
@@ -151,18 +147,14 @@ def parse_plot_options(section: Any = None) -> Any:
                     section=name,
                     field=key,
                 )
-    return plot_options_cls(enabled=enabled, climate_canvas=climate_canvas)
+    return PlotOptions(enabled=enabled, climate_canvas=climate_canvas)
 
 
-def parse_output_options(data: dict[str, Any]) -> Any:
+def parse_output_options(data: dict[str, Any]) -> OutputOptions:
     '''Parse optional top-level [output] section into OutputOptions.'''
     name = 'output'
-    parsers_module = import_module('hydropattern.parsers')
-    output_options_cls = getattr(parsers_module, 'OutputOptions')
-    metric_options_cls = getattr(parsers_module, 'MetricOptions')
-    plot_options_cls = getattr(parsers_module, 'PlotOptions')
     if name not in data:
-        return output_options_cls()
+        return OutputOptions()
     section = data[name]
     if not isinstance(section, dict):
         raise_parser_error(
@@ -174,8 +166,8 @@ def parse_output_options(data: dict[str, Any]) -> Any:
     directory: str | None = None
     overwrite = True
     excel = True
-    metric = metric_options_cls()
-    plot = plot_options_cls()
+    metric = MetricOptions()
+    plot = PlotOptions()
     for key, value in section.items():
         match key:
             case 'directory':
@@ -198,7 +190,7 @@ def parse_output_options(data: dict[str, Any]) -> Any:
                     section=name,
                     field=key,
                 )
-    return output_options_cls(
+    return OutputOptions(
         directory=directory, overwrite=overwrite, excel=excel, metric=metric, plot=plot,
     )
 

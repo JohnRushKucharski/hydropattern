@@ -1,12 +1,12 @@
 '''Timeseries section parsing seam extracted from hydropattern.parsers.'''
 
-from importlib import import_module
 from typing import Any
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.parsing.specs import TimeseriesSpec
 
 
-def parse_timeseries_spec(data: dict[str, Any]) -> Any:
+def parse_timeseries_spec(data: dict[str, Any]) -> TimeseriesSpec:
     '''Parse required top-level [timeseries] section into a TimeseriesSpec.'''
     if 'timeseries' not in data:
         raise_parser_error(
@@ -22,8 +22,7 @@ def parse_timeseries_spec(data: dict[str, Any]) -> Any:
             section='timeseries',
             field='path',
         )
-    timeseries_spec_cls = getattr(import_module('hydropattern.parsers'), 'TimeseriesSpec')
-    return timeseries_spec_cls(
+    return TimeseriesSpec(
         path=section['path'],
         first_day_of_water_year=section.get('first_day_of_water_year', 1),
         date_format=section.get('date_format', ''),

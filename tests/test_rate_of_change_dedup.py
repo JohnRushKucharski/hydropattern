@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from hydropattern import parsers
+from hydropattern.parsing import builders
 from hydropattern.parsing.builders import build_components
 
 
@@ -15,7 +16,7 @@ class TestRateOfChangeDelegatesToRateOfChangeParser(unittest.TestCase):
         request = parsers.parse_request({'comp': {'rate_of_change': ['>', 0.5]}})
         sentinel = parsers.rate_of_change_parser(['>', 0.5], order=1)
         with patch.object(
-            parsers, 'rate_of_change_parser', return_value=sentinel
+            builders, 'rate_of_change_parser', return_value=sentinel
         ) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with(['>', 0.5], order=1)
@@ -25,7 +26,7 @@ class TestRateOfChangeDelegatesToRateOfChangeParser(unittest.TestCase):
         request = parsers.parse_request({'comp': {'rate_of_change': [0.5, 2.0]}})
         sentinel = parsers.rate_of_change_parser([0.5, 2.0], order=1)
         with patch.object(
-            parsers, 'rate_of_change_parser', return_value=sentinel
+            builders, 'rate_of_change_parser', return_value=sentinel
         ) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with([0.5, 2.0], order=1)
@@ -35,7 +36,7 @@ class TestRateOfChangeDelegatesToRateOfChangeParser(unittest.TestCase):
         request = parsers.parse_request({'comp': {'rate_of_change': ['>', 0.5, 3]}})
         sentinel = parsers.rate_of_change_parser(['>', 0.5, 3], order=1)
         with patch.object(
-            parsers, 'rate_of_change_parser', return_value=sentinel
+            builders, 'rate_of_change_parser', return_value=sentinel
         ) as mock_parser:
             build_components(request)
         mock_parser.assert_called_once_with(['>', 0.5, 3], order=1)
@@ -44,7 +45,7 @@ class TestRateOfChangeDelegatesToRateOfChangeParser(unittest.TestCase):
         request = parsers.parse_request({'comp': {'rate_of_change': ['>', 0.5, 1, 1, 0.2]}})
         sentinel = parsers.rate_of_change_parser(['>', 0.5, 1, 1, 0.2], order=1)
         with patch.object(
-            parsers, 'rate_of_change_parser', return_value=sentinel
+            builders, 'rate_of_change_parser', return_value=sentinel
         ) as mock_parser:
             build_components(request)
         mock_parser.assert_called_once_with(['>', 0.5, 1, 1, 0.2], order=1)
@@ -52,3 +53,5 @@ class TestRateOfChangeDelegatesToRateOfChangeParser(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
