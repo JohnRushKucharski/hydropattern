@@ -36,7 +36,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     parsers_module = import_module('hydropattern.parsers')
     characteristic_type = getattr(parsers_module, 'CharacteristicType')
     symbol_to_string = getattr(parsers_module, 'symbol_to_string')
-    timing_window_fx = getattr(parsers_module, 'timing_window_fx')
+    timing_parser = getattr(parsers_module, 'timing_parser')
     magnitude_parser = getattr(parsers_module, 'magnitude_parser')
     duration_parser = getattr(parsers_module, 'duration_parser')
     rate_of_change_parser = getattr(parsers_module, 'rate_of_change_parser')
@@ -44,11 +44,10 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     label = spec.type.name.lower()
     match spec.type:
         case characteristic_type.TIMING:
-            first, last = int(spec.values[0]), int(spec.values[1])
-            return patterns.Characteristic(
-                name=f'{label}_{first}-{last}',
-                fx=patterns.timing_fx(timing_window_fx(first, last), spec.order),
-                type=spec.type,
+            # Reuse parsers.timing_parser (single source of truth for
+            # timing name/fx construction) instead of reimplementing it here.
+            return timing_parser(
+                [int(spec.values[0]), int(spec.values[1])], order=spec.order
             )
         case characteristic_type.MAGNITUDE:
             # Reuse parsers.magnitude_parser (single source of truth for
