@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from hydropattern import parsers
+from hydropattern.parsing import builders
 from hydropattern.parsing.builders import build_components
 
 
@@ -14,7 +15,7 @@ class TestTimingDelegatesToTimingParser(unittest.TestCase):
     def test_standard_window_delegates_to_timing_parser(self):
         request = parsers.parse_request({'comp': {'timing': [100, 200]}})
         sentinel = parsers.timing_parser([100, 200], order=1)
-        with patch.object(parsers, 'timing_parser', return_value=sentinel) as mock_parser:
+        with patch.object(builders, 'timing_parser', return_value=sentinel) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with([100, 200], order=1)
         self.assertIs(components[0].characteristics[0], sentinel)
@@ -22,7 +23,7 @@ class TestTimingDelegatesToTimingParser(unittest.TestCase):
     def test_wrap_around_window_delegates_to_timing_parser(self):
         request = parsers.parse_request({'comp': {'timing': [335, 60]}})
         sentinel = parsers.timing_parser([335, 60], order=1)
-        with patch.object(parsers, 'timing_parser', return_value=sentinel) as mock_parser:
+        with patch.object(builders, 'timing_parser', return_value=sentinel) as mock_parser:
             components = build_components(request)
         mock_parser.assert_called_once_with([335, 60], order=1)
         self.assertIs(components[0].characteristics[0], sentinel)

@@ -1,43 +1,47 @@
 '''Request normalization seam extracted from hydropattern.parsers.'''
 
-from importlib import import_module
 from typing import Any
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
+from hydropattern.parsing.characteristics import (
+    ComparisionType,
+    is_nested_frequency_shape,
+    validate_boolean,
+    validate_duration_metrics,
+    validate_frequency_metrics,
+    validate_magnitude_metrics,
+    validate_nested_frequency_metrics,
+    validate_rate_of_change_metrics,
+    validate_timing_metrics,
+    validate_verbose,
+)
+from hydropattern.parsing.specs import CharacteristicSpec, ComponentSpec, Request
+from hydropattern.patterns import CharacteristicType
 
 
-def _timing_spec(metrics: list[Any], order: int) -> Any:
-    parsers_module = import_module('hydropattern.parsers')
-    validate_timing_metrics = getattr(parsers_module, 'validate_timing_metrics')
-    characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
+def _timing_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     validate_timing_metrics(metrics)
-    return characteristic_spec_cls(
-        type=characteristic_type.TIMING,
+    return CharacteristicSpec(
+        type=CharacteristicType.TIMING,
         operator=None,
         values=(metrics[0], metrics[1]),
         order=order,
     )
 
 
-def _magnitude_spec(metrics: list[Any], order: int) -> Any:
-    parsers_module = import_module('hydropattern.parsers')
-    validate_magnitude_metrics = getattr(parsers_module, 'validate_magnitude_metrics')
-    characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
-    comparison_type = getattr(parsers_module, 'ComparisionType')
+def _magnitude_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     comp_type = validate_magnitude_metrics(metrics)
     ma_periods = metrics[2] if len(metrics) == 3 else 1
-    if comp_type == comparison_type.SIMPLE:
-        return characteristic_spec_cls(
-            type=characteristic_type.MAGNITUDE,
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.MAGNITUDE,
             operator=metrics[0],
             values=(metrics[1],),
             ma_periods=ma_periods,
             order=order,
         )
-    return characteristic_spec_cls(
-        type=characteristic_type.MAGNITUDE,
+    return CharacteristicSpec(
+        type=CharacteristicType.MAGNITUDE,
         operator=None,
         values=(metrics[0], metrics[1]),
         ma_periods=ma_periods,
@@ -45,41 +49,31 @@ def _magnitude_spec(metrics: list[Any], order: int) -> Any:
     )
 
 
-def _duration_spec(metrics: list[Any], order: int) -> Any:
-    parsers_module = import_module('hydropattern.parsers')
-    validate_duration_metrics = getattr(parsers_module, 'validate_duration_metrics')
-    characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
-    comparison_type = getattr(parsers_module, 'ComparisionType')
+def _duration_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     comp_type = validate_duration_metrics(metrics)
-    if comp_type == comparison_type.SIMPLE:
-        return characteristic_spec_cls(
-            type=characteristic_type.DURATION,
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.DURATION,
             operator=metrics[0],
             values=(metrics[1],),
             order=order,
         )
-    return characteristic_spec_cls(
-        type=characteristic_type.DURATION,
+    return CharacteristicSpec(
+        type=CharacteristicType.DURATION,
         operator=None,
         values=(metrics[0], metrics[1]),
         order=order,
     )
 
 
-def _rate_of_change_spec(metrics: list[Any], order: int) -> Any:
-    parsers_module = import_module('hydropattern.parsers')
-    validate_rate_of_change_metrics = getattr(parsers_module, 'validate_rate_of_change_metrics')
-    characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
-    comparison_type = getattr(parsers_module, 'ComparisionType')
+def _rate_of_change_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     comp_type = validate_rate_of_change_metrics(metrics)
     ma_periods = metrics[2] if len(metrics) > 2 else 1
     look_back = metrics[3] if len(metrics) > 3 else 1
     min_val = float(metrics[4]) if len(metrics) > 4 else 0.0
-    if comp_type == comparison_type.SIMPLE:
-        return characteristic_spec_cls(
-            type=characteristic_type.RATE_OF_CHANGE,
+    if comp_type == ComparisionType.SIMPLE:
+        return CharacteristicSpec(
+            type=CharacteristicType.RATE_OF_CHANGE,
             operator=metrics[0],
             values=(metrics[1],),
             ma_periods=ma_periods,
@@ -87,8 +81,8 @@ def _rate_of_change_spec(metrics: list[Any], order: int) -> Any:
             min_val=min_val,
             order=order,
         )
-    return characteristic_spec_cls(
-        type=characteristic_type.RATE_OF_CHANGE,
+    return CharacteristicSpec(
+        type=CharacteristicType.RATE_OF_CHANGE,
         operator=None,
         values=(metrics[0], metrics[1]),
         ma_periods=ma_periods,
@@ -98,19 +92,11 @@ def _rate_of_change_spec(metrics: list[Any], order: int) -> Any:
     )
 
 
-def _frequency_spec(metrics: list[Any], order: int) -> Any:
-    parsers_module = import_module('hydropattern.parsers')
-    is_nested_frequency_shape = getattr(parsers_module, 'is_nested_frequency_shape')
-    validate_frequency_metrics = getattr(parsers_module, 'validate_frequency_metrics')
-    validate_nested_frequency_metrics = getattr(
-        parsers_module, 'validate_nested_frequency_metrics'
-    )
-    characteristic_spec_cls = getattr(parsers_module, 'CharacteristicSpec')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
+def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     if is_nested_frequency_shape(metrics):
         base, nested = validate_nested_frequency_metrics(metrics)
-        return characteristic_spec_cls(
-            type=characteristic_type.FREQUENCY,
+        return CharacteristicSpec(
+            type=CharacteristicType.FREQUENCY,
             operator=base.operator,
             values=base.values,
             big_n=base.big_n,
@@ -123,8 +109,8 @@ def _frequency_spec(metrics: list[Any], order: int) -> Any:
             order=order,
         )
     parsed = validate_frequency_metrics(list(metrics))
-    return characteristic_spec_cls(
-        type=characteristic_type.FREQUENCY,
+    return CharacteristicSpec(
+        type=CharacteristicType.FREQUENCY,
         operator=parsed.operator,
         values=parsed.values,
         big_n=parsed.big_n,
@@ -133,14 +119,9 @@ def _frequency_spec(metrics: list[Any], order: int) -> Any:
     )
 
 
-def parse_request(data: dict[str, Any]) -> Any:
+def parse_request(data: dict[str, Any]) -> Request:
     '''Parse component configuration data into a stable normalized Request.'''
-    parsers_module = import_module('hydropattern.parsers')
-    component_spec_cls = getattr(parsers_module, 'ComponentSpec')
-    request_cls = getattr(parsers_module, 'Request')
-    validate_verbose = getattr(parsers_module, 'validate_verbose')
-    validate_boolean = getattr(parsers_module, 'validate_boolean')
-    component_specs: list[Any] = []
+    component_specs: list[ComponentSpec] = []
     for component_name, elements in data.items():
         char_specs: list[Any] = []
         verbose, success, order = True, True, 1
@@ -173,12 +154,12 @@ def parse_request(data: dict[str, Any]) -> Any:
                         characteristic=name,
                     )
             order += 1
-        component_specs.append(component_spec_cls(
+        component_specs.append(ComponentSpec(
             name=component_name,
             characteristics=tuple(char_specs),
             is_success_pattern=success,
             verbose=verbose,
         ))
-    return request_cls(components=tuple(component_specs))
+    return Request(components=tuple(component_specs))
 
 __all__ = ['parse_request']

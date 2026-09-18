@@ -1,20 +1,27 @@
 '''Builder seam: convert stable request specs into executable pattern components.'''
 
-from importlib import import_module
 from typing import Any
 
 from hydropattern import patterns
 from hydropattern.errors import ParserErrorCode, raise_parser_error
-from hydropattern.parsers import nested_frequency_parser
+from hydropattern.parsing.characteristics import (
+    duration_parser,
+    frequency_parser,
+    magnitude_parser,
+    nested_frequency_parser,
+    rate_of_change_parser,
+    symbol_to_string,
+    timing_parser,
+)
+from hydropattern.parsing.specs import CharacteristicSpec, ComponentSpec, Request
+from hydropattern.patterns import CharacteristicType
 
 
-def _validate_frequency_position(spec: Any) -> None:
+def _validate_frequency_position(spec: ComponentSpec) -> None:
     '''A component may have at most one frequency characteristic, and it must be last.'''
-    parsers_module = import_module('hydropattern.parsers')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
     freq_indices = [
         i for i, cs in enumerate(spec.characteristics)
-        if cs.type == characteristic_type.FREQUENCY
+        if cs.type == CharacteristicType.FREQUENCY
     ]
     if len(freq_indices) > 1:
         raise_parser_error(
@@ -32,26 +39,17 @@ def _validate_frequency_position(spec: Any) -> None:
         )
 
 
-def _build_characteristic(spec: Any) -> patterns.Characteristic:
+def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
     '''Convert a CharacteristicSpec to an executable Characteristic.'''
-    parsers_module = import_module('hydropattern.parsers')
-    characteristic_type = getattr(parsers_module, 'CharacteristicType')
-    symbol_to_string = getattr(parsers_module, 'symbol_to_string')
-    timing_parser = getattr(parsers_module, 'timing_parser')
-    magnitude_parser = getattr(parsers_module, 'magnitude_parser')
-    duration_parser = getattr(parsers_module, 'duration_parser')
-    rate_of_change_parser = getattr(parsers_module, 'rate_of_change_parser')
-    frequency_parser = getattr(parsers_module, 'frequency_parser')
-
     label = spec.type.name.lower()
     match spec.type:
-        case characteristic_type.TIMING:
+        case CharacteristicType.TIMING:
             # Reuse parsers.timing_parser (single source of truth for
             # timing name/fx construction) instead of reimplementing it here.
             return timing_parser(
                 [int(spec.values[0]), int(spec.values[1])], order=spec.order
             )
-        case characteristic_type.MAGNITUDE:
+        case CharacteristicType.MAGNITUDE:
             # Reuse parsers.magnitude_parser (single source of truth for
             # magnitude name/fx construction) instead of reimplementing it here.
             metrics: list[Any] = (
@@ -61,7 +59,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
             if spec.ma_periods != 1:
                 metrics.append(spec.ma_periods)
             return magnitude_parser(metrics, order=spec.order)
-        case characteristic_type.DURATION:
+        case CharacteristicType.DURATION:
             # Reuse parsers.duration_parser (single source of truth for
             # duration name/fx construction) instead of reimplementing it here.
             metrics = (
@@ -69,7 +67,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
                 else [spec.operator, spec.values[0]]
             )
             return duration_parser(metrics, order=spec.order)
-        case characteristic_type.RATE_OF_CHANGE:
+        case CharacteristicType.RATE_OF_CHANGE:
             # Reuse parsers.rate_of_change_parser (single source of truth for
             # rate_of_change name/fx construction) instead of reimplementing it here.
             metrics = (
@@ -84,7 +82,7 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
                 optional_args.pop()
             metrics.extend(optional_args)
             return rate_of_change_parser(metrics, order=spec.order)
-        case characteristic_type.FREQUENCY:
+        case CharacteristicType.FREQUENCY:
             if spec.is_nested:
                 raise ValueError(
                     'Nested frequency specs must be built via _build_nested_frequency_characteristics, '
@@ -116,7 +114,9 @@ def _build_characteristic(spec: Any) -> patterns.Characteristic:
     raise ValueError(f'Unknown characteristic type: {spec.type}')  # unreachable
 
 
-def _build_nested_frequency_characteristics(spec: Any) -> list[patterns.Characteristic]:
+def _build_nested_frequency_characteristics(
+    spec: CharacteristicSpec,
+) -> list[patterns.Characteristic]:
     '''Convert a nested-frequency CharacteristicSpec into [intra_annual, interannual]
     Characteristics via parsers.nested_frequency_parser (reuses the same
     validation/comparison-building logic the parsing-seam already ran).
@@ -142,7 +142,7 @@ def _build_nested_frequency_characteristics(spec: Any) -> list[patterns.Characte
     return nested_frequency_parser([base_metrics, nested_metrics], spec.order)
 
 
-def build_components(request: Any) -> list[patterns.Component]:
+def build_components(request: Request) -> list[patterns.Component]:
     '''Convert a Request to a list of executable Component objects.'''
     components = []
     for spec in request.components:
@@ -162,3 +162,4 @@ def build_components(request: Any) -> list[patterns.Component]:
 
 
 __all__ = ['build_components']
+
