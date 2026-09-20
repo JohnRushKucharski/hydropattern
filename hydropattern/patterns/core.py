@@ -155,7 +155,7 @@ def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
     ], dtype=int)
 #endregion
 
-#region frequency
+#region event/window helpers
 def mark_events(raw: np.ndarray, event_bool: bool = True) -> np.ndarray:
     '''
     Collapses maximal runs of consecutive successes in a raw 0/1/NaN diagnostic
