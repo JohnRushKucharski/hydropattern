@@ -3,17 +3,21 @@
 
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pandas as pd
 
+from hydropattern.errors import HydropatternError
 from hydropattern.formatters import (
     build_summary_sheet,
     compute_metric_series,
     compute_portion_series,
+    plot_components,
+    resolve_color_map,
     write_summary,
 )
-from hydropattern.parsers import MetricMode
+from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
 from hydropattern.patterns import Characteristic, CharacteristicType, Component, Result
 
 
@@ -355,3 +359,236 @@ class TestWriteSummary(unittest.TestCase):
             write_summary(self._scenario_results(), output_path, overwrite=False)
             self.assertTrue((output_path / 'comp_summary.xlsx').exists())
             self.assertTrue((output_path / 'comp_summary__1.xlsx').exists())
+
+
+class TestPlotComponents(unittest.TestCase):
+    '''Tests for plot_components.'''
+
+    def _grid_result(self, component_name: str, success: bool,
+                      is_success_pattern: bool = True) -> Result:
+        '''Minimal Result whose component column is all-success or all-failure.'''
+        component = Component(name=component_name, characteristics=[],
+                               is_success_pattern=is_success_pattern)
+        index = pd.DatetimeIndex([
+            pd.Timestamp('2000-01-01'), pd.Timestamp('2000-02-01'),
+        ], name='time')
+        value = 1 if success else 0
+        df = pd.DataFrame({
+            'flow': [1.0, 2.0],
+            component_name: [value, value],
+        }, index=index)
+        return Result(df=df, component=component)
+
+    def test_plot_components_writes_grid_csv_and_png_per_component(self):
+        '''One {component}_grid.csv and {component}_plot.png written per component.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(interpolate=False, show=False))
+
+            self.assertTrue((output_path / 'single_characteristic_grid.csv').exists())
+            self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
+
+    def test_plot_components_raises_for_non_grid_scenarios(self):
+        '''Non-grid scenario names raise HydropatternError (PLOT_INVALID_SCENARIO_GRID).'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                'flow_a': [self._grid_result('single_characteristic', True)],
+                'flow_b': [self._grid_result('single_characteristic', False)],
+            }
+
+            with self.assertRaises(HydropatternError):
+                plot_components(scenario_results, output_path, MetricOptions(), 1,
+                                ClimateCanvasPlotOptions(interpolate=False, show=False))
+
+    def test_plot_components_defaults_title_to_component_name_and_zlabel_to_metric_mode(self):
+        '''title/zlabel default to component name and mode value when unset.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path,
+                            MetricOptions(mode=MetricMode.PERCENTAGE), 1,
+                            ClimateCanvasPlotOptions())
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['title'], 'single_characteristic')
+            self.assertEqual(
+                kwargs['labels'],
+                ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+            )
+
+    def test_plot_components_uses_configured_title_and_labels_when_set(self):
+        '''Explicit title/xlabel/ylabel/zlabel override the dynamic defaults.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(
+                                title='Custom Title', xlabel='X', ylabel='Y', zlabel='Z',
+                            ))
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['title'], 'Custom Title')
+            self.assertEqual(kwargs['labels'], ('X', 'Y', 'Z'))
+
+    def test_plot_components_forwards_threshold_color_map_and_ticks(self):
+        '''Configured climate-canvas tuning options are forwarded to plotting.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(
+                scenario_results, output_path, MetricOptions(), 1,
+                ClimateCanvasPlotOptions(
+                    threshold=1.5, color_map='viridis', color_map_ticks=[-1.0, 0.0, 1.0],
+                ),
+            )
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['threshold'], 1.5)
+            self.assertEqual(kwargs['color_map'], 'viridis')
+            self.assertEqual(kwargs['color_map_ticks'], [-1.0, 0.0, 1.0])
+
+    def test_plot_components_forwards_fillin(self):
+        '''Configured climate-canvas fillin option is forwarded to plotting.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', True)],
+                '_5_1.5': [self._grid_result('single_characteristic', True)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(fillin=True))
+
+            _, kwargs = mocked.call_args
+            self.assertTrue(kwargs['fillin'])
+
+    def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
+        '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False,
+                                              is_success_pattern=False)],
+                '_5_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_5_1.5': [self._grid_result('single_characteristic', True,
+                                              is_success_pattern=False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions())
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['color_map'], 'RdBu_r')
+
+    def test_plot_components_keeps_explicit_color_map_for_failure_pattern(self):
+        '''An explicitly-configured color_map is never auto-reversed.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False,
+                                              is_success_pattern=False)],
+                '_5_0': [self._grid_result('single_characteristic', True,
+                                            is_success_pattern=False)],
+                '_5_1.5': [self._grid_result('single_characteristic', True,
+                                              is_success_pattern=False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(color_map='viridis'))
+
+            _, kwargs = mocked.call_args
+            self.assertEqual(kwargs['color_map'], 'viridis')
+
+
+class TestResolveColorMap(unittest.TestCase):
+    '''Tests for resolve_color_map.'''
+
+    def test_default_map_portion_success_pattern_stays_rdbu(self):
+        self.assertEqual(
+            resolve_color_map('RdBu', is_success_pattern=True, metric_mode=MetricMode.PORTION),
+            'RdBu',
+        )
+
+    def test_default_map_return_period_success_pattern_reverses(self):
+        self.assertEqual(
+            resolve_color_map('RdBu', is_success_pattern=True,
+                              metric_mode=MetricMode.RETURN_PERIOD),
+            'RdBu_r',
+        )
+
+    def test_default_map_portion_failure_pattern_reverses(self):
+        self.assertEqual(
+            resolve_color_map('RdBu', is_success_pattern=False, metric_mode=MetricMode.PORTION),
+            'RdBu_r',
+        )
+
+    def test_default_map_return_period_failure_pattern_cancels_out(self):
+        self.assertEqual(
+            resolve_color_map('RdBu', is_success_pattern=False,
+                              metric_mode=MetricMode.RETURN_PERIOD),
+            'RdBu',
+        )
+
+    def test_default_map_percentage_mode_behaves_like_portion(self):
+        self.assertEqual(
+            resolve_color_map('RdBu', is_success_pattern=False,
+                              metric_mode=MetricMode.PERCENTAGE),
+            'RdBu_r',
+        )
+
+    def test_explicit_color_map_never_reversed(self):
+        for is_success_pattern in (True, False):
+            for metric_mode in MetricMode:
+                self.assertEqual(
+                    resolve_color_map('viridis', is_success_pattern=is_success_pattern,
+                                      metric_mode=metric_mode),
+                    'viridis',
+                )

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from numbers import Integral
+from numbers import Integral, Real
 from pathlib import Path
 
 import pandas as pd
+from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
-from hydropattern.parsers import MetricMode
-from hydropattern.patterns import Result
+from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
+from hydropattern.patterns import Component, Result
+from hydropattern.scenario_grid import build_grid, require_scenario_grid
 
 
 def _water_year_label(date: pd.Timestamp, first_day_of_wy: int) -> int:
@@ -304,3 +306,104 @@ def _next_available_path(path: Path) -> Path:
         if not candidate.exists():
             return candidate
         suffix += 1
+
+
+def resolve_color_map(color_map: str, is_success_pattern: bool, metric_mode: MetricMode) -> str:
+    '''Auto-reverse hydropattern's default 'RdBu' colormap so red always means "less success".
+
+    Only applies when color_map is left at the default 'RdBu' (explicit color_map choices
+    are never touched). Two independent conditions each flip the map to 'RdBu_r':
+      - metric_mode is RETURN_PERIOD (high return period == rare/undesirable, the opposite
+        direction from portion/percentage, where higher == more success).
+      - is_success_pattern is False (the component tracks a failure condition, so a high
+        portion/percentage/return-period value means more of the *bad* thing happening).
+    If both conditions hold, they cancel out and the plain 'RdBu' default is kept.
+    '''
+    if color_map != 'RdBu':
+        return color_map
+    reverse = (metric_mode == MetricMode.RETURN_PERIOD) ^ (not is_success_pattern)
+    return 'RdBu_r' if reverse else 'RdBu'
+
+
+def write_grid_csv(xs, ys, zs, path: Path) -> None:
+    '''Write a (precip_delta x temp_delta) grid to csv: rows=temp deltas, columns=precip deltas.'''
+    pd.DataFrame(zs, index=ys, columns=xs).to_csv(path, index_label='temp_delta\\precip_delta')
+
+
+# Signature mirrors plotting options surface.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def plot_component_response_surface(
+        scenario_results: dict[str, list[Result]],
+        component: Component,
+        metric_options: MetricOptions,
+        first_day_of_wy: int,
+        climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions(),
+        output_path: Path | None = None) -> None:
+    '''Build and plot one component's response-surface grid.
+
+    Requires scenario names to form a valid precip/temp scenario grid (see
+    hydropattern.scenario_grid). Raises HydropatternError otherwise.
+
+    output_path: directory to write '{component}_grid.csv' + '{component}_plot.png' into.
+    None (default) skips both file writes and shows the plot interactively instead
+    (forces show=True regardless of climate_canvas.show, since nothing else would
+    display it). When output_path is given, show follows climate_canvas.show as usual.
+
+    title defaults to the component name and zlabel defaults to the configured
+    metric mode value when climate_canvas.title/zlabel are None (unset).
+    '''
+    scenario_names = list(scenario_results.keys())
+    require_scenario_grid(scenario_names)
+    summary = build_summary_sheet(scenario_results, component.name, component.name,
+                                  first_day_of_wy, metric_options.mode)
+    metric_values: dict[str, float] = {}
+    for name in scenario_names:
+        value = summary.at['total', name]
+        if not isinstance(value, Real):
+            raise ValueError(
+                f'Expected numeric summary metric for scenario {name!r}, got {value!r}.'
+            )
+        metric_values[name] = float(value)
+    xs, ys, zs = build_grid(scenario_names, metric_values)
+    title = component.name if climate_canvas.title is None else climate_canvas.title
+    zlabel = metric_options.mode.value if climate_canvas.zlabel is None else climate_canvas.zlabel
+    color_map = resolve_color_map(
+        climate_canvas.color_map, component.is_success_pattern, metric_options.mode
+    )
+    if output_path is not None:
+        write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
+        save_path = output_path / f'{component.name}_plot.png'
+        show = climate_canvas.show
+    else:
+        save_path = None
+        show = True
+    plot_response_surface(
+        xs, ys, zs, interpolate=climate_canvas.interpolate,
+        labels=(climate_canvas.xlabel, climate_canvas.ylabel, zlabel),
+        title=title,
+        save_path=save_path,
+        show=show,
+        threshold=climate_canvas.threshold,
+        color_map=color_map,
+        color_map_ticks=climate_canvas.color_map_ticks,
+        fillin=climate_canvas.fillin,
+    )
+
+
+# Signature mirrors plotting options surface.
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def plot_components(scenario_results: dict[str, list[Result]],
+                    output_path: Path, metric_options: MetricOptions,
+                    first_day_of_wy: int,
+                    climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions()) -> None:
+    '''Save one response-surface grid csv + plot png per component to output_path.
+
+    Requires scenario names to form a valid precip/temp scenario grid (see
+    hydropattern.scenario_grid). Raises HydropatternError otherwise.
+    '''
+    first_scenario_results = next(iter(scenario_results.values()))
+    for result in first_scenario_results:
+        plot_component_response_surface(
+            scenario_results, result.component, metric_options, first_day_of_wy,
+            climate_canvas, output_path,
+        )

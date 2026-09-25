@@ -2,19 +2,14 @@
 
 import tomllib
 from dataclasses import replace
-from numbers import Real
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 import typer
-from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 
 from hydropattern.errors import CliErrorCode, ParserErrorCode, raise_cli_error, raise_parser_error
-from hydropattern.formatters import build_summary_sheet, write_results
+from hydropattern.formatters import plot_components, write_results
 from hydropattern.parsers import (
-    ClimateCanvasPlotOptions,
-    MetricMode,
     MetricOptions,
     OutputOptions,
     build_components,
@@ -25,8 +20,8 @@ from hydropattern.parsers import (
     parse_request,
     parse_timeseries_spec,
 )
-from hydropattern.patterns import Component, Result, evaluate_components
-from hydropattern.scenario_grid import build_grid, require_scenario_grid
+from hydropattern.patterns import Component, Result
+from hydropattern.scenarios import evaluate_scenarios
 from hydropattern.timeseries import Timeseries
 
 app = typer.Typer(no_args_is_help=True)
@@ -137,9 +132,7 @@ def run(path: str = typer.Argument(...,
     output_options = resolve_output_options(data, plot, output_directory, write_to_excel,
                                             overwrite, interp, show, threshold,
                                             color_map, color_map_ticks, fillin)
-    scenarios = split_scenarios(timeseries.data)
-    scenario_results = {name: evaluate_components(df, components)
-                        for name, df in scenarios.items()}
+    scenario_results = evaluate_scenarios(timeseries, components).scenario_results
     output_path = write_output(scenario_results, path, output_options.directory,
                                output_options.excel, output_options.overwrite,
                                timeseries.first_day_of_water_year, output_options.metric)
@@ -235,19 +228,6 @@ def load_timeseries(data: dict[str, Any]) -> Timeseries:
         )
     return Timeseries.from_csv(spec.path, spec.first_day_of_water_year, spec.date_format)
 
-def split_scenarios(data: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    '''Split a multi-column timeseries into one DataFrame per scenario.
-
-    The last column is always 'dowy' and is included in every scenario slice.
-    Each returned DataFrame has exactly two columns: the scenario data column
-    and 'dowy', matching the shape expected by evaluate_component.
-
-    A single-column timeseries (one data column + dowy) returns a dict with
-    one entry — the degenerate single-scenario case.
-    '''
-    dowy_col = data.columns[-1]
-    return {col: data[[col, dowy_col]] for col in data.columns[:-1]}
-
 def load_components(data: dict[str, Any]) -> list[Component]:
     '''Parse components from the configuration file.'''
     if 'components' not in data:
@@ -281,72 +261,3 @@ def write_output(scenario_results: dict[str, list[Result]],
         return output_path
     typer.echo(f'Output written to: {output_path}.')
     return output_path
-
-def _resolve_color_map(color_map: str, is_success_pattern: bool, metric_mode: MetricMode) -> str:
-    '''Auto-reverse hydropattern's default 'RdBu' colormap so red always means "less success".
-
-    Only applies when color_map is left at the default 'RdBu' (explicit color_map choices
-    are never touched). Two independent conditions each flip the map to 'RdBu_r':
-      - metric_mode is RETURN_PERIOD (high return period == rare/undesirable, the opposite
-        direction from portion/percentage, where higher == more success).
-      - is_success_pattern is False (the component tracks a failure condition, so a high
-        portion/percentage/return-period value means more of the *bad* thing happening).
-    If both conditions hold, they cancel out and the plain 'RdBu' default is kept.
-    '''
-    if color_map != 'RdBu':
-        return color_map
-    reverse = (metric_mode == MetricMode.RETURN_PERIOD) ^ (not is_success_pattern)
-    return 'RdBu_r' if reverse else 'RdBu'
-
-# Signature mirrors plotting options surface.
-# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-def plot_components(scenario_results: dict[str, list[Result]],
-                    output_path: Path, metric_options: MetricOptions,
-                    first_day_of_wy: int,
-                    climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions()) -> None:
-    '''Save one response-surface grid csv + plot png per component to output_path.
-
-    Requires scenario names to form a valid precip/temp scenario grid (see
-    hydropattern.scenario_grid). Raises HydropatternError otherwise.
-
-    title defaults to the component name and zlabel defaults to the configured
-    metric mode value when climate_canvas.title/zlabel are None (unset).
-    '''
-    first_scenario_results = next(iter(scenario_results.values()))
-    scenario_names = list(scenario_results.keys())
-    require_scenario_grid(scenario_names)
-    for result in first_scenario_results:
-        component = result.component
-        summary = build_summary_sheet(scenario_results, component.name, component.name,
-                                      first_day_of_wy, metric_options.mode)
-        metric_values: dict[str, float] = {}
-        for name in scenario_names:
-            value = summary.at['total', name]
-            if not isinstance(value, Real):
-                raise ValueError(
-                    f'Expected numeric summary metric for scenario {name!r}, got {value!r}.'
-                )
-            metric_values[name] = float(value)
-        xs, ys, zs = build_grid(scenario_names, metric_values)
-        write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
-        title = component.name if climate_canvas.title is None else climate_canvas.title
-        zlabel = (
-            metric_options.mode.value if climate_canvas.zlabel is None else climate_canvas.zlabel
-        )
-        plot_response_surface(
-            xs, ys, zs, interpolate=climate_canvas.interpolate,
-            labels=(climate_canvas.xlabel, climate_canvas.ylabel, zlabel),
-            title=title,
-            save_path=output_path / f'{component.name}_plot.png',
-            show=climate_canvas.show,
-            threshold=climate_canvas.threshold,
-            color_map=_resolve_color_map(
-                climate_canvas.color_map, component.is_success_pattern, metric_options.mode
-            ),
-            color_map_ticks=climate_canvas.color_map_ticks,
-            fillin=climate_canvas.fillin,
-        )
-
-def write_grid_csv(xs, ys, zs, path: Path) -> None:
-    '''Write a (precip_delta x temp_delta) grid to csv: rows=temp deltas, columns=precip deltas.'''
-    pd.DataFrame(zs, index=ys, columns=xs).to_csv(path, index_label='temp_delta\\precip_delta')

@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from matplotlib import gridspec
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FixedLocator, FuncFormatter
 
 
 @dataclass(frozen=True)
@@ -656,7 +656,10 @@ class Timeseries:
         for i in range(pairs):
             low = df.columns[i]
             high = df.columns[-i-1]
-            label = f'{low[0]} {low[1][-2:]}-{high[1][-2:]}th percentile'
+            # Column names (low[0]/high[0]) may start with '_' (e.g. "_0_1.5"); matplotlib
+            # hides any legend label starting with '_' by convention, so keep the column
+            # name out of the label's leading position.
+            label = f'{low[1][-2:]}-{high[1][-2:]}th percentile ({low[0]})'
             ax.fill_between(  # type: ignore[misc]
                 df.index, df[low], df[high], alpha=0.3, label=label
             )
@@ -667,8 +670,16 @@ class Timeseries:
         def date_format(day_month: tuple[int, int]) -> str:
             return f'{day_month[0]:02d}-{month_abbr[day_month[1]]}'
         formatter = FuncFormatter(
-            lambda x, pos: date_format(self.day_of_water_year_to_day_month(int(x))))
+            # Locator may place ticks outside the valid 1-365 dowy range; wrap cyclically.
+            lambda x, pos: date_format(
+                self.day_of_water_year_to_day_month(((int(x) - 1) % 365) + 1)))
         ax.xaxis.set_major_formatter(formatter)
+        # Sparse data (e.g. monthly) has too few points for the default locator's "nice"
+        # round numbers to land on real dowy values, producing nonsensical mid-period
+        # labels. Force ticks onto the actual data points in that case; dense (e.g. daily)
+        # data keeps the default locator so the axis isn't cluttered with 365 ticks.
+        if len(df.index) <= 31:
+            ax.xaxis.set_major_locator(FixedLocator(sorted(df.index)))
 
         ax.legend(frameon=False)
         if output_path:

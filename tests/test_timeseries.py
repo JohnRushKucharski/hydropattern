@@ -272,4 +272,116 @@ class TestTimeseries(unittest.TestCase):
         finally:
             matplotlib.use(original_backend)
     #endregion
+
+    #region: plot_hydrograph_quantiles tests
+    def test_plot_hydrograph_quantiles_legend_shows_percentile_bands(self):
+        '''Column names starting with "_" must not suppress percentile band legend entries.
+
+        Matplotlib hides any legend entry whose label starts with "_" by convention.
+        Since a percentile band label was built as f'{col_name} ...', a column named
+        e.g. "_0_1.5" produced a label starting with "_" and its legend entry vanished.
+        '''
+        #pylint: disable-all
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        original_backend = matplotlib.get_backend()
+        matplotlib.use('Agg')
+        try:
+            dates = pd.date_range(start='1900-01-01', periods=365, freq='D')
+            values = list(range(365))
+            # leading underscore mirrors real-world column names (e.g. distance-based ids).
+            df = pd.DataFrame({'time': dates, '_0_1.5': values}).set_index('time')
+            ts = Timeseries.from_dataframe(df)
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                temp_path = tmp.name
+
+            ts.plot_hydrograph_quantiles(
+                col='_0_1.5',
+                quantiles=[0.1, 0.25, 0.5, 0.75, 0.9],
+                output_path=temp_path,
+            )
+
+            ax = plt.gcf().axes[0]
+            _, labels = ax.get_legend_handles_labels()
+            self.assertEqual(len(labels), 3)
+            self.assertTrue(any('10-90th percentile' in lbl for lbl in labels))
+            self.assertTrue(any('25-75th percentile' in lbl for lbl in labels))
+            self.assertIn('Median', labels)
+            self.assertTrue(all(not lbl.startswith('_') for lbl in labels))
+
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            plt.close('all')
+        finally:
+            matplotlib.use(original_backend)
+
+    def test_plot_hydrograph_quantiles_monthly_ticks_align_to_month_starts(self):
+        '''Sparse (e.g. monthly) data must get x-ticks at the actual data points.
+
+        With only 12 dowy values present, the default tick locator picks "nice" round
+        numeric positions unrelated to the real data, producing nonsensical mid-month
+        date labels instead of one tick per month-start.
+        '''
+        #pylint: disable-all
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        original_backend = matplotlib.get_backend()
+        matplotlib.use('Agg')
+        try:
+            dates = pd.date_range(start='1900-01-01', periods=24, freq='MS')
+            values = list(range(24))
+            df = pd.DataFrame({'time': dates, 'value': values}).set_index('time')
+            ts = Timeseries.from_dataframe(df)
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                temp_path = tmp.name
+
+            ts.plot_hydrograph_quantiles(col='value', output_path=temp_path)
+
+            ax = plt.gcf().axes[0]
+            expected_dowy = sorted(ts.data.dowy.unique().tolist())
+            actual_ticks = sorted(int(round(t)) for t in ax.get_xticks())
+            self.assertEqual(actual_ticks, expected_dowy)
+
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            plt.close('all')
+        finally:
+            matplotlib.use(original_backend)
+
+    def test_plot_hydrograph_quantiles_daily_ticks_stay_sparse(self):
+        '''Dense (e.g. daily) data must keep the default automatic tick locator.
+
+        Forcing one tick per data point would be fine for 12 monthly points but would
+        clutter a 365-point daily axis, so the fix must only apply to sparse data.
+        '''
+        #pylint: disable-all
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        original_backend = matplotlib.get_backend()
+        matplotlib.use('Agg')
+        try:
+            dates = pd.date_range(start='1900-01-01', periods=365 * 2, freq='D')
+            values = list(range(len(dates)))
+            df = pd.DataFrame({'time': dates, 'value': values}).set_index('time')
+            ts = Timeseries.from_dataframe(df)
+
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                temp_path = tmp.name
+
+            ts.plot_hydrograph_quantiles(col='value', output_path=temp_path)
+
+            ax = plt.gcf().axes[0]
+            self.assertLess(len(ax.get_xticks()), 365)
+
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            plt.close('all')
+        finally:
+            matplotlib.use(original_backend)
+    #endregion
     #endregion
