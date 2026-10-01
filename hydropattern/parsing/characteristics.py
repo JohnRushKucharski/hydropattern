@@ -570,9 +570,9 @@ def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteri
 #region: frequency parser
 class FrequencyForm(Enum):
     '''Un-nested frequency characteristic forms.'''
-    PROBABILITY = 'probability'   # [operator, probability, (event_bool)]
-    COUNT = 'count'                # [operator, n, N, (event_bool)]
-    BETWEEN = 'between'            # [min_n, max_n, N, (event_bool)]
+    PROBABILITY = 'probability'   # [operator, probability, (exclusive_event_window)]
+    COUNT = 'count'                # [operator, n, N, (exclusive_event_window)]
+    BETWEEN = 'between'            # [min_n, max_n, N, (exclusive_event_window)]
 
 
 @dataclass(frozen=True)
@@ -582,7 +582,7 @@ class FrequencyMetrics:
     operator: str | None           # None for BETWEEN
     values: tuple[float | int, ...]  # (probability,) or (n,) or (min_n, max_n)
     big_n: int | None              # trial-window size N; None for PROBABILITY
-    event_bool: bool
+    exclusive_event_window: bool
 
 
 #region: frequency validation
@@ -597,12 +597,13 @@ def validate_frequency_metrics(
     '''Validate and classify an un-nested frequency metrics list.
 
     Accepted forms:
-        [operator, n, N, (event_bool)]        -> FrequencyForm.COUNT
-        [min_n, max_n, N, (event_bool)]       -> FrequencyForm.BETWEEN
+        [operator, n, N, (exclusive_event_window)]        -> FrequencyForm.COUNT
+        [min_n, max_n, N, (exclusive_event_window)]       -> FrequencyForm.BETWEEN
     n, N, min_n, max_n must be positive integers with N > n and
-    min_n < max_n < N. event_bool defaults to True (event-level) when omitted.
+    min_n < max_n < N. exclusive_event_window defaults to False (union mode)
+    when omitted.
 
-    [operator, probability, (event_bool)] -> FrequencyForm.PROBABILITY is only
+    [operator, probability, (exclusive_event_window)] -> FrequencyForm.PROBABILITY is only
     valid as the base pattern of a nested frequency spec (see
     notes/frequencyEnhancement-resolved.md); a standalone/un-nested probability
     form raises FREQUENCY_PROBABILITY_NOT_NESTED unless allow_probability=True
@@ -610,16 +611,16 @@ def validate_frequency_metrics(
     '''
     error_msg = f'''
                 Provided metrics: {metrics} must be in the form:
-                [operator, n, N, (event_bool)], or
-                [min_n, max_n, N, (event_bool)].
+                [operator, n, N, (exclusive_event_window)], or
+                [min_n, max_n, N, (exclusive_event_window)].
                 '''
     if not isinstance(metrics, list) or not 2 <= len(metrics) <= 4:
         raise_parser_error(ParserErrorCode.INVALID_VALUE, error_msg, metrics=metrics)
 
     metrics = list(metrics)
-    event_bool = True
+    exclusive_event_window = False
     if _is_strict_bool(metrics[-1]):
-        event_bool = metrics[-1]
+        exclusive_event_window = metrics[-1]
         metrics = metrics[:-1]
 
     if isinstance(metrics[0], str):
@@ -628,7 +629,7 @@ def validate_frequency_metrics(
             if not allow_probability:
                 raise_parser_error(
                     ParserErrorCode.FREQUENCY_PROBABILITY_NOT_NESTED,
-                    f'''[operator, probability, (event_bool)] is not a valid un-nested
+                    f'''[operator, probability, (exclusive_event_window)] is not a valid un-nested
                     frequency form. It is only valid as the base pattern of a nested
                     frequency spec: frequency = [{metrics}, [nested pattern]].
                     Provided metrics: {metrics}.''',
@@ -652,7 +653,7 @@ def validate_frequency_metrics(
                 operator=metrics[0],
                 values=(probability,),
                 big_n=None,
-                event_bool=event_bool,
+                exclusive_event_window=exclusive_event_window,
             )
         if len(metrics) == 3:
             _validate_int_param(metrics, 1, 'n')
@@ -669,7 +670,7 @@ def validate_frequency_metrics(
                 operator=metrics[0],
                 values=(n_val,),
                 big_n=big_n,
-                event_bool=event_bool,
+                exclusive_event_window=exclusive_event_window,
             )
         raise_parser_error(ParserErrorCode.INVALID_VALUE, error_msg, metrics=metrics)
 
@@ -695,7 +696,7 @@ def validate_frequency_metrics(
             operator=None,
             values=(min_n, max_n),
             big_n=big_n,
-            event_bool=event_bool,
+            exclusive_event_window=exclusive_event_window,
         )
     raise_parser_error(ParserErrorCode.INVALID_VALUE, error_msg, metrics=metrics)
 #endregion
@@ -728,10 +729,10 @@ def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     Parameters
     ----------
         metrics (list[Any]): in the form...
-            [operator, n, N, (event_bool)], or
-            [min_n, max_n, N, (event_bool)]
+            [operator, n, N, (exclusive_event_window)], or
+            [min_n, max_n, N, (exclusive_event_window)]
             See validate_frequency_metrics for full parameter semantics.
-            Standalone [operator, probability, (event_bool)] is rejected here --
+            Standalone [operator, probability, (exclusive_event_window)] is rejected here --
             it is only valid as the base pattern of a nested frequency spec.
         order (int): Position in which characteristic is evaluated. Must be
             the last characteristic in its component (enforced in builders.py).
@@ -744,12 +745,12 @@ def frequency_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
     '''
     label = patterns.CharacteristicType.FREQUENCY.name.lower()
     parsed = validate_frequency_metrics(list(metrics))
-    marker = '(event)' if parsed.event_bool else '(timestep)'
+    marker = '(exclusive)' if parsed.exclusive_event_window else '(union)'
     comparison_fx, value_label = _frequency_comparison_and_label(parsed)
     name = f'{label}_{value_label}{marker}'
     return patterns.Characteristic(
         name=name,
-        fx=patterns.frequency_fx(comparison_fx, order, parsed.big_n, parsed.event_bool),
+        fx=patterns.frequency_fx(comparison_fx, order, parsed.big_n, parsed.exclusive_event_window),
         type=patterns.CharacteristicType.FREQUENCY,
     )
 
@@ -818,9 +819,9 @@ def nested_frequency_parser(metrics: list[Any], order: int) -> list[patterns.Cha
         qualifying water year instead of AND-ing with earlier columns.
 
         Naming matches notes/frequencyEnhancement.md's nested examples: the
-        base column uses the usual `(event)`/`(timestep)` marker (its own
-        event_bool); the nested column uses `(interannual_event)`/
-        `(interannual_timestep)` (its own event_bool) to distinguish the two
+        base column uses the usual `(exclusive)`/`(union)` marker (its own
+        exclusive_event_window); the nested column uses `(interannual_exclusive)`/
+        `(interannual_union)` (its own exclusive_event_window) to distinguish the two
         columns when, as in the doc's examples, both patterns share the same
         operator/value/N and would otherwise collide.
     Raises
@@ -832,22 +833,22 @@ def nested_frequency_parser(metrics: list[Any], order: int) -> list[patterns.Cha
     base, nested = validate_nested_frequency_metrics(metrics)
 
     base_comparison_fx, base_label = _frequency_comparison_and_label(base)
-    base_marker = '(event)' if base.event_bool else '(timestep)'
+    base_marker = '(exclusive)' if base.exclusive_event_window else '(union)'
     intra_annual = patterns.Characteristic(
         name=f'{label}_{base_label}{base_marker}',
         fx=patterns.nested_frequency_intra_annual_fx(
-            base_comparison_fx, order, base.big_n, base.event_bool
+            base_comparison_fx, order, base.big_n, base.exclusive_event_window
         ),
         type=patterns.CharacteristicType.FREQUENCY,
         is_nested=False,
     )
 
     nested_comparison_fx, nested_label = _frequency_comparison_and_label(nested)
-    nested_marker = '(interannual_event)' if nested.event_bool else '(interannual_timestep)'
+    nested_marker = '(interannual_exclusive)' if nested.exclusive_event_window else '(interannual_union)'
     interannual = patterns.Characteristic(
         name=f'{label}_{nested_label}{nested_marker}',
         fx=patterns.nested_frequency_interannual_fx(
-            nested_comparison_fx, order + 1, nested.big_n, nested.event_bool
+            nested_comparison_fx, order + 1, nested.big_n, nested.exclusive_event_window
         ),
         type=patterns.CharacteristicType.FREQUENCY,
         is_nested=True,

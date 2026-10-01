@@ -94,12 +94,12 @@ def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
                 # (see parsers.py), so this branch is unreachable via the public parsing
                 # seam; kept only as defensive fallback, not delegated to frequency_parser
                 # (which would reject it without allow_probability=True).
-                marker = '(event)' if spec.event_bool else '(timestep)'
+                marker = '(exclusive)' if spec.exclusive_event_window else '(union)'
                 comp_fx = patterns.comparison_fx(spec.operator, spec.values[0])
                 name = f'{label}_{symbol_to_string(spec.operator)}{spec.values[0]}{marker}'
                 return patterns.Characteristic(
                     name=name,
-                    fx=patterns.frequency_fx(comp_fx, spec.order, spec.big_n, spec.event_bool),
+                    fx=patterns.frequency_fx(comp_fx, spec.order, spec.big_n, spec.exclusive_event_window),
                     type=spec.type,
                 )
             # Reuse parsers.frequency_parser (single source of truth for frequency
@@ -108,8 +108,8 @@ def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
                 [spec.values[0], spec.values[1], spec.big_n] if spec.operator is None
                 else [spec.operator, spec.values[0], spec.big_n]
             )
-            if not spec.event_bool:
-                metrics.append(spec.event_bool)
+            if spec.exclusive_event_window:
+                metrics.append(spec.exclusive_event_window)
             return frequency_parser(metrics, order=spec.order)
     raise ValueError(f'Unknown characteristic type: {spec.type}')  # unreachable
 
@@ -127,8 +127,8 @@ def _build_nested_frequency_characteristics(
     )
     if spec.big_n is not None:
         base_metrics.append(spec.big_n)
-    if not spec.event_bool:
-        base_metrics.append(spec.event_bool)
+    if spec.exclusive_event_window:
+        base_metrics.append(spec.exclusive_event_window)
 
     nested_metrics: list[Any] = (
         [spec.nested_operator, *spec.nested_values]
@@ -136,8 +136,8 @@ def _build_nested_frequency_characteristics(
     )
     if spec.nested_big_n is not None:
         nested_metrics.append(spec.nested_big_n)
-    if not spec.nested_event_bool:
-        nested_metrics.append(spec.nested_event_bool)
+    if spec.nested_exclusive_event_window:
+        nested_metrics.append(spec.nested_exclusive_event_window)
 
     return nested_frequency_parser([base_metrics, nested_metrics], spec.order)
 

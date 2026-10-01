@@ -215,7 +215,8 @@ def duration_fx(f: Callable[[float], bool],
 
 #region frequency
 def frequency_fx(f: Callable[[float], bool], order: int,
-                 big_n: int | None = None, event_bool: bool = True) -> CharacteristicFx:
+                 big_n: int | None = None,
+                 exclusive_event_window: bool = False) -> CharacteristicFx:
     '''
     Creates function to evaluate an un-nested frequency characteristic.
 
@@ -226,26 +227,35 @@ def frequency_fx(f: Callable[[float], bool], order: int,
         order (int): Position in which characteristic is evaluated
             within list of component characteristics. Must be the last
             characteristic in the component (enforced upstream in builders.py).
-        big_n (int | None): trailing trial-window size (in timesteps) for the
+        big_n (int | None): forward trial-window size (in timesteps) for the
             [op, n, N] and [min_n, max_n, N] forms. None for the
             [op, probability] form (whole-series ratio, no windowing) -- not
             yet implemented as an un-nested form (dropped; see
             notes/frequencyEnhancement-resolved.md -- probability only exists
             as a nested base pattern, task freq-core-probability).
-        event_bool (bool): if True (default), a maximal run of consecutive
-            qualifying trials counts as a single success, marked at the trial
-            where the run ends (event-level). If False, every trial in the run
-            is marked a success (timestep-level).
+        exclusive_event_window (bool): if False (default, union mode), every
+            qualifying forward window is marked (overlapping windows OR
+            together). If True (exclusive mode), once a window at anchor t
+            qualifies, a fixed N-length span starting at t is claimed and
+            later anchors falling inside that span are skipped entirely
+            (not evaluated as candidates) -- a failed candidate never
+            suppresses a later candidate.
     Returns
     -------
         Characteristic_fx: evaluates characteristic over timeseries.
 
     Note
     ----
-        Windows over the AND-combined success of preceding characteristics in
-        the component (same eligibility rule as duration_fx), then compares
-        each trailing-window count via `f` (op vs n, or inclusive between vs
-        [min_n, max_n]), then collapses to event/timestep level via mark_events.
+        Anchors are every timestep where preceding characteristics in the
+        component are eligible (same AND-combined eligibility rule as
+        duration_fx), unless `f(0)` is True, in which case every timestep
+        anchors (an operator admitting zero successes can still open a
+        window at an otherwise-ineligible timestep). Each anchor opens a
+        forward window `[t, min(t + big_n - 1, len - 1)]` (truncated at the
+        end of the record), counts eligible timesteps within it, and
+        compares the count via `f`. No warm-up/NaN period is needed: windows
+        look forward from each timestep using however many observations are
+        actually available through the end of the record.
     '''
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray) -> np.ndarray:
@@ -261,13 +271,24 @@ def frequency_fx(f: Callable[[float], bool], order: int,
 
         precedents = output[:, :order-1]
         eligible = (precedents == 1).all(axis=1).astype(int)
-        counts = sliding_window_count(eligible, big_n)
+        n_steps = len(eligible)
+        result = np.zeros(n_steps)
 
-        diag = np.full(len(counts), np.nan)
-        has_count = ~np.isnan(counts)
-        diag[has_count] = [1 if f(c) else 0 for c in counts[has_count]]
-
-        return mark_events(diag, event_bool)
+        zero_admitting = f(0)
+        span_end = -1
+        for t in range(n_steps):
+            if not zero_admitting:
+                if eligible[t] != 1:
+                    continue
+            if exclusive_event_window and t <= span_end:
+                continue
+            end = min(t + big_n - 1, n_steps - 1)
+            count = int(eligible[t:end + 1].sum())
+            if f(count):
+                result[t:end + 1] = 1
+                if exclusive_event_window:
+                    span_end = end
+        return result
     return closure
 
 def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable[[float], bool],
@@ -278,7 +299,7 @@ def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable
     NaN wherever the underlying statistic is undefined (excluded partial
     years, or insufficient in-year window history).
     '''
-    stat = (water_year_probability_ratio(eligible, dowy, event_bool=True) if big_n is None
+    stat = (water_year_probability_ratio(eligible, dowy, exclusive_event_window=True) if big_n is None
             else windowed_count_per_water_year(eligible, dowy, big_n))
     diag = np.full(len(stat), np.nan)
     has_stat = ~np.isnan(stat)
@@ -287,7 +308,7 @@ def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable
 
 def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
                                      big_n: int | None = None,
-                                     event_bool: bool = True) -> CharacteristicFx:
+                                     exclusive_event_window: bool = True) -> CharacteristicFx:
     '''
     Creates function to evaluate the intra-annual (base) column of a nested
     frequency characteristic.
@@ -295,7 +316,7 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
     Per notes/frequencyEnhancement-resolved.md: intra_annual = AND(preceding
     characteristic columns, base-pattern diagnostic), where the base pattern
     may be probability (per-water-year ratio, big_n=None), count, or between
-    (windowed within each water year, big_n=N). `event_bool` is display-only:
+    (windowed within each water year, big_n=N). `exclusive_event_window` is display-only:
     it is applied to the AND'd result (not the raw diagnostic), which never
     changes whether a `1` survives somewhere in a qualifying year -- only
     where, within a run, it is marked -- so the eventual year-OR-reduction
@@ -307,7 +328,7 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
         order (int): Position in the component's characteristic sequence.
         big_n (int | None): trailing trial-window size for count/between base
             forms; None for the probability base form.
-        event_bool (bool): base pattern's own event_bool (display-only for the
+        exclusive_event_window (bool): base pattern's own exclusive_event_window (display-only for the
             eventual per-year OR-reduction; does not change year verdicts).
     Returns
     -------
@@ -330,20 +351,20 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
             1 if (e == 1 and d == 1) else 0
             for e, d in zip(eligible[has_diag], diag[has_diag])
         ]
-        return mark_events(intra_annual_raw, event_bool)
+        return mark_events(intra_annual_raw, exclusive_event_window)
     return closure
 
 def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
                                     big_n: int | None = None,
-                                    event_bool: bool = True) -> CharacteristicFx:
+                                    exclusive_event_window: bool = True) -> CharacteristicFx:
     '''
     Creates function to evaluate the interannual (nested) column of a nested
     frequency characteristic -- the terminal column whose result determines
     the component's final pass/fail, broadcast across each qualifying water
     year (see notes/frequencyEnhancement-resolved.md).
 
-    Unlike the base pattern's `event_bool` (display-only), this level's
-    `event_bool` changes the actual pass/fail result: a run of consecutive
+    Unlike the base pattern's `exclusive_event_window` (display-only), this level's
+    `exclusive_event_window` changes the actual pass/fail result: a run of consecutive
     qualifying years collapses to a single event-year before broadcasting.
 
     Parameters
@@ -355,7 +376,7 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
         big_n (int | None): trailing trial-window size (in years) for count/
             between nested forms. Probability form is not valid at this
             level (enforced upstream in validate_nested_frequency_metrics).
-        event_bool (bool): nested pattern's own event_bool; changes the
+        exclusive_event_window (bool): nested pattern's own exclusive_event_window; changes the
             actual pass/fail result (a run of qualifying years collapses to
             a single event-year).
     Returns
@@ -387,7 +408,7 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
         compact_diag = np.full(len(counts), np.nan)
         has_count = ~np.isnan(counts)
         compact_diag[has_count] = [1 if f(c) else 0 for c in counts[has_count]]
-        compact_diag = mark_events(compact_diag, event_bool)
+        compact_diag = mark_events(compact_diag, exclusive_event_window)
 
         result = np.full(len(intra_annual), np.nan)
         for (start, end), verdict in zip(full_years, compact_diag):

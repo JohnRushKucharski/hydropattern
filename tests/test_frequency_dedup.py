@@ -40,7 +40,7 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
         mock_parser.assert_called_once_with([1, 3, 5], order=2)
         self.assertIs(components[0].characteristics[1], sentinel)
 
-    def test_event_bool_forwarded_when_not_default(self):
+    def test_exclusive_event_window_forwarded_when_not_default(self):
         sentinel = patterns.Characteristic(
             name='sentinel', fx=lambda df, output: df, type=patterns.CharacteristicType.FREQUENCY
         )
@@ -48,11 +48,11 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
             builders, 'frequency_parser', return_value=sentinel
         ) as mock_parser:
             request = parse_request(
-                {'comp': {'magnitude': ['>', 5.0], 'frequency': ['>', 1, 3, False]}}
+                {'comp': {'magnitude': ['>', 5.0], 'frequency': ['>', 1, 3, True]}}
             )
             components = build_components(request)
 
-        mock_parser.assert_called_once_with(['>', 1, 3, False], order=2)
+        mock_parser.assert_called_once_with(['>', 1, 3, True], order=2)
         self.assertIs(components[0].characteristics[1], sentinel)
 
 

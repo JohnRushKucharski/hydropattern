@@ -106,7 +106,7 @@ class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
         output = np.column_stack([dummy, intra_annual])
         df = pd.DataFrame({'flow': range(16), 'dowy': dowy})
         f = comparison_fx('>=', 1)
-        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, event_bool=False)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, exclusive_event_window=False)
         broadcast = fx(df, output)
 
         # 2 distinct qualifying blocks (year1 alone; year3+year4 contiguous)

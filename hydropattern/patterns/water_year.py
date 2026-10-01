@@ -72,12 +72,12 @@ def record_length_years(dowy: np.ndarray) -> float:
     return float(len(full_years))
 
 def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
-                                 event_bool: bool = True) -> np.ndarray:
+                                 exclusive_event_window: bool = True) -> np.ndarray:
     '''
     Computes, for each full water year (see identify_full_water_years), the
     ratio of event-marked successes to timesteps-in-year over an eligible
     (0/1) trial array -- the core statistic behind a nested frequency
-    pattern's intra-annual `[operator, probability, (event_bool)]` base form.
+    pattern's intra-annual `[operator, probability, (exclusive_event_window)]` base form.
 
     The ratio is placed at the water year's *last* timestep and NaN
     elsewhere (including any leading partial year before the first
@@ -91,7 +91,7 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
             characteristic columns).
         dowy (np.ndarray): day-of-water-year values (1-365), same length as
             `eligible`.
-        event_bool (bool): if True (default), a maximal run of consecutive
+        exclusive_event_window (bool): if True (default), a maximal run of consecutive
             successes within the year collapses to a single success
             (event-level) before computing the ratio; if False, every
             successful timestep counts toward the numerator (timestep-level).
@@ -105,7 +105,7 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
         raise ValueError(
             f'eligible (len={len(eligible)}) and dowy (len={len(dowy)}) must be the same length.'
         )
-    marked = mark_events(eligible, event_bool)
+    marked = mark_events(eligible, exclusive_event_window)
     result = np.full(len(eligible), np.nan)
     for start, end in identify_full_water_years(dowy):
         year_length = end - start + 1

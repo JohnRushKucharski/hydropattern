@@ -155,7 +155,7 @@ def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
 #endregion
 
 #region event/window helpers
-def mark_events(raw: np.ndarray, event_bool: bool = True) -> np.ndarray:
+def mark_events(raw: np.ndarray, exclusive_event_window: bool = True) -> np.ndarray:
     '''
     Collapses maximal runs of consecutive successes in a raw 0/1/NaN diagnostic
     array into event-level or timestep-level markers.
@@ -168,7 +168,7 @@ def mark_events(raw: np.ndarray, event_bool: bool = True) -> np.ndarray:
     ----------
         raw (np.ndarray): a 0/1/NaN array, e.g. a sliding-window success
             diagnostic. NaN marks insufficient history (no verdict yet).
-        event_bool (bool): if True (default), each maximal run of consecutive
+        exclusive_event_window (bool): if True (default), each maximal run of consecutive
             1s collapses to a single 1 marked at the run's last trial
             (event-level); every other trial in the run is set to 0. If False,
             every trial in a qualifying run is marked 1 (timestep-level) and
@@ -177,10 +177,10 @@ def mark_events(raw: np.ndarray, event_bool: bool = True) -> np.ndarray:
     Returns
     -------
         np.ndarray: same shape as `raw`. NaNs and 0s always pass through
-        unchanged; only 1s within a run may be zeroed (event_bool=True).
+        unchanged; only 1s within a run may be zeroed (exclusive_event_window=True).
     '''
     result = np.array(raw, dtype=float)
-    if not event_bool:
+    if not exclusive_event_window:
         return result
 
     run_start = None
@@ -232,7 +232,7 @@ def count_events(success: np.ndarray) -> int:
     Counts distinct qualifying events in a 0/1(/NaN) success array.
 
     An "event" is a maximal run of consecutive successes (collapsed via the
-    existing mark_events() engine, event_bool=True -- the same run-detection
+    existing mark_events() engine, exclusive_event_window=True -- the same run-detection
     already used by frequency_fx/nested_frequency_interannual_fx). This is a
     thin wrapper, not a new run-detection algorithm, so any future change to
     what counts as a "run" only needs to happen in mark_events().
@@ -255,7 +255,7 @@ def count_events(success: np.ndarray) -> int:
     -------
         int: number of distinct qualifying events.
     '''
-    return int(np.nansum(mark_events(np.asarray(success, dtype=float), event_bool=True)))
+    return int(np.nansum(mark_events(np.asarray(success, dtype=float), exclusive_event_window=True)))
 
 def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     '''

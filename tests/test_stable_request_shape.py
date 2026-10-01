@@ -537,8 +537,8 @@ class TestNestedFrequencyRoundTrip(unittest.TestCase):
         expected_comp = np.array([0, 0, 0, 0, 0, 0])
 
         magnitude_col = [c for c in df.columns if c.startswith('magnitude')][0]
-        intra_col = 'frequency_gt1in2(event)'
-        interannual_col = 'frequency_gt1in2(interannual_event)'
+        intra_col = 'frequency_gt1in2(union)'
+        interannual_col = 'frequency_gt1in2(interannual_union)'
         np.testing.assert_array_equal(df[magnitude_col].values, expected_magnitude)
         np.testing.assert_array_equal(df[intra_col].values, expected_intra_annual)
         self.assertIn(interannual_col, df.columns)
@@ -578,7 +578,7 @@ class TestNestedFrequencyBroadcastRoundTrip(unittest.TestCase):
         results = evaluate_components(self.df, components)
         df = results[0].df
 
-        intra_col = 'frequency_ge2in3(timestep)'
+        intra_col = 'frequency_ge2in3(union)'
         expected_intra_annual = np.array([
             np.nan, np.nan, 1, 0, 0, 0,  # year 1 (matches Example 3's table)
             np.nan, np.nan, 0, 0, 0, 0,  # year 2: no successes
@@ -602,34 +602,34 @@ class TestFrequencyRoundTrip(unittest.TestCase):
     def setUp(self):
         self.df = _make_frequency_example_df()
 
-    def test_example_1_count_form_event_level(self):
+    def test_example_1_count_form_exclusive_level(self):
         request = parse_request(
-            {'comp': {'magnitude': ['>', 5], 'frequency': ['>=', 1, 2]}}
+            {'comp': {'magnitude': ['>', 5], 'frequency': ['>=', 1, 2, True]}}
         )
         components = build_components(request)
         results = evaluate_components(self.df, components)
 
         expected_magnitude = np.array([0, 1, 1, 1, 0, 1])
-        expected_frequency = np.array([np.nan, 0, 0, 0, 0, 1])
-        expected_comp = np.array([0, 0, 0, 0, 0, 1])
+        expected_frequency = np.array([0, 1, 1, 1, 1, 1])
+        expected_comp = np.array([0, 1, 1, 1, 0, 1])
         np.testing.assert_array_equal(
             results[0].df['magnitude_gt5'].values, expected_magnitude
         )
         np.testing.assert_array_equal(
-            results[0].df['frequency_ge1in2(event)'].values, expected_frequency
+            results[0].df['frequency_ge1in2(exclusive)'].values, expected_frequency
         )
         np.testing.assert_array_equal(results[0].df['comp'].values, expected_comp)
 
-    def test_example_2_count_form_timestep_level(self):
+    def test_example_2_count_form_union_level(self):
         request = parse_request(
             {'comp': {'magnitude': ['>', 5], 'frequency': ['>=', 1, 2, False]}}
         )
         components = build_components(request)
         results = evaluate_components(self.df, components)
 
-        expected_frequency = np.array([np.nan, 1, 1, 1, 1, 1])
+        expected_frequency = np.array([0, 1, 1, 1, 1, 1])
         expected_comp = np.array([0, 1, 1, 1, 0, 1])
         np.testing.assert_array_equal(
-            results[0].df['frequency_ge1in2(timestep)'].values, expected_frequency
+            results[0].df['frequency_ge1in2(union)'].values, expected_frequency
         )
         np.testing.assert_array_equal(results[0].df['comp'].values, expected_comp)

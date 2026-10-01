@@ -25,9 +25,9 @@
 #   Magnitude, Timing, Duration, Frequency, Rate of Change.
 # METRICS: describe the the truth value for each characteristic
 #   (when evaluated in a hydrologic timeseries).
-# VERBOSE: true if characteristic should be evaluated when
-#   other component characteristics requirements are not met.
-#   true by default.
+#   Timing, Magnitude, and Rate of Change are always evaluated
+#   independently (diagnostic columns); Duration and Frequency
+#   gate on all preceding characteristics in evaluation order.
 # SUCCESS PATTERN: describes if each characteristic being
 #   true represents a success or failure.
 #   true by default.
@@ -47,13 +47,10 @@ date_format = "%Y-%m-%d"        # datetime format code. defaults to '' (pandas a
 
 # component compute options:
 # success_pattern = true        # component is present if all characteristics are met, defaults to true.
-# verbose = false               # evaluate characteristics indepedently when possible*, defaults to false.**
 
-# *note: only possible for timing, magnitude, and rate_of_change characteristics.
-# **note: characteristics are evaluated in the order they are provided below,
-# but when verbose is set to the default value (false), all characteristics 
-# after the first characteristic in the provided order are evaluated only in time periods
-# where the antecedent characteristics (earlier in the order) conditions are satisfied.
+# note: characteristics are evaluated in the order they are provided below;
+# timing/magnitude/rate_of_change are always independent diagnostics, while
+# duration/frequency gate on all preceding characteristics in that order.
 
 # characteristics:
 timing = [305, 335]             # 1 November - 1 December.
@@ -72,7 +69,6 @@ success_pattern = false         # Describes baseflow failure.
 
 # third component.
 [components.bankfull_flow]
-verbose = false
 magnitude = [">", 2.0]
 frequency = [">=", 1, 5]         # at least once every 5 years.
 
@@ -152,11 +148,14 @@ frequency = [">=", 1, 5]         # at least once every 5 years.
 #   - time_steps: number of previous timesteps over which 
 #       other component characteristics must be true.
 #   - time_steps: must be positive integer.
-# Frequency: [operator, value] OR [operator, n_times, N_years]
+# Frequency: [operator, value] OR [operator, n_times, N_years, (exclusive)]
 #   - operators: >, <, =
 #   - value: annual frequency as postive real number on range [0, 1].
 #   - n_times: number of time condition must occur in N_years.
 #   - N_years: continous period of years over which condition
-#       is evaluated.
+#       is evaluated (forward-looking window from each eligible timestep).
 #   - n_times and N_years: must be postive integers.
+#   - exclusive: optional trailing bool, defaults to false (union mode:
+#       every qualifying window is marked). true = exclusive mode: once a
+#       window qualifies, later windows inside its span are skipped.
 # ------------------------------------------------------- #
