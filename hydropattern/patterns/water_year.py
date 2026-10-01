@@ -38,6 +38,39 @@ def identify_full_water_years(dowy: np.ndarray) -> list[tuple[int, int]]:
         for i, start in enumerate(starts)
     ]
 
+def record_length_years(dowy: np.ndarray) -> float:
+    '''
+    Record length, in (water) years, of a day-of-water-year array.
+
+    Reuses identify_full_water_years() directly -- the same dowy-based
+    full-water-year detection already used by
+    nested_frequency_interannual_fx/water_year_probability_ratio/
+    windowed_count_per_water_year -- so "a year" means the same thing here as
+    it does everywhere else in this package: it starts wherever dowy==1
+    does, not Jan 1. No new run-detection/year-counting logic is introduced.
+
+    Inherits identify_full_water_years' existing (asymmetric) convention: a
+    leading partial water year (before the first dowy==1) is excluded, but a
+    trailing partial water year still counts as one full year (the final
+    entry always runs to the end of the array). That convention is mirrored
+    here, not re-litigated.
+
+    Parameters
+    ----------
+        dowy (np.ndarray): day-of-water-year values (1-365), one per
+            timestep.
+
+    Returns
+    -------
+        float: number of full water years in `dowy`.
+    '''
+    if len(dowy) == 0:
+        raise ValueError('dowy must not be empty.')
+    full_years = identify_full_water_years(dowy)
+    if not full_years:
+        raise ValueError('dowy contains no full water years (no dowy == 1 found).')
+    return float(len(full_years))
+
 def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
                                  event_bool: bool = True) -> np.ndarray:
     '''

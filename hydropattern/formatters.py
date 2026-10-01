@@ -7,8 +7,10 @@ from collections import Counter
 from numbers import Integral, Real
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
+from matplotlib.colors import Normalize
 
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
 from hydropattern.patterns import Component, Result
@@ -377,6 +379,7 @@ def plot_component_response_surface(
     else:
         save_path = None
         show = True
+    norm, levels, widths = _degenerate_range_norm(zs)
     plot_response_surface(
         xs, ys, zs, interpolate=climate_canvas.interpolate,
         labels=(climate_canvas.xlabel, climate_canvas.ylabel, zlabel),
@@ -387,7 +390,30 @@ def plot_component_response_surface(
         color_map=color_map,
         color_map_ticks=climate_canvas.color_map_ticks,
         fillin=climate_canvas.fillin,
+        norm=norm,
+        levels=levels,
+        widths=widths,
     )
+
+
+def _degenerate_range_norm(
+        zs: np.ndarray
+) -> tuple[Normalize, tuple[float, ...], tuple[float, ...]] | tuple[None, None, None]:
+    '''Escape hatch for an all-equal (or single-value) zs grid, e.g. a pattern that
+    never/always succeeds across every scenario.
+
+    climate_canvas builds TwoSlopeNorm(vmin=z_min, vcenter=threshold, vmax=z_max)
+    internally, which raises ValueError when z_min == z_max (degenerate range,
+    vmin == vmax). Returns a plain Normalize + single-level contour instead, which
+    climate_canvas.plot_response_surface accepts as caller-supplied norm/levels/widths
+    (used as-is, bypassing its own TwoSlopeNorm computation). Returns (None, None, None)
+    when the range isn't degenerate, so the default TwoSlopeNorm behavior is unchanged.
+    '''
+    z_min, z_max = float(np.nanmin(zs)), float(np.nanmax(zs))
+    if z_min != z_max:
+        return None, None, None
+    pad = max(abs(z_min) * 1e-3, 1e-3)
+    return Normalize(vmin=z_min - pad, vmax=z_max + pad), (z_min,), (1.0,)
 
 
 # Signature mirrors plotting options surface.

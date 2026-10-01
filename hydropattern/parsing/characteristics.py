@@ -346,7 +346,8 @@ def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             [symbol, threshold, (optional)moving_average_periods] or
             [minimum, maximum, (optional)moving_average_periods]
             where symbol is a comparision string (i.e., <, <=, etc.),
-            minimum and maximum are exclusive (i.e., <, >,) boundaries for comparisons, and
+            minimum and maximum are inclusive (i.e., min <= value <= max) boundaries for
+            comparisons, and
             moving_average_periods is number of timesteps over which values are averaged.
         order (int): Position in which characteristic is evaluated.
     Returns
@@ -365,7 +366,7 @@ def magnitude_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             comparison_fx=patterns.comparison_fx(metrics[0], metrics[1])
         case ComparisionType.BETWEEN:
             name=f'{label}_{metrics[0]}-{metrics[1]}'
-            comparison_fx=between_parser(metrics[0:2], inclusive=False)
+            comparison_fx=between_parser(metrics[0:2])
         case _:
             raise_parser_error(
                 ParserErrorCode.INVALID_VALUE,
@@ -423,7 +424,8 @@ def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             [symbol, threshold] or
             [minimum, maximum]
             where symbol is a comparision string (i.e., <, <=, etc.),
-            minimum and maximum are exclusive (i.e., <, >,) boundaries for comparisons, and
+            minimum and maximum are inclusive (i.e., min <= value <= max) boundaries for
+            comparisons, and
         order (int): Position in which characteristic is evaluated.
     Returns
     -------
@@ -440,7 +442,7 @@ def duration_parser(metrics: list[Any], order: int) -> patterns.Characteristic:
             comparison_fx=patterns.comparison_fx(metrics[0], metrics[1])
         case ComparisionType.BETWEEN:
             name=f'{label}_{metrics[0]}-{metrics[1]}'
-            comparison_fx=patterns.comparison_fx('<', metrics[0], '>', metrics[1])
+            comparison_fx=between_parser(metrics[0:2])
         case _:
             raise_parser_error(
                 ParserErrorCode.INVALID_VALUE,
@@ -528,7 +530,8 @@ def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteri
             [symbol, threshold, (optional)ma_periods, (optional)look_back, (optional)min] or
             [minimum, maximum, (optional)ma_periods, (optional)look_back, (optional)min]
             where symbol is a comparision string (i.e., <, <=, etc.),
-            minimum and maximum are exclusive (i.e., <, >,) boundaries for comparisons, and
+            minimum and maximum are inclusive (i.e., min <= value <= max) boundaries for
+            comparisons, and
             ma_periods number of timesteps over which values are averaged.
                 Defaults to 1. Must be 3rd parameter.
             look_back number of timesteps back from current timestep to evaluate rate of change.
@@ -560,7 +563,7 @@ def rate_of_change_parser(metrics: list[Any], order: int) -> patterns.Characteri
             comparison_fx=patterns.comparison_fx(metrics[0], metrics[1])
         case ComparisionType.BETWEEN:
             name=f'{label}_{metrics[0]}-{metrics[1]}'
-            comparison_fx=between_parser(metrics[0:2], inclusive=False)
+            comparison_fx=between_parser(metrics[0:2])
         case _:
             raise_parser_error(
                 ParserErrorCode.INVALID_VALUE,

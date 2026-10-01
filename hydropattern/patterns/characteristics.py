@@ -17,6 +17,7 @@ from hydropattern.patterns.core import (
     CharacteristicType,
     eval_order_1_characteristic,
     eval_order_n_characteristic,
+    find_runs,
     is_dowy_timeseries,
     mark_events,
     moving_average,
@@ -196,29 +197,15 @@ def duration_fx(f: Callable[[float], bool],
         validate_order(order, output, CharacteristicType.DURATION)
         assert output is not None # for mypy: checked by validate_order
 
-        n, T = 0, len(df) # pylint: disable=invalid-name
-        result = np.zeros(T)
-        for t, row in enumerate(output):
-            # from 0th to [order - 1]
-            # check if values are all 1s
-            if np.all(row[:order-1]==1):
-                n += 1
-            # break in 1s
-            else:
-                # n periods of 1s
-                if f(n):
-                    # start at PREVIOUS period
-                    # and count back n periods
-                    result[t-n:t] = 1
-                n = 0
-            # last row
-            if t == T-1:
-                # n periods of 1s
-                if f(n):
-                    # start at CURRENT period
-                    # and count back n periods
-                    result[t+1-n:t+1] = 1
-                n = 0
+        # from 0th to [order - 1]; eligible wherever preceding
+        # characteristics are all 1 (find_runs treats anything else, incl.
+        # NaN, as a run-breaker -- same as the prior hand-rolled loop, which
+        # only ever compared against 1).
+        precedents = (output[:, :order - 1] == 1).all(axis=1).astype(float)
+        result = np.zeros(len(df))
+        for start, end in find_runs(precedents):
+            if f(end - start + 1):
+                result[start:end + 1] = 1
         return result
     return closure
 #endregion

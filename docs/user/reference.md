@@ -104,8 +104,8 @@ Evaluates whether streamflow meets a threshold condition.
 |--------------|---------------|-----------------|-------------|
 | `operator`   | string        | one of `<`, `<=`, `>`, `>=`, `=`, `!=` | Comparison operator. |
 | `value`      | real number   | ≥ 0             | Threshold to compare flow against. |
-| `min_value`  | real number   | ≥ 0             | Lower bound (between form). |
-| `max_value`  | real number   | ≥ 0, > min_value | Upper bound (between form). |
+| `min_value`  | real number   | ≥ 0             | Lower bound (between form, inclusive). |
+| `max_value`  | real number   | ≥ 0, > min_value | Upper bound (between form, inclusive). |
 | `ma_periods` | integer       | ≥ 1             | Optional. Moving average window in timesteps. Defaults to 1 (no smoothing). |
 
 **Moving average formula**
@@ -121,7 +121,7 @@ The comparison is made against `y_t` rather than the raw value `x_t`.
 ```toml
 magnitude = [">", 1.0]        # Flow > 1.0
 magnitude = ["<", 1.0, 7]     # 7-day moving average < 1.0
-magnitude = [0.5, 5.0]        # 0.5 < flow < 5.0 (between, exclusive)
+magnitude = [0.5, 5.0]        # 0.5 <= flow <= 5.0 (between, inclusive)
 ```
 
 ---
@@ -143,13 +143,13 @@ conditions satisfies a threshold.
 |--------------|---------|------------------------|-------------|
 | `operator`   | string  | one of `<`, `<=`, `>`, `>=`, `=`, `!=` | Comparison operator. |
 | `time_steps` | integer | ≥ 1                    | Threshold number of consecutive timesteps. |
-| `min_steps`  | integer | ≥ 1                    | Lower bound (between form). |
-| `max_steps`  | integer | ≥ 1, > min_steps       | Upper bound (between form). |
+| `min_steps`  | integer | ≥ 1                    | Lower bound (between form, inclusive). |
+| `max_steps`  | integer | ≥ 1, > min_steps       | Upper bound (between form, inclusive). |
 
 **Examples**
 ```toml
 duration = [">", 7]    # Condition must hold for more than 7 timesteps
-duration = [3, 14]     # Condition holds for between 3 and 14 timesteps
+duration = [3, 14]     # Condition holds for 3 to 14 timesteps, inclusive (3 <= n <= 14)
 ```
 
 ---
@@ -174,8 +174,8 @@ Evaluates the ratio of flow at time `t` relative to flow at time `t - look_back`
 |--------------|-------------|---------------------|-------------|
 | `operator`   | string      | one of `<`, `<=`, `>`, `>=`, `=`, `!=` | Comparison operator. |
 | `value`      | real number | > 0                 | Threshold ratio. Must be positive (see note). |
-| `lower`      | real number | > 0                 | Lower bound ratio (between form). |
-| `upper`      | real number | > 0, > lower        | Upper bound ratio (between form). |
+| `lower`      | real number | > 0                 | Lower bound ratio (between form, inclusive). |
+| `upper`      | real number | > 0, > lower        | Upper bound ratio (between form, inclusive). |
 | `ma_periods` | integer     | ≥ 1                 | Optional. Moving average window. Defaults to 1. Must be the 3rd parameter. |
 | `look_back`  | integer     | ≥ 1                 | Optional. Steps back for denominator. Defaults to 1. Must be the 4th parameter. |
 | `min`        | real number | ≥ 0                 | Optional. Minimum allowed denominator `y[t-n]`. Defaults to 0. Must be the 5th parameter. |

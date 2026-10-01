@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 #region characteristics
 class CharacteristicType(StrEnum):
     '''Enumeration of characteristic types.'''
@@ -227,6 +226,135 @@ def sliding_window_count(data: np.ndarray, window: int) -> np.ndarray:
             continue
         result[t] = np.sum(data[t - window + 1:t + 1])
     return result
+
+def count_events(success: np.ndarray) -> int:
+    '''
+    Counts distinct qualifying events in a 0/1(/NaN) success array.
+
+    An "event" is a maximal run of consecutive successes (collapsed via the
+    existing mark_events() engine, event_bool=True -- the same run-detection
+    already used by frequency_fx/nested_frequency_interannual_fx). This is a
+    thin wrapper, not a new run-detection algorithm, so any future change to
+    what counts as a "run" only needs to happen in mark_events().
+
+    Works uniformly for any component's success column, regardless of
+    whether it is a raw per-timestep grain (magnitude, duration, un-nested
+    frequency) or a nested-frequency terminal column broadcast across full
+    water years: nested_frequency_interannual_fx assigns one scalar verdict
+    per full water year (result[start:end+1] = verdict), so a maximal run's
+    boundaries at timestep grain always coincide exactly with water-year
+    boundaries -- no separate per-water-year dedup step is needed before
+    collapsing (verified in tests/test_event_count.py).
+
+    Parameters
+    ----------
+        success (np.ndarray): 0/1(/NaN) success array (e.g. a component's
+            final success column).
+
+    Returns
+    -------
+        int: number of distinct qualifying events.
+    '''
+    return int(np.nansum(mark_events(np.asarray(success, dtype=float), event_bool=True)))
+
+def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
+    '''
+    Finds every maximal run of consecutive successes in a 0/1(/NaN) array.
+
+    Generic run-detection primitive shared by duration_fx (which tests each
+    run's length against a duration bound) and find_exceeding_events (which
+    reports runs whose length falls outside a [min, max] bound) -- one
+    run-detection implementation, not two.
+
+    NaN breaks a run (does not count as, or extend, a run of successes),
+    matching mark_events' existing NaN semantics.
+
+    Parameters
+    ----------
+        eligible (np.ndarray): 0/1(/NaN) array.
+
+    Returns
+    -------
+        list[tuple[int, int]]: (start, end) inclusive index pairs, in series
+        order, for each maximal run of 1s.
+    '''
+    runs = []
+    start = None
+    for t, value in enumerate(eligible):
+        if not np.isnan(value) and value == 1:
+            if start is None:
+                start = t
+        else:
+            if start is not None:
+                runs.append((start, t - 1))
+            start = None
+    if start is not None:
+        runs.append((start, len(eligible) - 1))
+    return runs
+
+def find_exceeding_events(eligible: np.ndarray, min_duration: int | None = None,
+                          max_duration: int | None = None) -> list[tuple[int, int, int]]:
+    '''
+    Finds every maximal run whose length falls outside a [min_duration,
+    max_duration] bound -- e.g. the runs a duration_parser's between-form
+    would exclude, whether for being too short or too long.
+
+    Deliberately standalone: NOT wired into Result, event_count(),
+    event_rate(), frequency_table(), or any CLI/report output. Exists so a
+    future "what's driving success/failure" feature can identify and inspect
+    disqualified runs (e.g. a low-water spell that lasted 68 months against
+    a 36-60 month bound); that wiring is a separate, future change.
+
+    Reuses find_runs() -- no new run-detection logic.
+
+    Parameters
+    ----------
+        eligible (np.ndarray): 0/1(/NaN) array (e.g. a magnitude
+            characteristic's success column from a Result).
+        min_duration (int | None): runs shorter than this are reported. None
+            (default) disables the lower-bound check.
+        max_duration (int | None): runs longer than this are reported. None
+            (default) disables the upper-bound check.
+
+    Returns
+    -------
+        list[tuple[int, int, int]]: (start, end, length) for each
+        out-of-bounds run, in series order.
+    '''
+    if min_duration is None and max_duration is None:
+        raise ValueError('at least one of min_duration/max_duration must be given.')
+    exceeding = []
+    for start, end in find_runs(eligible):
+        length = end - start + 1
+        if (min_duration is not None and length < min_duration) or \
+           (max_duration is not None and length > max_duration):
+            exceeding.append((start, end, length))
+    return exceeding
+
+def event_rate(events: int, years: float) -> float:
+    '''
+    Plain descriptive event rate: events / years.
+
+    This is a descriptive statistic only -- it does NOT assume a Poisson
+    process, does NOT support recurrence-interval-style probability claims,
+    and does NOT assume independence between events. Great Lakes water-level
+    records show documented multi-decadal persistence/clustering, so
+    between-event independence should not be assumed when interpreting this
+    rate (see docs/adr and prior review notes on this component's stats).
+
+    Parameters
+    ----------
+        events (int): number of qualifying events (e.g. from count_events()).
+        years (float): record length in years (e.g. from
+            record_length_years()); must be > 0.
+
+    Returns
+    -------
+        float: events / years.
+    '''
+    if years <= 0:
+        raise ValueError(f'years: {years} must be greater than 0.')
+    return events / years
 #endregion
 #endregion
 
@@ -248,6 +376,27 @@ class Result:
     def __post_init__(self):
         self.dv_name = self.df.columns[0]
         self.df = self.df.rename(columns={self.dv_name: 'dv'})
+
+    def event_count(self) -> int:
+        '''Counts distinct qualifying events (maximal runs of success) for
+        this component. See count_events() for the underlying rule; applies
+        uniformly regardless of component composition (magnitude/duration/
+        frequency/nested-frequency -- see count_events() docstring).'''
+        return count_events(self.df[self.component.name].to_numpy())
+
+    def event_rate(self) -> float:
+        '''Descriptive rate of qualifying events per water year: event_count()
+        / record_length_years(dowy). See event_rate() and
+        record_length_years() docstrings for what this is (and is not) -- a
+        plain descriptive statistic, not a recurrence-interval/Poisson claim,
+        and not is_nested-branched (T is a property of the record's own
+        water-year structure via its dowy column, independent of any one
+        component's success-column grain).'''
+        # Local import: hydropattern.patterns.water_year imports mark_events/
+        # sliding_window_count from this module, so importing it back at
+        # module scope here would create a circular import.
+        from hydropattern.patterns.water_year import record_length_years 
+        return event_rate(self.event_count(), record_length_years(self.df['dowy'].to_numpy()))
 
     def identify_water_years(self):
         '''Identifies water years in the timeseries.'''

@@ -501,6 +501,49 @@ class TestPlotComponents(unittest.TestCase):
             _, kwargs = mocked.call_args
             self.assertTrue(kwargs['fillin'])
 
+    def test_plot_components_handles_degenerate_all_zero_result(self):
+        '''All-scenario 0.0 portion (pattern never succeeds) must not crash.
+
+        climate_canvas's default TwoSlopeNorm requires vmin < vcenter < vmax; an
+        all-equal z-grid makes vmin == vmax, which used to raise ValueError. See
+        formatters._degenerate_range_norm.
+        '''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', False)],
+                '_5_1.5': [self._grid_result('single_characteristic', False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions(interpolate=False, show=False))
+
+            self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
+
+    def test_plot_components_forwards_degenerate_norm_and_levels(self):
+        '''Degenerate (all-equal) z-grids get a caller-supplied norm/levels/widths.'''
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            output_path = Path(temp_dir)
+            scenario_results = {
+                '_0_0': [self._grid_result('single_characteristic', False)],
+                '_0_1.5': [self._grid_result('single_characteristic', False)],
+                '_5_0': [self._grid_result('single_characteristic', False)],
+                '_5_1.5': [self._grid_result('single_characteristic', False)],
+            }
+
+            plot_components(scenario_results, output_path, MetricOptions(), 1,
+                            ClimateCanvasPlotOptions())
+
+            _, kwargs = mocked.call_args
+            self.assertIsNotNone(kwargs['norm'])
+            self.assertEqual(kwargs['levels'], (0.0,))
+            self.assertEqual(kwargs['widths'], (1.0,))
+
     def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
         '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''
         import tempfile

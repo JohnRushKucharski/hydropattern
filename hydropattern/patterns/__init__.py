@@ -11,8 +11,12 @@ from hydropattern.patterns.core import (
     CharacteristicType,
     Component,
     Result,
+    count_events,
+    event_rate,
     evaluate_component,
     evaluate_components,
+    find_exceeding_events,
+    find_runs,
     is_dowy_timeseries,
     mark_events,
     moving_average,
@@ -39,6 +43,7 @@ from hydropattern.patterns.characteristics import (
 from hydropattern.patterns.water_year import (
     identify_full_water_years,
     or_reduce_per_water_year,
+    record_length_years,
     water_year_probability_ratio,
     windowed_count_per_water_year,
 )
