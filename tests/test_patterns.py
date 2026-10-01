@@ -315,22 +315,23 @@ class TestPatterns(unittest.TestCase):
         # With order check, only rows where output[:, 0:order-1] are all 1s
         self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
 
-    def test_rate_of_change_fx_order3_partial_eligibility(self):
-        '''Test rate_of_change_fx with order=3 and partial eligibility.'''
+    def test_rate_of_change_fx_order3_ignores_precedents(self):
+        '''rate_of_change is an independent diagnostic (see docs/plans/2026-10-01-
+        pattern-correctness-tdd.md): its own truth value shows regardless of
+        order or preceding characteristic columns.'''
         order = 3
         fx = rate_of_change_fx(comparison_fx('<', 1.0, None, None), order=order, look_back=1)
         df_ = pd.DataFrame({'col1': [4.0, 3.0, 2.0, 6.0, 5.0, 4.0]})
         # rate of change: [nan, 3.0/4.0, 2.0/3.0, 6.0/2.0, 5.0/6.0, 4.0/5.0]
         #               = [nan, 0.75, 0.667, 3.0, 0.833, 0.8]
-        # comparison < 1.0: [0, 1, 1, 0, 1, 1] (without order check)
+        # comparison < 1.0: [0, 1, 1, 0, 1, 1]
 
-        # output array where only some rows pass previous characteristics
+        # output array where only some rows pass previous characteristics;
+        # must not matter -- rate_of_change never gates on it.
         o = np.zeros(shape=(len(df_), order-1))
         o[1:4, :] = 1  # rows 1, 2, 3 pass previous characteristics
         result = fx(df_, o)
-        # Only rows where output columns 0:order-1 are all 1s AND comparison passes
-        # Rows 1, 2, 3 have all 1s in output; comparison passes for rows 1, 2
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
+        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 1, 1])))
     #endregion
     #endregion
 

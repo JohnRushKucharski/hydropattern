@@ -152,7 +152,6 @@ class TestParseRequestGolden(unittest.TestCase):
                     ),
                 ),
                 is_success_pattern=True,
-                verbose=True,
             ),
         ))
         self.assertEqual(result, expected)
@@ -171,7 +170,6 @@ class TestParseRequestGolden(unittest.TestCase):
                     ),
                 ),
                 is_success_pattern=True,
-                verbose=True,
             ),
         ))
         self.assertEqual(result, expected)
@@ -233,9 +231,13 @@ class TestParseRequestGolden(unittest.TestCase):
         result = parse_request({'comp_a': {'magnitude': ['>', 1.0], 'success_pattern': False}})
         self.assertFalse(result.components[0].is_success_pattern)
 
-    def test_verbose_false_preserved(self):
-        result = parse_request({'comp_a': {'magnitude': ['>', 1.0], 'verbose': False}})
-        self.assertFalse(result.components[0].verbose)
+    def test_verbose_is_rejected(self):
+        '''`verbose` is a removed option (see docs/plans/2026-10-01-pattern-
+        correctness-tdd.md): timing/magnitude/rate_of_change are now
+        unconditionally independent diagnostics, so there is nothing left
+        for `verbose` to toggle.'''
+        with self.assertRaises(HydropatternError):
+            parse_request({'comp_a': {'magnitude': ['>', 1.0], 'verbose': False}})
 
     def test_rate_of_change_defaults_applied(self):
         result = parse_request({'comp_a': {'rate_of_change': ['>', 0.5]}})

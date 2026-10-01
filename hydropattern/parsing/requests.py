@@ -1,5 +1,6 @@
 '''Request normalization seam extracted from hydropattern.parsers.'''
 
+import warnings
 from typing import Any
 
 from hydropattern.errors import ParserErrorCode, raise_parser_error
@@ -13,10 +14,22 @@ from hydropattern.parsing.characteristics import (
     validate_nested_frequency_metrics,
     validate_rate_of_change_metrics,
     validate_timing_metrics,
-    validate_verbose,
 )
 from hydropattern.parsing.specs import CharacteristicSpec, ComponentSpec, Request
 from hydropattern.patterns import CharacteristicType
+
+# Options removed per docs/plans/2026-10-01-pattern-correctness-tdd.md:
+# `order` is always inferred from characteristic sequence; `verbose` is gone
+# because timing/magnitude/rate_of_change are now unconditionally independent
+# diagnostics (duration/frequency unconditionally stay gated).
+_REMOVED_OPTIONS = frozenset({'order', 'verbose'})
+_CHARACTERISTIC_BUILDERS = {
+    'timing': lambda metrics, order: _timing_spec(metrics, order),
+    'magnitude': lambda metrics, order: _magnitude_spec(metrics, order),
+    'duration': lambda metrics, order: _duration_spec(metrics, order),
+    'rate_of_change': lambda metrics, order: _rate_of_change_spec(metrics, order),
+    'frequency': lambda metrics, order: _frequency_spec(metrics, order),
+}
 
 
 def _timing_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
@@ -119,46 +132,143 @@ def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     )
 
 
+def _parse_compact_characteristics(
+        component_name: str, elements: dict[str, Any]) -> tuple[list[Any], bool]:
+    '''Compact-dict form: characteristic name -> metrics, in TOML table/dict
+    iteration order. Warns (portability): TOML v1.0 does not guarantee
+    key/value order within a table, even though this project's tomllib and
+    Python dict preserve encountered order.
+    '''
+    warnings.warn(
+        f'''Component '{component_name}' uses the compact characteristic-key form.
+        Characteristic order is inferred from key iteration order, which TOML v1.0
+        does not guarantee (though tomllib/Python dict preserve it here). Prefer the
+        ordered [[components.{component_name}.characteristics]] array form for
+        portability.''',
+        UserWarning,
+        stacklevel=2,
+    )
+    char_specs: list[Any] = []
+    success = True
+    order = 1
+    for name, metrics in elements.items():
+        if name in _REMOVED_OPTIONS:
+            raise_parser_error(
+                ParserErrorCode.REMOVED_OPTION,
+                f'''"{name}" is no longer a supported component option (see
+                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                order is always inferred from sequence; diagnostic characteristics
+                are always independent.''',
+                component=component_name,
+                option=name,
+            )
+        if name == 'success_pattern':
+            validate_boolean(name, metrics)
+            success = metrics
+            continue
+        builder = _CHARACTERISTIC_BUILDERS.get(name)
+        if builder is None:
+            raise_parser_error(
+                ParserErrorCode.UNKNOWN_CHARACTERISTIC,
+                f'Characteristic {name} not found.',
+                component=component_name,
+                characteristic=name,
+            )
+        char_specs.append(builder(metrics, order))
+        order += 1
+    return char_specs, success
+
+
+def _parse_ordered_characteristics(
+        component_name: str, elements: dict[str, Any]) -> tuple[list[Any], bool]:
+    '''Ordered array-of-tables form: elements['characteristics'] is a list of
+    {'type': ..., 'metrics': [...]} tables; list order is TOML-guaranteed.
+    '''
+    success = True
+    for name, metrics in elements.items():
+        if name == 'characteristics':
+            continue
+        if name in _REMOVED_OPTIONS:
+            raise_parser_error(
+                ParserErrorCode.REMOVED_OPTION,
+                f'''"{name}" is no longer a supported component option (see
+                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                order is always inferred from sequence; diagnostic characteristics
+                are always independent.''',
+                component=component_name,
+                option=name,
+            )
+        if name == 'success_pattern':
+            validate_boolean(name, metrics)
+            success = metrics
+            continue
+        raise_parser_error(
+            ParserErrorCode.UNKNOWN_OPTION,
+            f'Unknown component option {name!r}.',
+            component=component_name,
+            option=name,
+        )
+
+    char_specs: list[Any] = []
+    for order, entry in enumerate(elements['characteristics'], start=1):
+        if not isinstance(entry, dict) or 'type' not in entry:
+            raise_parser_error(
+                ParserErrorCode.MISSING_FIELD,
+                f'''Each entry in '{component_name}'.characteristics must be a table
+                with a "type" field.''',
+                component=component_name,
+            )
+        extra_keys = set(entry) - {'type', 'metrics'}
+        if extra_keys & _REMOVED_OPTIONS:
+            raise_parser_error(
+                ParserErrorCode.REMOVED_OPTION,
+                f'''Characteristic tables never accept {sorted(extra_keys & _REMOVED_OPTIONS)};
+                order is always inferred from array position.''',
+                component=component_name,
+            )
+        if extra_keys:
+            raise_parser_error(
+                ParserErrorCode.UNKNOWN_OPTION,
+                f'Unknown characteristic table field(s) {sorted(extra_keys)}.',
+                component=component_name,
+            )
+        char_type = entry['type']
+        builder = _CHARACTERISTIC_BUILDERS.get(char_type)
+        if builder is None:
+            raise_parser_error(
+                ParserErrorCode.UNKNOWN_CHARACTERISTIC,
+                f'Characteristic {char_type} not found.',
+                component=component_name,
+                characteristic=char_type,
+            )
+        char_specs.append(builder(entry.get('metrics', []), order))
+    return char_specs, success
+
+
 def parse_request(data: dict[str, Any]) -> Request:
-    '''Parse component configuration data into a stable normalized Request.'''
+    '''Parse component configuration data into a stable normalized Request.
+
+    Accepts either the compact characteristic-key form (dict iteration
+    order, warns) or the ordered [[components.<name>.characteristics]]
+    array-of-tables form (TOML-guaranteed order, no warning). Neither form
+    accepts a user-supplied `order` or the removed `verbose` option.
+    '''
     component_specs: list[ComponentSpec] = []
     for component_name, elements in data.items():
-        char_specs: list[Any] = []
-        verbose, success, order = True, True, 1
-        for name, metrics in elements.items():
-            match name:
-                case 'timing':
-                    order = 1 if verbose else order
-                    char_specs.append(_timing_spec(metrics, order))
-                case 'magnitude':
-                    order = 1 if verbose else order
-                    char_specs.append(_magnitude_spec(metrics, order))
-                case 'duration':
-                    char_specs.append(_duration_spec(metrics, order))
-                case 'rate_of_change':
-                    order = 1 if verbose else order
-                    char_specs.append(_rate_of_change_spec(metrics, order))
-                case 'frequency':
-                    char_specs.append(_frequency_spec(metrics, order))
-                case 'verbose':
-                    validate_verbose(order, metrics)
-                    verbose = metrics
-                case 'success_pattern':
-                    validate_boolean(name, metrics)
-                    success = metrics
-                case _:
-                    raise_parser_error(
-                        ParserErrorCode.UNKNOWN_CHARACTERISTIC,
-                        f'Characteristic {name} not found.',
-                        component=component_name,
-                        characteristic=name,
-                    )
-            order += 1
+        if 'characteristics' in elements:
+            char_specs, success = _parse_ordered_characteristics(component_name, elements)
+        else:
+            char_specs, success = _parse_compact_characteristics(component_name, elements)
+        if not char_specs:
+            raise_parser_error(
+                ParserErrorCode.EMPTY_COMPONENT,
+                f"Component '{component_name}' has no characteristics.",
+                component=component_name,
+            )
         component_specs.append(ComponentSpec(
             name=component_name,
             characteristics=tuple(char_specs),
             is_success_pattern=success,
-            verbose=verbose,
         ))
     return Request(components=tuple(component_specs))
 

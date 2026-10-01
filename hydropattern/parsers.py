@@ -55,7 +55,6 @@ from hydropattern.parsing.characteristics import (
     validate_simple_comparision_pair,
     validate_symbol,
     validate_timing_metrics,
-    validate_verbose,
 )
 from hydropattern.parsing.requests import parse_request
 from hydropattern.parsing.options import (
@@ -122,5 +121,4 @@ __all__ = [
     'validate_simple_comparision_pair',
     'validate_symbol',
     'validate_timing_metrics',
-    'validate_verbose',
 ]

@@ -45,7 +45,6 @@ class ComponentSpec:
     name: str
     characteristics: tuple[CharacteristicSpec, ...]
     is_success_pattern: bool = True
-    verbose: bool = True
 
 
 @dataclass(frozen=True)

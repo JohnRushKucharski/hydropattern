@@ -192,16 +192,6 @@ def validate_boolean(name: str, metrics: Any) -> None:
             value=metrics,
         )
 
-def validate_verbose(order: int, metrics: Any) -> None:
-    '''Validate verbose.'''
-    warning_msg = f'''
-                "verbose = {metrics}" appeared after {order} component characteristics.
-                First {order} characteristics evaluated as "verbose = True".
-                '''
-    validate_boolean('verbose', metrics)
-    if metrics and order != 1:
-        print(warning_msg)
-
 def validate_look_back(metrics: list[Any]) -> None:
     '''Validate look back period is an integer >= 1.'''
     _validate_int_param(metrics, 3, 'look_back')
@@ -879,7 +869,6 @@ __all__ = [
     'validate_comparison_metrics',
     'validate_ma_period',
     'validate_boolean',
-    'validate_verbose',
     'validate_look_back',
     'validate_timing_metrics',
     'timing_window_fx',

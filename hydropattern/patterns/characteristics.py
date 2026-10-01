@@ -16,7 +16,6 @@ from hydropattern.patterns.core import (
     CharacteristicFx,
     CharacteristicType,
     eval_order_1_characteristic,
-    eval_order_n_characteristic,
     find_runs,
     is_dowy_timeseries,
     mark_events,
@@ -142,8 +141,11 @@ def timing_fx(f: Callable[[float], bool],
             raise ValueError('''Timing characteristics must be evaluated on a
                              day of water year timeseries.''')
         validate_order(order, output, CharacteristicType.TIMING)
-        return (eval_order_1_characteristic(f, data) if order == 1 else
-                eval_order_n_characteristic(f, data, output, order)) # type: ignore
+        # Timing is an independent diagnostic (see docs/plans/2026-10-01-
+        # pattern-correctness-tdd.md): it reports its own truth value
+        # regardless of position/preceding characteristics, never gated by
+        # `output`'s earlier columns.
+        return eval_order_1_characteristic(f, data)
     return closure
 #endregion
 
@@ -170,8 +172,9 @@ def magnitude_fx(f: Callable[[float], bool],
         data = data if ma_periods == 1 else moving_average(data, ma_periods)
 
         validate_order(order, output, CharacteristicType.MAGNITUDE)
-        return (eval_order_1_characteristic(f, data) if order == 1 else
-                eval_order_n_characteristic(f, data, output, order)) # type: ignore
+        # Magnitude is an independent diagnostic: own truth value regardless
+        # of preceding characteristics (see note in timing_fx above).
+        return eval_order_1_characteristic(f, data)
     return closure
 #endregion
 
@@ -433,8 +436,8 @@ def rate_of_change_fx(f: Callable[[float], bool],
         data[data <= minimum] = np.nan  # avoid divide by 0s, excludes values <= minimum
         data[look_back:] = data[look_back:] / data[:-look_back]
         data[:look_back] = np.nan  # not in look back window
-        # send along for value comparison and eligibility checking
-        return (eval_order_1_characteristic(f, data) if order == 1 else
-                eval_order_n_characteristic(f, data, output, order)) # type: ignore
+        # Rate-of-change is an independent diagnostic: own truth value
+        # regardless of preceding characteristics (see note in timing_fx).
+        return eval_order_1_characteristic(f, data)
     return closure
 #endregion
