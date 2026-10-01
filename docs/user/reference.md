@@ -222,14 +222,38 @@ rate_of_change = [">", 2.0, 1, 1, 0.1]  # Floor denominator at 0.1 to avoid divi
 
 ```toml
 [components.my_component]
-verbose         = false  # Evaluate characteristics independently? Defaults to false.
 success_pattern = true   # Present = all characteristics met? Defaults to true.
 ```
 
 | Key              | Type    | Default | Description |
 |------------------|---------|---------|-------------|
-| `verbose`        | boolean | `false` | When `false`, each characteristic is only evaluated where all prior characteristics are met. When `true`, characteristics are evaluated independently. |
 | `success_pattern`| boolean | `true`  | When `true`, the component is "present" when all characteristics are satisfied. When `false`, presence is indicated by characteristics *not* being satisfied (useful for describing failure states). |
+
+Characteristic order is always inferred from sequence, never configured
+explicitly (no `order`/`verbose` keys). Timing, magnitude, and rate-of-change
+always report their own truth value regardless of position or preceding
+characteristics; duration and frequency remain dependent on the conjunction
+of their preceding characteristics. Components use either the compact
+characteristic-key form (as above) or an ordered array-of-tables form:
+
+```toml
+[components.my_component]
+success_pattern = true
+
+[[components.my_component.characteristics]]
+type = "magnitude"
+metrics = [">", 1.0]
+
+[[components.my_component.characteristics]]
+type = "duration"
+metrics = [">=", 2]
+```
+
+The compact form's characteristic order depends on TOML table key/value
+iteration order, which TOML v1.0 does not formally guarantee (though this
+project's `tomllib` and Python dict both preserve it); using it emits a
+`UserWarning`. The ordered array form's order is TOML-guaranteed and does
+not warn.
 
 ---
 
