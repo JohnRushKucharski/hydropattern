@@ -72,6 +72,7 @@ Defines the calendar window during which the component is evaluated.
 | `last_doy`  | integer | 1 ≤ value ≤ 366   | Last calendar day-of-year (inclusive). |
 
 **Notes**
+- Timing uses the timestamp's calendar day-of-year, not day-of-water-year.
 - Day-of-year values use a 365-day base year. During leap years, 28 Feb and 29 Feb share the same day-of-year position.
 - `first_doy == last_doy` is valid and evaluates exactly one day per year.
 - `first_doy > last_doy` is valid and describes a cross-year (wrap-around) window.
@@ -221,6 +222,8 @@ For a nested probability base `[operator, p]`, the probability is the fraction o
 eligible timesteps in each water year. Compare once per year and broadcast that
 verdict across the year's output rows. `exclusive_event_window` has no effect on
 this probability form: it has one annual trial, not overlapping candidate windows.
+Only complete water years count. Daily and monthly observations are supported;
+gaps and other cadences raise an error for annual calculations.
 The interannual count/between pattern evaluates windows in units of water years;
 its `exclusive_event_window` setting controls overlap suppression.
 

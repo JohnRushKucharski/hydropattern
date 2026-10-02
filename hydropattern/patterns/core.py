@@ -396,7 +396,11 @@ class Result:
         # sliding_window_count from this module, so importing it back at
         # module scope here would create a circular import.
         from hydropattern.patterns.water_year import record_length_years 
-        return event_rate(self.event_count(), record_length_years(self.df['dowy'].to_numpy()))
+        timestamps = self.df.index if isinstance(self.df.index, pd.DatetimeIndex) else None
+        return event_rate(
+            self.event_count(),
+            record_length_years(self.df['dowy'].to_numpy(), timestamps),
+        )
 
     def identify_water_years(self):
         '''Identifies water years in the timeseries.'''

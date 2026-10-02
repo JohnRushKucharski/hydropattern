@@ -137,7 +137,12 @@ class TestTimingBetweenWasAlreadyInclusiveUnaffected(unittest.TestCase):
     def test_boundaries_included(self):
         char = timing_parser([100, 110], order=1)
         df = pd.DataFrame({'flow': [1.0] * 5,
-                            'dowy': [99, 100, 105, 110, 111]})
+                            'dowy': [99, 100, 105, 110, 111]},
+                          index=pd.DatetimeIndex(
+                              ['2021-04-09', '2021-04-10', '2021-04-15',
+                               '2021-04-20', '2021-04-21'],
+                              name='time',
+                          ))
         result = char.fx(df, None)
         self.assertTrue(np.all(result == np.array([0, 1, 1, 1, 0])))
 

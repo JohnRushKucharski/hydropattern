@@ -125,9 +125,13 @@ class TestTimingPositivePaths(unittest.TestCase):
         '''Cross-year window includes both boundary days.'''
         char = timing_parser([335, 60], order=1)
         import pandas as pd
-        # Build a minimal dataframe with a dowy column
-        # Rows: doy 335, 60, 180 — first two should be in-window, last should not
-        df = pd.DataFrame({'dowy': [335, 60, 180]})
+        # Rows: calendar doy 335, 60, 180 — first two are in-window.
+        df = pd.DataFrame(
+            {'dowy': [335, 60, 180]},
+            index=pd.DatetimeIndex(
+                ['2020-12-01', '2021-03-01', '2021-06-29'], name='time'
+            ),
+        )
         result = char.fx(df)
         self.assertEqual(result[0], 1, 'doy 335 should be in wrap-around window')
         self.assertEqual(result[1], 1, 'doy 60 should be in wrap-around window')

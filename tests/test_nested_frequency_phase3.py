@@ -22,21 +22,13 @@ def _evaluate_nested_frequency(
     interannual_metrics: list,
 ) -> pd.DataFrame:
     year_count = (len(flow) + 3) // 4
-    dates = pd.to_datetime(
-        [
-            f'{year}-01-{day:02d}'
-            for year in range(2020, 2020 + year_count)
-            for day in range(1, 5)
-        ][:len(flow)]
-    )
     data = pd.DataFrame(
         {
             'flow': flow,
             'dowy': np.tile(np.arange(1, 5), year_count)[:len(flow)],
         },
-        index=dates,
+        index=pd.RangeIndex(len(flow), name='time'),
     )
-    data.index.name = 'time'
     request = parse_request(
         {
             'component': {
@@ -123,7 +115,7 @@ def test_antecedent_frequency_exclusivity_changes_nested_probability():
             'flow': [1, 0, 1, 0, 1, 0],
             'dowy': [1, 2, 3, 4, 5, 6],
         },
-        index=pd.date_range('2020-01-01', periods=6, name='time'),
+        index=pd.RangeIndex(6, name='time'),
     )
     results = {}
     for exclusive in (False, True):

@@ -133,8 +133,8 @@ def timing_fx(f: Callable[[float], bool],
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray = None) -> np.ndarray:
         # uses dowy (last) df column
-        data = np.asarray(df.iloc[:, -1].values)
-        if not is_dowy_timeseries(data):
+        dowy = np.asarray(df.iloc[:, -1].values)
+        if not is_dowy_timeseries(dowy):
             raise ValueError('''Timing characteristics must be evaluated on a
                              day of water year timeseries.''')
         validate_order(order, output, CharacteristicType.TIMING)
@@ -142,7 +142,12 @@ def timing_fx(f: Callable[[float], bool],
         # pattern-correctness-tdd.md): it reports its own truth value
         # regardless of position/preceding characteristics, never gated by
         # `output`'s earlier columns.
-        return eval_order_1_characteristic(f, data)
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError('Timing characteristics require a datetime index.')
+        calendar_doy = df.index.dayofyear.to_numpy()
+        leap_day = df.index.is_leap_year & (calendar_doy > 59)
+        calendar_doy = calendar_doy - leap_day.astype(int)
+        return eval_order_1_characteristic(f, calendar_doy)
     return closure
 #endregion
 
@@ -289,16 +294,22 @@ def frequency_fx(f: Callable[[float], bool], order: int,
         return _forward_frequency_window(eligible, f, big_n, exclusive_event_window)
     return closure
 
-def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable[[float], bool],
-                             big_n: int | None, exclusive_event_window: bool) -> np.ndarray:
+def _intra_annual_diagnostic(
+    eligible: np.ndarray,
+    dowy: np.ndarray,
+    timestamps: pd.DatetimeIndex | None,
+    f: Callable[[float], bool],
+    big_n: int | None,
+    exclusive_event_window: bool,
+) -> np.ndarray:
     '''Shared raw-diagnostic computation for the nested base (intra-annual)
     pattern. Probability verdicts are compared once per year and broadcast;
     count/between forms use forward candidate windows within each water year.
     '''
     diag = np.full(len(eligible), np.nan)
-    full_years = identify_full_water_years(dowy)
+    full_years = identify_full_water_years(dowy, timestamps)
     if big_n is None:
-        ratios = water_year_probability_ratio(eligible, dowy)
+        ratios = water_year_probability_ratio(eligible, dowy, timestamps=timestamps)
         for start, end in full_years:
             if not np.isnan(ratios[end]):
                 diag[start:end + 1] = 1 if f(ratios[end]) else 0
@@ -340,11 +351,12 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
         assert output is not None # for mypy: checked by validate_order
 
         dowy = np.asarray(df.iloc[:, -1].values, dtype=float)
+        timestamps = df.index if isinstance(df.index, pd.DatetimeIndex) else None
         precedents = output[:, :order-1]
         eligible = (precedents == 1).all(axis=1).astype(int)
 
         return _intra_annual_diagnostic(
-            eligible, dowy, f, big_n, exclusive_event_window
+            eligible, dowy, timestamps, f, big_n, exclusive_event_window
         )
     return closure
 
@@ -392,10 +404,11 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
             )
 
         dowy = np.asarray(df.iloc[:, -1].values, dtype=float)
+        timestamps = df.index if isinstance(df.index, pd.DatetimeIndex) else None
         intra_annual = output[:, order - 2]
-        year_verdicts = or_reduce_per_water_year(intra_annual, dowy)
+        year_verdicts = or_reduce_per_water_year(intra_annual, dowy, timestamps)
 
-        full_years = identify_full_water_years(dowy)
+        full_years = identify_full_water_years(dowy, timestamps)
         compact_verdicts = np.array([year_verdicts[end] for _, end in full_years])
         compact_diag = _forward_frequency_window(
             np.nan_to_num(compact_verdicts, nan=0).astype(int),

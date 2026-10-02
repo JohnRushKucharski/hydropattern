@@ -31,7 +31,8 @@ from hydropattern.patterns import (
 
 # used in some simple characteristic function tests.
 df = pd.DataFrame({'col1': [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
-                   'col2': [1, 2, 3, 4, 5, 6]})
+                   'col2': [1, 2, 3, 4, 5, 6]},
+                  index=pd.date_range('2020-01-01', periods=6, name='time'))
 # df =
 #     col1  col2
 # 0   10.0     1

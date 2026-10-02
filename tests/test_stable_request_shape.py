@@ -507,10 +507,7 @@ def _make_nested_frequency_example_4_df() -> pd.DataFrame:
             'flow': [4.0, 6.0, 6.0, 6.0, 6.0, 4.0],
             'dowy': [1.0, 2.0, 1.0, 2.0, 1.0, 2.0],
         },
-        index=pd.to_datetime(
-            ['2010-01-01', '2010-06-01', '2011-01-01',
-             '2011-06-01', '2012-01-01', '2012-06-01']
-        ),
+        index=pd.RangeIndex(6, name='time'),
     )
     df.index.name = 'time'
     return df
@@ -554,9 +551,8 @@ def _make_nested_frequency_example_3_df() -> pd.DataFrame:
             'flow': [6.0, 6.0, 6.0, 4.0, 4.0, 6.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0],
             'dowy': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         },
-        index=pd.date_range('2020-01-01', periods=12, freq='D'),
+        index=pd.RangeIndex(12, name='time'),
     )
-    df.index.name = 'time'
     return df
 
 

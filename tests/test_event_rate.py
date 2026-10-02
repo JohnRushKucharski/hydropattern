@@ -36,6 +36,7 @@ from hydropattern.patterns import (
     record_length_years,
 )
 from hydropattern.parsers import duration_parser, magnitude_parser
+from hydropattern.timeseries import Timeseries
 
 
 class TestEventRatePureFunction(unittest.TestCase):
@@ -59,56 +60,48 @@ class TestRecordLengthYears(unittest.TestCase):
     same convention as nested_frequency_interannual_fx -- not calendar years.
     '''
 
+    @staticmethod
+    def _daily_water_year(start, end):
+        dates = pd.date_range(start, end, freq='D', name='time')
+        data = pd.DataFrame({'flow': np.ones(len(dates))}, index=dates)
+        return Timeseries.from_dataframe(data, first_dowy=274).data['dowy'].to_numpy(), dates
+
     def test_counts_full_water_years(self):
-        # 3 full "water years" of 5 rows each (dowy resets to 1 at each start).
-        dowy = np.tile(np.arange(1, 6), 3).astype(float)
-        self.assertEqual(record_length_years(dowy), 3.0)
+        dowy, dates = self._daily_water_year('2018-10-01', '2021-10-01')
+        self.assertEqual(record_length_years(dowy, dates), 3.0)
 
     def test_leading_partial_water_year_is_excluded(self):
-        # Matches identify_full_water_years' own documented convention: data
-        # before the first dowy==1 (here, a stub "tail end" of a prior,
-        # unobserved water year) does not count as a year.
-        leading_partial = np.array([4.0, 5.0])  # before first dowy==1
-        full_years = np.tile(np.arange(1, 6), 2).astype(float)  # 2 full years
-        dowy = np.concatenate([leading_partial, full_years])
-        self.assertEqual(record_length_years(dowy), 2.0)
+        dowy, dates = self._daily_water_year('2018-11-01', '2020-10-01')
+        self.assertEqual(record_length_years(dowy, dates), 1.0)
 
-    def test_trailing_partial_water_year_still_counts_as_one(self):
-        # Also matches the existing (asymmetric) convention: a trailing
-        # partial year -- data after the last full dowy==1 restart -- still
-        # counts as a full year (identify_full_water_years always runs the
-        # final entry to the end of the array). Not re-litigated here, only
-        # mirrored.
-        full_years = np.tile(np.arange(1, 6), 2).astype(float)  # 2 full years
-        trailing_partial = np.array([1.0, 2.0])  # 3rd year, incomplete
-        dowy = np.concatenate([full_years, trailing_partial])
-        self.assertEqual(record_length_years(dowy), 3.0)
+    def test_trailing_partial_water_year_is_excluded(self):
+        dowy, dates = self._daily_water_year('2019-10-01', '2021-09-29')
+        self.assertEqual(record_length_years(dowy, dates), 1.0)
 
     def test_raises_on_no_full_water_years(self):
-        # dowy never hits 1 -> identify_full_water_years finds no years.
+        dowy, dates = self._daily_water_year('2019-11-01', '2020-02-01')
         with self.assertRaises(ValueError):
-            record_length_years(np.array([4.0, 5.0, 6.0]))
+            record_length_years(dowy, dates)
 
     def test_raises_on_empty_dowy(self):
         with self.assertRaises(ValueError):
-            record_length_years(np.array([]))
+            record_length_years(np.array([]), pd.DatetimeIndex([]))
+
+    def test_timestamps_are_required(self):
+        with self.assertRaisesRegex(ValueError, 'timestamps are required'):
+            record_length_years(np.array([1.0, 2.0]))
 
 
 class TestResultEventRate(unittest.TestCase):
     '''Result.event_rate() combines event_count() with record_length_years().'''
 
     def test_matches_manual_division(self):
-        run_a, gap, run_b, tail = 48, 5, 40, 5
-        total = run_a + gap + run_b + tail  # 98 == 14 * 7 water years below
-        flow = np.concatenate([
-            np.full(run_a, 1.0),
-            np.full(gap, 100.0),
-            np.full(run_b, 1.0),
-            np.full(tail, 100.0),
-        ])
-        dowy = np.tile(np.arange(1, 15), 7).astype(float)  # 7 full water years
-        index = pd.date_range('1970-01-01', periods=total, freq='MS', name='time')
-        df = pd.DataFrame({'flow': flow, 'dowy': dowy}, index=index)
+        dates = pd.date_range('1970-01-01', '1977-01-01', freq='D', name='time')
+        data = pd.DataFrame({'flow': 100.0}, index=dates)
+        data.iloc[:48, 0] = 1.0
+        data.iloc[48 + 5:48 + 5 + 40, 0] = 1.0
+        dowy = Timeseries.from_dataframe(data).data['dowy'].to_numpy()
+        df = data.assign(dowy=dowy)
         component = Component(
             name='low_water_cycle',
             characteristics=[
@@ -118,10 +111,10 @@ class TestResultEventRate(unittest.TestCase):
             is_success_pattern=True,
         )
         result = evaluate_component(df, component)
-        expected = result.event_count() / record_length_years(dowy)
+        expected = result.event_count() / record_length_years(dowy, dates)
         self.assertAlmostEqual(result.event_rate(), expected)
         self.assertEqual(result.event_count(), 2)
-        self.assertEqual(record_length_years(dowy), 7.0)
+        self.assertEqual(record_length_years(dowy, dates), 7.0)
 
 
 if __name__ == '__main__':
