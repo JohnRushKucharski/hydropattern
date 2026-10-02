@@ -213,8 +213,16 @@ rate_of_change = [">", 2.0, 1, 1, 0.1]  # Floor denominator at 0.1 to avoid divi
 
 ### Frequency
 
-> **Note**: Frequency characteristic validation is covered in a separate issue and is
-> not yet fully enforced. See `examples/detailed.toml` for current usage guidance.
+Un-nested `[operator, n, N]` and `[min_n, max_n, N]` metrics evaluate forward,
+event-anchored timestep windows. Nested frequency metrics contain an intra-annual
+base pattern and an interannual pattern over annual verdicts.
+
+For a nested probability base `[operator, p]`, the probability is the fraction of
+eligible timesteps in each water year. Compare once per year and broadcast that
+verdict across the year's output rows. `exclusive_event_window` has no effect on
+this probability form: it has one annual trial, not overlapping candidate windows.
+The interannual count/between pattern evaluates windows in units of water years;
+its `exclusive_event_window` setting controls overlap suppression.
 
 ---
 
@@ -227,7 +235,7 @@ success_pattern = true   # Present = all characteristics met? Defaults to true.
 
 | Key              | Type    | Default | Description |
 |------------------|---------|---------|-------------|
-| `success_pattern`| boolean | `true`  | When `true`, the component is "present" when all characteristics are satisfied. When `false`, presence is indicated by characteristics *not* being satisfied (useful for describing failure states). |
+| `success_pattern`| boolean | `true`  | When `true`, the component is present when all conditions are satisfied. When `false`, the characteristics describe a combined failure condition and component output is its logical complement (non-failure). An unknown characteristic verdict remains unknown unless another condition determines the conjunction. |
 
 Characteristic order is always inferred from sequence, never configured
 explicitly (no `order`/`verbose` keys). Timing, magnitude, and rate-of-change

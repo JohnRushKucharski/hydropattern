@@ -18,16 +18,13 @@ from hydropattern.patterns.core import (
     eval_order_1_characteristic,
     find_runs,
     is_dowy_timeseries,
-    mark_events,
     moving_average,
-    sliding_window_count,
     validate_order,
 )
 from hydropattern.patterns.water_year import (
     identify_full_water_years,
     or_reduce_per_water_year,
     water_year_probability_ratio,
-    windowed_count_per_water_year,
 )
 
 
@@ -214,6 +211,24 @@ def duration_fx(f: Callable[[float], bool],
 #endregion
 
 #region frequency
+def _forward_frequency_window(eligible: np.ndarray, f: Callable[[float], bool],
+                             big_n: int, exclusive_event_window: bool) -> np.ndarray:
+    result = np.zeros(len(eligible))
+    zero_admitting = f(0)
+    span_end = -1
+    for t in range(len(eligible)):
+        if not zero_admitting and eligible[t] != 1:
+            continue
+        if exclusive_event_window and t <= span_end:
+            continue
+        end = min(t + big_n - 1, len(eligible) - 1)
+        if f(int(eligible[t:end + 1].sum())):
+            result[t:end + 1] = 1
+            if exclusive_event_window:
+                span_end = end
+    return result
+
+
 def frequency_fx(f: Callable[[float], bool], order: int,
                  big_n: int | None = None,
                  exclusive_event_window: bool = False) -> CharacteristicFx:
@@ -271,65 +286,50 @@ def frequency_fx(f: Callable[[float], bool], order: int,
 
         precedents = output[:, :order-1]
         eligible = (precedents == 1).all(axis=1).astype(int)
-        n_steps = len(eligible)
-        result = np.zeros(n_steps)
-
-        zero_admitting = f(0)
-        span_end = -1
-        for t in range(n_steps):
-            if not zero_admitting:
-                if eligible[t] != 1:
-                    continue
-            if exclusive_event_window and t <= span_end:
-                continue
-            end = min(t + big_n - 1, n_steps - 1)
-            count = int(eligible[t:end + 1].sum())
-            if f(count):
-                result[t:end + 1] = 1
-                if exclusive_event_window:
-                    span_end = end
-        return result
+        return _forward_frequency_window(eligible, f, big_n, exclusive_event_window)
     return closure
 
 def _intra_annual_diagnostic(eligible: np.ndarray, dowy: np.ndarray, f: Callable[[float], bool],
-                             big_n: int | None) -> np.ndarray:
+                             big_n: int | None, exclusive_event_window: bool) -> np.ndarray:
     '''Shared raw-diagnostic computation for the nested base (intra-annual)
-    pattern: per full water year, a probability ratio (big_n is None) or a
-    per-year-reset trailing window count (big_n is int), compared via `f`.
-    NaN wherever the underlying statistic is undefined (excluded partial
-    years, or insufficient in-year window history).
+    pattern. Probability verdicts are compared once per year and broadcast;
+    count/between forms use forward candidate windows within each water year.
     '''
-    stat = (water_year_probability_ratio(eligible, dowy, exclusive_event_window=True) if big_n is None
-            else windowed_count_per_water_year(eligible, dowy, big_n))
-    diag = np.full(len(stat), np.nan)
-    has_stat = ~np.isnan(stat)
-    diag[has_stat] = [1 if f(value) else 0 for value in stat[has_stat]]
+    diag = np.full(len(eligible), np.nan)
+    full_years = identify_full_water_years(dowy)
+    if big_n is None:
+        ratios = water_year_probability_ratio(eligible, dowy)
+        for start, end in full_years:
+            if not np.isnan(ratios[end]):
+                diag[start:end + 1] = 1 if f(ratios[end]) else 0
+        return diag
+
+    for start, end in full_years:
+        diag[start:end + 1] = _forward_frequency_window(
+            eligible[start:end + 1], f, big_n, exclusive_event_window
+        )
     return diag
 
 def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
                                      big_n: int | None = None,
-                                     exclusive_event_window: bool = True) -> CharacteristicFx:
+                                     exclusive_event_window: bool = False) -> CharacteristicFx:
     '''
     Creates function to evaluate the intra-annual (base) column of a nested
     frequency characteristic.
 
-    Per notes/frequencyEnhancement-resolved.md: intra_annual = AND(preceding
-    characteristic columns, base-pattern diagnostic), where the base pattern
-    may be probability (per-water-year ratio, big_n=None), count, or between
-    (windowed within each water year, big_n=N). `exclusive_event_window` is display-only:
-    it is applied to the AND'd result (not the raw diagnostic), which never
-    changes whether a `1` survives somewhere in a qualifying year -- only
-    where, within a run, it is marked -- so the eventual year-OR-reduction
-    (freq-nested-eval's or_reduce_per_water_year) is unaffected either way.
+    Probability base verdicts use eligible source timesteps and are broadcast
+    across each water year. Count/between base forms evaluate forward windows
+    within each year; their terminal diagnostic includes its source conditions.
+    `exclusive_event_window` applies to those windows, not annual probability.
 
     Parameters
     ----------
         f (Callable[[float], bool]): Comparison function for the base pattern.
         order (int): Position in the component's characteristic sequence.
-        big_n (int | None): trailing trial-window size for count/between base
+        big_n (int | None): forward trial-window size for count/between base
             forms; None for the probability base form.
-        exclusive_event_window (bool): base pattern's own exclusive_event_window (display-only for the
-            eventual per-year OR-reduction; does not change year verdicts).
+        exclusive_event_window (bool): base window suppression mode; ignored
+            for the single annual probability trial.
     Returns
     -------
         Characteristic_fx: evaluates the intra-annual diagnostic column.
@@ -343,29 +343,23 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
         precedents = output[:, :order-1]
         eligible = (precedents == 1).all(axis=1).astype(int)
 
-        diag = _intra_annual_diagnostic(eligible, dowy, f, big_n)
-
-        intra_annual_raw = np.full(len(diag), np.nan)
-        has_diag = ~np.isnan(diag)
-        intra_annual_raw[has_diag] = [
-            1 if (e == 1 and d == 1) else 0
-            for e, d in zip(eligible[has_diag], diag[has_diag])
-        ]
-        return mark_events(intra_annual_raw, exclusive_event_window)
+        return _intra_annual_diagnostic(
+            eligible, dowy, f, big_n, exclusive_event_window
+        )
     return closure
 
 def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
                                     big_n: int | None = None,
-                                    exclusive_event_window: bool = True) -> CharacteristicFx:
+                                    exclusive_event_window: bool = False) -> CharacteristicFx:
     '''
     Creates function to evaluate the interannual (nested) column of a nested
     frequency characteristic -- the terminal column whose result determines
     the component's final pass/fail, broadcast across each qualifying water
     year (see notes/frequencyEnhancement-resolved.md).
 
-    Unlike the base pattern's `exclusive_event_window` (display-only), this level's
-    `exclusive_event_window` changes the actual pass/fail result: a run of consecutive
-    qualifying years collapses to a single event-year before broadcasting.
+    The base probability form has no event window; count/between base forms
+    use their own window flag. This outer flag controls forward windows over
+    annual verdicts and therefore changes the broadcast pass/fail result.
 
     Parameters
     ----------
@@ -373,7 +367,7 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
         order (int): Position in the component's characteristic sequence.
             The intra-annual column (this pattern's input) must immediately
             precede this characteristic, at column index `order - 2`.
-        big_n (int | None): trailing trial-window size (in years) for count/
+        big_n (int | None): forward trial-window size (in years) for count/
             between nested forms. Probability form is not valid at this
             level (enforced upstream in validate_nested_frequency_metrics).
         exclusive_event_window (bool): nested pattern's own exclusive_event_window; changes the
@@ -403,12 +397,10 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
 
         full_years = identify_full_water_years(dowy)
         compact_verdicts = np.array([year_verdicts[end] for _, end in full_years])
-        counts = sliding_window_count(compact_verdicts, big_n)
-
-        compact_diag = np.full(len(counts), np.nan)
-        has_count = ~np.isnan(counts)
-        compact_diag[has_count] = [1 if f(c) else 0 for c in counts[has_count]]
-        compact_diag = mark_events(compact_diag, exclusive_event_window)
+        compact_diag = _forward_frequency_window(
+            np.nan_to_num(compact_verdicts, nan=0).astype(int),
+            f, big_n, exclusive_event_window
+        )
 
         result = np.full(len(intra_annual), np.nan)
         for (start, end), verdict in zip(full_years, compact_diag):

@@ -7,7 +7,7 @@ characteristic-fx factories in hydropattern.patterns.core.
 '''
 import numpy as np
 
-from hydropattern.patterns.core import mark_events, sliding_window_count
+from hydropattern.patterns.core import sliding_window_count
 
 def identify_full_water_years(dowy: np.ndarray) -> list[tuple[int, int]]:
     '''
@@ -72,12 +72,12 @@ def record_length_years(dowy: np.ndarray) -> float:
     return float(len(full_years))
 
 def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
-                                 exclusive_event_window: bool = True) -> np.ndarray:
+                                 exclusive_event_window: bool = False) -> np.ndarray:
     '''
     Computes, for each full water year (see identify_full_water_years), the
-    ratio of event-marked successes to timesteps-in-year over an eligible
-    (0/1) trial array -- the core statistic behind a nested frequency
-    pattern's intra-annual `[operator, probability, (exclusive_event_window)]` base form.
+    ratio of eligible timesteps to valid timesteps in a (0/1) trial array.
+    This is the statistic behind a nested frequency pattern's intra-annual
+    `[operator, probability]` base form.
 
     The ratio is placed at the water year's *last* timestep and NaN
     elsewhere (including any leading partial year before the first
@@ -88,13 +88,12 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
     Parameters
     ----------
         eligible (np.ndarray): 0/1 trial outcomes (e.g. AND of preceding
-            characteristic columns).
+            characteristic columns); NaN entries are excluded from numerator
+            and denominator.
         dowy (np.ndarray): day-of-water-year values (1-365), same length as
             `eligible`.
-        exclusive_event_window (bool): if True (default), a maximal run of consecutive
-            successes within the year collapses to a single success
-            (event-level) before computing the ratio; if False, every
-            successful timestep counts toward the numerator (timestep-level).
+        exclusive_event_window (bool): retained for API compatibility; has no
+            effect because a single annual probability has no overlapping windows.
 
     Returns
     -------
@@ -105,12 +104,14 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
         raise ValueError(
             f'eligible (len={len(eligible)}) and dowy (len={len(dowy)}) must be the same length.'
         )
-    marked = mark_events(eligible, exclusive_event_window)
     result = np.full(len(eligible), np.nan)
     for start, end in identify_full_water_years(dowy):
-        year_length = end - start + 1
-        successes = np.nansum(marked[start:end + 1])
-        result[end] = successes / year_length
+        year = eligible[start:end + 1]
+        valid = ~np.isnan(year)
+        valid_count = int(valid.sum())
+        if valid_count:
+            successes = int(np.count_nonzero(year[valid] == 1))
+            result[end] = successes / valid_count
     return result
 
 def windowed_count_per_water_year(eligible: np.ndarray, dowy: np.ndarray,

@@ -1,10 +1,14 @@
 # Pattern correctness: TDD implementation plan
 
-**Status:** approved behavior, implementation not started. **Scope:** component
-calculation, configuration, validation, tests, and user-facing documentation.
-This document is a handoff for a new implementation session, not a description
-of current behavior. Existing code, docs, and tests often implement the opposite
-rules. Do not treat passing legacy tests as evidence that the new rules work.
+**Status:** phases 0–2 committed; phases 3–4 have verified implementation
+changes in the current worktree but are uncommitted. Phase 3 acceptance now
+covers an antecedent frequency's exclusive-window output feeding a nested
+probability. Cadence-aware exclusion of trailing partial water years remains
+phase 5 work. **Scope:** component calculation,
+configuration, validation, tests, and user-facing documentation. This document
+is a handoff for a new implementation session, not a description of all current
+behavior. Existing code, docs, and tests often implement the opposite rules.
+Do not treat passing legacy tests as evidence that the new rules work.
 
 ## Decisions and acceptance contract
 
@@ -184,8 +188,8 @@ type check, docs examples, and downstream smoke checks at phase boundaries.
 | 0. Baseline | Capture existing results, parser/API snapshots and supplied golden arrays (expected red). | `tests/test_patterns.py`, `tests/test_stable_request_shape.py`, `tests/test_cli.py` | Baseline tests pass; new golden tests fail for known reasons. |
 | 1. Schema/order | Test compact/list equivalence, option placement, warning, library iteration order, direct factory compatibility, independent base diagnostics, duration dependencies. | `hydropattern/parsing/specs.py`, `requests.py`, `builders.py`, `characteristics.py`, `hydropattern/parsers.py`, `patterns/core.py`, `patterns/characteristics.py` | No user `order` or `verbose`; valid existing compact configs still load (warning); unrelated diagnostics stable. |
 | 2. Frequency | Test all six golden rows and edge cases; test component terminal dispatch. | `patterns/characteristics.py`, `patterns/core.py`, `parsing/characteristics.py`, `specs.py`, `builders.py` | Count/between modes and renamed flag match source-window contracts. |
-| 3. Nested frequency | Test exact two 3-year matrices above, time fraction, full/partial water years and annual broadcasts. | `patterns/water_year.py`, `patterns/characteristics.py`, `patterns/core.py` | No lost annual success; inner/outer outputs match hand oracle. |
-| 4. Component logic | Test A/B truth table and unknown propagation, including nested/unnested frequency. | `patterns/core.py` | Failure means non-failure of combined bad pattern, not all-bad-conditions-absent. |
+| 3. Nested frequency | **Implemented in worktree.** Test exact two 3-year matrices, timestep fraction, leading partial-year exclusion, truncated outer windows, annual broadcasts, and interaction where an antecedent frequency's exclusive-window output feeds a nested probability. | `patterns/water_year.py`, `patterns/characteristics.py`, `patterns/core.py` | Inner probability counts eligible timesteps and broadcasts annual verdict; inner/outer N-windows are forward. Antecedent exclusive-vs-union effect is covered end to end. Trailing partial-year completeness remains phase 5. |
+| 4. Component logic | **Implemented in worktree.** Test A/B truth table and three-valued unknown propagation, including nested/unnested frequency terminals. | `patterns/core.py` | Failure means complement of combined failure condition, not all-bad-conditions-absent. Frequency terminal verdict is not re-ANDed with source and unknown remains unknown. |
 | 5. Time handling | Test October-start timing, leap day, water-year completeness and year labeling. | `timeseries.py`, `patterns/water_year.py`, `patterns/characteristics.py`, `patterns/core.py`; evaluate formatter consumers | Timing uses calendar DOY; annual stats exclude partial years. |
 | 6. Rate/validation | Test denominator-only minimum, attainable frequency bounds, empty/invalid components. | `patterns/characteristics.py`, `parsing/characteristics.py`, `parsing/requests.py`, `builders.py` | Invalid inputs produce repository-standard errors; no silently impossible configurations. |
 | 7. Series selection | Test default/intermediate/invalid data-column indices across direct API and scenario seam. | `patterns/core.py`, `scenarios.py` if needed | Selected series drives every characteristic, default behavior preserved. |
@@ -269,16 +273,21 @@ this deferred event-count/reporting policy before interview.
 
 ## New-session handoff
 
-Start fresh agent session with:
+Continue in a fresh agent session with:
 
 > Implement `docs/plans/2026-10-01-pattern-correctness-tdd.md` one TDD
-> phase at a time, starting phase 0 then phase 1. Read entire plan and
-> existing dirty-worktree diff first; do not overwrite unrelated changes.
-> Use red-green-refactor and report each phase's golden output and behavior
-> delta. Update mandatory README, user reference, ADRs, examples, and
-> migration notes by phase 8. Do not implement deferred reporting/event-count
-> TODO; interview me after phases 0-8 and create a separate plan. Stop to
-> clarify genuinely unresolved semantics before altering public behavior.
+> phase at a time, starting phase 5. Read entire plan and existing
+> dirty-worktree diff first; do not overwrite unrelated changes. Phases 3–4
+> implementations are in the worktree but uncommitted. Phase 3 includes an
+> end-to-end test proving antecedent frequency exclusivity changes nested
+> probability. Phase 5 owns
+> cadence-aware trailing partial water-year exclusion. Use red-green-refactor
+> and report each phase's golden
+> output and behavior delta. Update mandatory README, user reference, ADRs,
+> examples, and migration notes by phase 8. Do not implement deferred
+> reporting/event-count TODO; interview me after phases 0-8 and create a
+> separate plan. Stop to clarify genuinely unresolved semantics before
+> altering public behavior.
 
 This is a multi-phase change. A new session can implement one phase and
 use this same path as durable handoff for subsequent sessions.

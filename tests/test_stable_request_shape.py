@@ -530,10 +530,8 @@ class TestNestedFrequencyRoundTrip(unittest.TestCase):
         df = results[0].df
         expected_magnitude = np.array([0, 1, 1, 1, 1, 0])
         # year-verdicts (per resolved doc): 2010=0, 2011=1, 2012=0
-        expected_intra_annual = np.array([np.nan, 0, np.nan, 1, np.nan, 0])
-        # interannual: 2010 insufficient history -> component=0 (NaN never
-        # counts as a success, matching every other characteristic's convention);
-        # 2011 and 2012 both fail the interannual pattern -> component=0.
+        expected_intra_annual = np.array([0, 0, 1, 1, 0, 0])
+        # Forward 2-year window over annual verdicts [0, 1, 0] never exceeds 1.
         expected_comp = np.array([0, 0, 0, 0, 0, 0])
 
         magnitude_col = [c for c in df.columns if c.startswith('magnitude')][0]
@@ -580,19 +578,14 @@ class TestNestedFrequencyBroadcastRoundTrip(unittest.TestCase):
 
         intra_col = 'frequency_ge2in3(union)'
         expected_intra_annual = np.array([
-            np.nan, np.nan, 1, 0, 0, 0,  # year 1 (matches Example 3's table)
-            np.nan, np.nan, 0, 0, 0, 0,  # year 2: no successes
+            1, 1, 1, 1, 0, 0,  # year 1: qualifying forward windows
+            0, 0, 0, 0, 0, 0,  # year 2: no source successes
         ])
         np.testing.assert_array_equal(df[intra_col].values, expected_intra_annual)
 
-        # interannual: year 1 alone is insufficient history for a 2-year window
-        # (component=0, NaN never counts as a success); year 2's window covers
-        # [year1=True, year2=False] -> count=1, satisfies [>=,1,2] ->
-        # component broadcasts 1 across all of year 2.
-        for t in range(6):
-            self.assertEqual(df['comp'].values[t], 0)
-        for t in range(6, 12):
-            self.assertEqual(df['comp'].values[t], 1)
+        # Forward 2-year windows over [year1=True, year2=False] qualify
+        # beginning in year 1 and broadcast across both years.
+        np.testing.assert_array_equal(df['comp'].values, np.ones(12))
 
 
 class TestFrequencyRoundTrip(unittest.TestCase):
@@ -611,7 +604,7 @@ class TestFrequencyRoundTrip(unittest.TestCase):
 
         expected_magnitude = np.array([0, 1, 1, 1, 0, 1])
         expected_frequency = np.array([0, 1, 1, 1, 1, 1])
-        expected_comp = np.array([0, 1, 1, 1, 0, 1])
+        expected_comp = expected_frequency
         np.testing.assert_array_equal(
             results[0].df['magnitude_gt5'].values, expected_magnitude
         )
@@ -628,7 +621,7 @@ class TestFrequencyRoundTrip(unittest.TestCase):
         results = evaluate_components(self.df, components)
 
         expected_frequency = np.array([0, 1, 1, 1, 1, 1])
-        expected_comp = np.array([0, 1, 1, 1, 0, 1])
+        expected_comp = expected_frequency
         np.testing.assert_array_equal(
             results[0].df['frequency_ge1in2(union)'].values, expected_frequency
         )

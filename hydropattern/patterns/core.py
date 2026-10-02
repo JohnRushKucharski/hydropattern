@@ -501,20 +501,22 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
     output = np.zeros((len(df), len(component.characteristics)), dtype=float)
     for i, characteristic in enumerate(component.characteristics):
         output[:, i] = characteristic.fx(df, output)
-    # evaluate component
-    success_value = 1 if component.is_success_pattern else 0
-    # Nested frequency's terminal (interannual) column is already the fully
-    # broadcast per-water-year verdict (see nested_frequency_interannual_fx);
-    # it replaces the generic AND-of-all-columns rule used everywhere else,
-    # since frequency here operates at the water-year grain, not the
-    # per-timestep grain of magnitude/duration (see
-    # notes/frequencyEnhancement-resolved.md, "Nested: final component").
-    if component.characteristics and component.characteristics[-1].is_nested:
-        success = (output[:, -1] == success_value).astype(int).reshape(-1, 1)
-    else:
-        # (output==success_value).all(axis=1) converts to booleans, row-wise if true operation
-        # .reshape(-1, 1) makes it column vector and concatenation as final column
-        success = (output==success_value).all(axis=1).astype(int).reshape(-1, 1)
+    # A terminal frequency diagnostic already incorporates its source
+    # conditions and must not be ANDed with them again at the current timestep.
+    is_terminal_frequency = (
+        component.characteristics[-1].type == CharacteristicType.FREQUENCY
+    )
+    conditions = output[:, -1:] if is_terminal_frequency else output
+
+    has_failure = np.any(conditions == 0, axis=1)
+    all_success = np.all(conditions == 1, axis=1)
+    combined = np.full(len(df), np.nan)
+    combined[has_failure] = 0
+    combined[all_success] = 1
+    if not component.is_success_pattern:
+        known = ~np.isnan(combined)
+        combined[known] = 1 - combined[known]
+    success = combined.reshape(-1, 1)
     results = np.concatenate((output, success), axis=1)
     # add 2D array to dataframe
     cols = [j.name for j in component.characteristics] + [component.name]

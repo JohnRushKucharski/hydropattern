@@ -456,12 +456,12 @@ class TestIdentifyFullWaterYears(unittest.TestCase):
 class TestWaterYearProbabilityRatio(unittest.TestCase):
     '''Tests for water_year_probability_ratio (nested frequency base-probability engine).'''
 
-    def test_ratio_placed_at_last_day_of_year_event_level(self):
-        # 6-day years; eligible run of 3 consecutive successes -> 1 event.
+    def test_ratio_uses_eligible_timesteps(self):
+        # 6-day years; three consecutive eligible timesteps count as 3 trials.
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
-        self.assertAlmostEqual(result[5], 1 / 6)
+        self.assertAlmostEqual(result[5], 3 / 6)
         self.assertAlmostEqual(result[11], 0.0)  # second year: no successes
 
     def test_exclusive_event_window_false_counts_every_success(self):
@@ -470,11 +470,11 @@ class TestWaterYearProbabilityRatio(unittest.TestCase):
         result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=False)
         self.assertAlmostEqual(result[5], 3 / 6)
 
-    def test_exclusive_event_window_true_collapses_run_to_single_success(self):
+    def test_exclusive_event_window_does_not_change_annual_probability(self):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
         result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
-        self.assertAlmostEqual(result[5], 1 / 6)
+        self.assertAlmostEqual(result[5], 3 / 6)
 
     def test_non_last_timesteps_are_nan(self):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
@@ -611,7 +611,7 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
 
     def test_example_3_intra_annual_column(self):
         # Water year = 6 timesteps. magnitude_gt5 = [1,1,1,0,0,1].
-        # Base (intra-annual) pattern [>=,2,3], exclusive_event_window=False for illustration.
+        # Base (intra-annual) pattern [>=,2,3], with forward windows.
         magnitude = np.array([1, 1, 1, 0, 0, 1])
         output = magnitude.reshape(-1, 1).astype(float)
         dowy = np.array([1, 2, 3, 4, 5, 6])
@@ -620,12 +620,12 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
         fx = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_event_window=False)
         result = fx(df, output)
         np.testing.assert_array_equal(
-            result, np.array([np.nan, np.nan, 1, 0, 0, 0])
+            result, np.array([1, 1, 1, 1, 0, 0])
         )
 
     def test_example_3_exclusive_event_window_does_not_change_which_ones_survive(self):
-        # Per the resolved doc: exclusive_event_window is display-only for the year verdict --
-        # it never removes the only 1 an OR-reduction is looking for.
+        # Exclusive mode suppresses a qualifying anchor inside the first
+        # forward span; union mode lets the second anchor extend the span.
         magnitude = np.array([1, 1, 1, 0, 0, 1])
         output = magnitude.reshape(-1, 1).astype(float)
         dowy = np.array([1, 2, 3, 4, 5, 6])
@@ -635,24 +635,20 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
         fx_timestep = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_event_window=False)
         result_event = fx_event(df, output)
         result_timestep = fx_timestep(df, output)
-        self.assertEqual(
-            np.nansum(result_event == 1), np.nansum(result_timestep == 1)
-        )
+        self.assertEqual(np.nansum(result_event == 1), 3)
+        self.assertEqual(np.nansum(result_timestep == 1), 4)
         self.assertTrue(np.any(result_event[~np.isnan(result_event)] == 1))
 
     def test_probability_base_form(self):
-        # eligible with a run of 3 plus an isolated success at year's last day
-        # (so magnitude also holds where the ratio-based diag is placed).
+        # Three consecutive eligible timesteps plus one isolated success.
         magnitude = np.array([1, 1, 1, 0, 0, 1])
         output = magnitude.reshape(-1, 1).astype(float)
         dowy = np.array([1, 2, 3, 4, 5, 6])
         df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
-        f = comparison_fx('>', 0.1)  # ratio > 0.1; 2 events / 6 ~= 0.333 -> True
+        f = comparison_fx('>', 0.5)  # eligible fraction 4/6 > 0.5
         fx = nested_frequency_intra_annual_fx(f, order=2, big_n=None, exclusive_event_window=True)
         result = fx(df, output)
-        self.assertEqual(result[5], 1)
-        for t in range(5):
-            self.assertTrue(np.isnan(result[t]))
+        np.testing.assert_array_equal(result, np.ones(6))
 
 
 class TestNestedFrequencyInterannualFx(unittest.TestCase):
@@ -674,12 +670,8 @@ class TestNestedFrequencyInterannualFx(unittest.TestCase):
         f = comparison_fx('>=', 1)  # nested [op, n, N] with n=1, N=2 (years)
         fx = nested_frequency_interannual_fx(f, order=3, big_n=2, exclusive_event_window=True)
         result = fx(df, output)
-        # year1 (idx0-5): insufficient interannual history (only 1 year seen) -> NaN
-        for t in range(6):
-            self.assertTrue(np.isnan(result[t]))
-        # year2 (idx6-11): 2-year window count = 1 (only year1's True) -> >=1 -> 1
-        for t in range(6, 12):
-            self.assertEqual(result[t], 1)
+        # Forward 2-year window at year1 sees [True, False], qualifying both.
+        np.testing.assert_array_equal(result, np.ones(12))
 
     def test_probability_form_not_valid_at_interannual_level(self):
         intra_annual = np.array([np.nan, np.nan, 1, 0, 0, 0])
@@ -748,5 +740,4 @@ class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
         )
         df.index.name = 'time'
         result = evaluate_component(df, component)
-        np.testing.assert_array_equal(result.df['comp'].values, np.array([0, 1]))
-
+        np.testing.assert_equal(result.df['comp'].values, np.array([np.nan, 1]))
