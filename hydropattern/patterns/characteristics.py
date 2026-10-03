@@ -1,8 +1,7 @@
 '''
-Characteristic-fx factories: creates the evaluation functions used by
+Characteristic-fx factories: creates evaluation functions used by
 Component.characteristics (timing, magnitude, duration, rate of change,
-frequency) plus the shared comparison-fx helpers used to build their
-comparison predicates.
+frequency) and shared comparison-fx helpers used to build comparison predicates.
 
 Relocated from hydropattern.patterns.core as part of issue #32 (continuing
 the patterns.py decomposition started in #30).
@@ -242,40 +241,30 @@ def frequency_fx(f: Callable[[float], bool], order: int,
 
     Parameters
     ----------
-        f (Callable[[float], bool]): Comparision function, applied to either a
+        f (Callable[[float], bool]): Comparison function, applied to
             probability (successes/trials ratio) or a trial count, depending on form.
-        order (int): Position in which characteristic is evaluated
-            within list of component characteristics. Must be the last
-            characteristic in the component (enforced upstream in builders.py).
-        big_n (int | None): forward trial-window size (in timesteps) for the
-            [op, n, N] and [min_n, max_n, N] forms. None for the
-            [op, probability] form (whole-series ratio, no windowing) -- not
-            yet implemented as an un-nested form (dropped; see
-            notes/frequencyEnhancement-resolved.md -- probability only exists
-            as a nested base pattern, task freq-core-probability).
-        exclusive_event_window (bool): if False (default, union mode), every
-            qualifying forward window is marked (overlapping windows OR
-            together). If True (exclusive mode), once a window at anchor t
-            qualifies, a fixed N-length span starting at t is claimed and
-            later anchors falling inside that span are skipped entirely
-            (not evaluated as candidates) -- a failed candidate never
-            suppresses a later candidate.
+        order (int): Position in which characteristic is evaluated within component.
+            Must last component charactersistic (enforced upstream in builders.py).
+        big_n (int | None): forward-looking trial-window size (in timesteps) for
+            [op, n, N] and [min_n, max_n, N] forms. None for the [op, probability]
+            form, which is only implemented as a nested base pattern.
+        exclusive_event_window (bool): False by default. Defines if overlapping windows are allowed.
+            Each windows anchored at time, t has a fixed N-length spans.
+            If true, each forward-looking window is exclusive, i.e., all timesteps within that span
+            belong to only the fixed length window. If false, timesteps can belong to multiple 
+            overlapping windows.
     Returns
     -------
         Characteristic_fx: evaluates characteristic over timeseries.
 
     Note
     ----
-        Anchors are every timestep where preceding characteristics in the
-        component are eligible (same AND-combined eligibility rule as
-        duration_fx), unless `f(0)` is True, in which case every timestep
-        anchors (an operator admitting zero successes can still open a
-        window at an otherwise-ineligible timestep). Each anchor opens a
-        forward window `[t, min(t + big_n - 1, len - 1)]` (truncated at the
-        end of the record), counts eligible timesteps within it, and
-        compares the count via `f`. No warm-up/NaN period is needed: windows
-        look forward from each timestep using however many observations are
-        actually available through the end of the record.
+        Windows are anchored at timesteps where preceding characteristics in the component
+        are eligible (met), when the trial count, n in `f(n)` is not zero. If exclusive_event_window
+        is true, only the first eligible timestep in a N-length span anchors the window.
+        When the trial count is zero, i.e., `f(n=0)` every timestep is eligible, so every timestep
+        anchors a window. Since windows are forward-looking no warm-up/NaN period is needed.
+        Windows at the end of the record count the observations available within the truncated window.
     '''
     def closure(df: pd.DataFrame,
                 output: None|np.ndarray) -> np.ndarray:
