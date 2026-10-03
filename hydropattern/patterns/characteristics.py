@@ -458,12 +458,19 @@ def rate_of_change_fx(f: Callable[[float], bool],
             raise ValueError(
                 f'''rate of change look_back: {look_back} must be
                 less than or equal to the length of the timeseries: {len(data)}.''')
-        # compute rates of change
-        data[data <= minimum] = np.nan  # avoid divide by 0s, excludes values <= minimum
-        data[look_back:] = data[look_back:] / data[:-look_back]
-        data[:look_back] = np.nan  # not in look back window
+        # The minimum constrains only the lagged denominator. Mask it before
+        # division so invalid denominators do not emit divide-by-zero warnings.
+        denominators = data[:-look_back]
+        numerators = data[look_back:]
+        rates = np.full(data.shape, np.nan)
+        rates[look_back:] = np.divide(
+            numerators,
+            denominators,
+            out=np.full(denominators.shape, np.nan),
+            where=denominators > minimum,
+        )
         # Rate-of-change is an independent diagnostic: own truth value
         # regardless of preceding characteristics (see note in timing_fx).
-        return eval_order_1_characteristic(f, data)
+        return eval_order_1_characteristic(f, rates)
     return closure
 #endregion

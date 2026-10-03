@@ -125,7 +125,7 @@ def _validate_int_param(
 ) -> None:
     '''Validate that metrics[index] is an integer >= min_val.'''
     value = metrics[index]
-    if not isinstance(value, int):
+    if not isinstance(value, int) or isinstance(value, bool):
         raise_parser_error(
             ParserErrorCode.INVALID_TYPE,
             f'{name} must be an integer >= {min_val}, got {value!r}.',
@@ -135,6 +135,19 @@ def _validate_int_param(
         raise_parser_error(
             ParserErrorCode.INVALID_VALUE,
             f'{name} must be >= {min_val}, got {value}.',
+            metrics=metrics,
+        )
+
+
+def _validate_frequency_count_bound(
+    metrics: list[Any], index: int, name: str, big_n: int
+) -> None:
+    '''Validate a frequency count threshold lies within the attainable [0, N] range.'''
+    _validate_int_param(metrics, index, name, min_val=0)
+    if metrics[index] > big_n:
+        raise_parser_error(
+            ParserErrorCode.INVALID_VALUE,
+            f'{name} must not exceed N={big_n}, got {metrics[index]}.',
             metrics=metrics,
         )
 
@@ -491,7 +504,7 @@ def validate_rate_of_change_metrics(metrics: list[Any]) -> ComparisionType:
     if nentries > 3:
         validate_look_back(metrics)
     if nentries > 4:
-        if not isinstance(metrics[4], (int, float)):
+        if not isinstance(metrics[4], (int, float)) or isinstance(metrics[4], bool):
             raise_parser_error(
                 ParserErrorCode.INVALID_TYPE,
                 f'Rate-of-change min must be a real number >= 0, got {metrics[4]}.',
@@ -599,9 +612,9 @@ def validate_frequency_metrics(
     Accepted forms:
         [operator, n, N, (exclusive_event_window)]        -> FrequencyForm.COUNT
         [min_n, max_n, N, (exclusive_event_window)]       -> FrequencyForm.BETWEEN
-    n, N, min_n, max_n must be positive integers with N > n and
-    min_n < max_n < N. exclusive_event_window defaults to False (union mode)
-    when omitted.
+    N must be a positive integer; count thresholds must be attainable within
+    [0, N]. Between bounds are inclusive and require min_n < max_n.
+    exclusive_event_window defaults to False (union mode) when omitted.
 
     [operator, probability, (exclusive_event_window)] -> FrequencyForm.PROBABILITY is only
     valid as the base pattern of a nested frequency spec (see
@@ -656,13 +669,22 @@ def validate_frequency_metrics(
                 exclusive_event_window=exclusive_event_window,
             )
         if len(metrics) == 3:
-            _validate_int_param(metrics, 1, 'n')
+            _validate_int_param(metrics, 1, 'n', min_val=0)
             _validate_int_param(metrics, 2, 'N')
             n_val, big_n = metrics[1], metrics[2]
-            if not big_n > n_val:
+            if n_val > big_n:
                 raise_parser_error(
                     ParserErrorCode.INVALID_VALUE,
-                    f'N must be greater than n, got n={n_val}, N={big_n}.',
+                    f'n must not exceed N={big_n}, got n={n_val}.',
+                    metrics=metrics,
+                )
+            if (
+                (metrics[0] == '<' and n_val == 0)
+                or (metrics[0] == '>' and n_val == big_n)
+            ):
+                raise_parser_error(
+                    ParserErrorCode.INVALID_VALUE,
+                    f'Predicate {metrics[0]} {n_val} cannot be satisfied by a count in [0, N].',
                     metrics=metrics,
                 )
             return FrequencyMetrics(
@@ -675,20 +697,14 @@ def validate_frequency_metrics(
         raise_parser_error(ParserErrorCode.INVALID_VALUE, error_msg, metrics=metrics)
 
     if isinstance(metrics[0], (int, float)) and not _is_strict_bool(metrics[0]) and len(metrics) == 3:
-        _validate_int_param(metrics, 0, 'min_n')
-        _validate_int_param(metrics, 1, 'max_n')
+        _validate_int_param(metrics, 0, 'min_n', min_val=0)
         _validate_int_param(metrics, 2, 'N')
         min_n, max_n, big_n = metrics
+        _validate_frequency_count_bound(metrics, 1, 'max_n', big_n)
         if not min_n < max_n:
             raise_parser_error(
                 ParserErrorCode.INVALID_VALUE,
                 f'min_n must be less than max_n, got min_n={min_n}, max_n={max_n}.',
-                metrics=metrics,
-            )
-        if not max_n < big_n:
-            raise_parser_error(
-                ParserErrorCode.INVALID_VALUE,
-                f'N must be greater than max_n, got max_n={max_n}, N={big_n}.',
                 metrics=metrics,
             )
         return FrequencyMetrics(
@@ -886,4 +902,3 @@ __all__ = [
     'validate_nested_frequency_metrics',
     'nested_frequency_parser',
 ]
-

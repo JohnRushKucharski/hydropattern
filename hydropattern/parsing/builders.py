@@ -146,6 +146,12 @@ def build_components(request: Request) -> list[patterns.Component]:
     '''Convert a Request to a list of executable Component objects.'''
     components = []
     for spec in request.components:
+        if not spec.characteristics:
+            raise_parser_error(
+                ParserErrorCode.EMPTY_COMPONENT,
+                f"Component '{spec.name}' has no characteristics.",
+                component=spec.name,
+            )
         _validate_frequency_position(spec)
         characteristics: list[patterns.Characteristic] = []
         for cs in spec.characteristics:
@@ -162,4 +168,3 @@ def build_components(request: Request) -> list[patterns.Component]:
 
 
 __all__ = ['build_components']
-

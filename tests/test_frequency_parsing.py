@@ -127,19 +127,18 @@ class TestValidateFrequencyMetricsCountForm(unittest.TestCase):
         self.assertEqual(parsed.form, FrequencyForm.COUNT)
         self.assertTrue(parsed.exclusive_event_window)
 
-    def test_n_must_be_positive_integer(self):
-        with self.assertRaises(HydropatternError) as ctx:
-            validate_frequency_metrics(['>', 0, 5])
-        self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
+    def test_zero_count_threshold_is_valid_when_predicate_is_attainable(self):
+        parsed = validate_frequency_metrics(['=', 0, 5])
+        self.assertEqual(parsed.values, (0,))
 
     def test_n_non_integer_raises_invalid_type(self):
         with self.assertRaises(HydropatternError) as ctx:
             validate_frequency_metrics(['>', 1.5, 5])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_TYPE))
 
-    def test_big_n_must_exceed_n(self):
+    def test_predicate_above_maximum_count_is_invalid(self):
         with self.assertRaises(HydropatternError) as ctx:
-            validate_frequency_metrics(['>', 5, 5])
+            validate_frequency_metrics(['>', 6, 5])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
     def test_big_n_less_than_n_raises_invalid_value(self):
@@ -168,10 +167,10 @@ class TestValidateFrequencyMetricsBetweenForm(unittest.TestCase):
             validate_frequency_metrics([3, 3, 5])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
-    def test_max_n_must_be_less_than_big_n(self):
-        with self.assertRaises(HydropatternError) as ctx:
-            validate_frequency_metrics([1, 5, 5])
-        self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
+    def test_max_n_may_equal_big_n(self):
+        parsed = validate_frequency_metrics([1, 5, 5])
+        self.assertEqual(parsed.values, (1, 5))
+        self.assertEqual(parsed.big_n, 5)
 
     def test_non_integer_values_raise_invalid_type(self):
         with self.assertRaises(HydropatternError) as ctx:
@@ -305,7 +304,7 @@ class TestValidateNestedFrequencyMetrics(unittest.TestCase):
 
     def test_invalid_nested_propagates_error(self):
         with self.assertRaises(HydropatternError) as ctx:
-            validate_nested_frequency_metrics([['>', 0.5], ['>', 0, 2]])
+            validate_nested_frequency_metrics([['>', 0.5], ['>', 2, 2]])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
 
