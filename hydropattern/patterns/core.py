@@ -7,7 +7,7 @@ live in hydropattern.patterns.water_year (see issue #32, continuing the
 patterns.py decomposition started in #30).
 '''
 from collections import namedtuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Callable
 
@@ -368,14 +368,17 @@ class Component:
 
 @dataclass
 class Result:
-    '''Result of evaluating a component on a timeseries.'''
+    '''Result of evaluating a component on a timeseries.
+
+    `dv_name` is the original name of the evaluated data column in `df`.
+    '''
     df: pd.DataFrame
     component: Component
-    dv_name: str = field(init=False)
+    dv_name: str = ''
 
     def __post_init__(self):
-        self.dv_name = self.df.columns[0]
-        self.df = self.df.rename(columns={self.dv_name: 'dv'})
+        if not self.dv_name:
+            self.dv_name = self.df.columns[0]
 
     def event_count(self) -> int:
         '''Counts distinct qualifying events (maximal runs of success) for
@@ -456,11 +459,12 @@ class Result:
         if not full_timeseries:
             df = self.df[self.df[self.component.characteristics[0].name] == 1]
         _, ax = plt.subplots(figsize=(15, 5))
-        df['success'] = self.df[self.component.name] * self.df.dv
-        df['possible'] = self.df[self.component.characteristics[0].name] * self.df.dv
+        data = self.df[self.dv_name]
+        df['success'] = self.df[self.component.name] * data
+        df['possible'] = self.df[self.component.characteristics[0].name] * data
         df.possible.replace({0: np.nan}).plot(
             color='yellow', linewidth=10, label=self.component.characteristics[0].name, ax=ax)
-        df.dv.plot(
+        data.plot(
             color='grey', linewidth=0.5, label=self.dv_name, ax=ax)
         df.success.replace({0: np.nan}).plot(
             color='black', linewidth=1, label=self.component.name, ax=ax)
@@ -481,7 +485,9 @@ class Result:
         plt.legend()
         plt.show()
 
-def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
+def evaluate_component(
+    df: pd.DataFrame, component: Component, data_column: int = 0
+) -> Result:
     '''Evaluates a single component on a single timeseries.
 
     Args:
@@ -490,21 +496,39 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
             |------|-------|------|
             | ...  | ...   | ...  |
         component (Component): a component to evaluate.
+        data_column (int): zero-based position of the data column to evaluate;
+            the final DOWY column is not eligible. Defaults to 0.
 
     Returns:
-        pd.DataFrame: in the form:
-            | idx  | flows | dowy | char_1 | char_2 | ... | component_name |
-            |------|-------|------|--------|--------|-----|----------------|
-            | ...  | ...   | ...  | 0/1    | 0/1    | ... | 0/1            |
+        Result: `df` contains the selected data column (under its original
+        name), DOWY, characteristic outputs, and component output. Its index
+        is preserved, with DatetimeIndex names normalized to "time".
+        `dv_name` is the original selected data-column name.
     '''
-    # This function expects one flow column + trailing dowy column.
     validate_timeseries(df)
+    if isinstance(data_column, bool) or not isinstance(data_column, int):
+        raise ValueError('data_column must be a zero-based integer data-column index.')
+    if data_column < 0 or data_column >= len(df.columns) - 1:
+        raise ValueError(
+            f'data_column {data_column} is outside the data-column range '
+            f'[0, {len(df.columns) - 2}].'
+        )
+    selected_name = df.columns[data_column]
+
+    # Characteristic factories use the first column for flow data and the last
+    # column for DOWY; arrange a view with selected data first for evaluation.
+    evaluation_positions = [
+        data_column,
+        *(i for i in range(len(df.columns) - 1) if i != data_column),
+        len(df.columns) - 1,
+    ]
+    evaluation_df = df.iloc[:, evaluation_positions]
     # length of timeseries, one row per characteristics
     # float dtype (not int) preserves NaN emitted by frequency's sliding-window
     # diagnostic (insufficient trailing history) instead of silently casting it.
     output = np.zeros((len(df), len(component.characteristics)), dtype=float)
     for i, characteristic in enumerate(component.characteristics):
-        output[:, i] = characteristic.fx(df, output)
+        output[:, i] = characteristic.fx(evaluation_df, output)
     # A terminal frequency diagnostic already incorporates its source
     # conditions and must not be ANDed with them again at the current timestep.
     is_terminal_frequency = (
@@ -524,13 +548,28 @@ def evaluate_component(df: pd.DataFrame, component: Component) -> Result:
     results = np.concatenate((output, success), axis=1)
     # add 2D array to dataframe
     cols = [j.name for j in component.characteristics] + [component.name]
-    df = pd.concat([df.reset_index(), pd.DataFrame(results, columns=cols)], axis=1
-                   ).set_index('time')
-    return Result(df, component)
+    result_columns = [selected_name, df.columns[-1], *cols]
+    if len(set(result_columns)) != len(result_columns):
+        raise ValueError('Result column names must be unique.')
+    df = pd.concat(
+        [
+            df.iloc[:, [data_column, len(df.columns) - 1]],
+            pd.DataFrame(results, index=df.index, columns=cols),
+        ],
+        axis=1,
+    )
+    if isinstance(df.index, pd.DatetimeIndex):
+        df.index.name = 'time'
+    return Result(df, component, str(selected_name))
 
-def evaluate_components(df: pd.DataFrame, components: list[Component]) -> list[Result]:
+def evaluate_components(
+    df: pd.DataFrame, components: list[Component], data_column: int = 0
+) -> list[Result]:
     ''''Evaluates a list of components on a single timeseries.'''
-    return [evaluate_component(df, component) for component in components]
+    return [
+        evaluate_component(df, component, data_column=data_column)
+        for component in components
+    ]
 
 #     Parameters
 #     ----------

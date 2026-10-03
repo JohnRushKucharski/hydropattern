@@ -1,10 +1,10 @@
 # Pattern correctness: TDD implementation plan
 
-**Status:** phases 0–6 are implemented and verified; phases 3–4 are committed
-in `08a3ac0`, phase 5 in `ee39c02`, and phase 6 remains uncommitted in the
-worktree. Phase 3 tests
-include an antecedent frequency's exclusive-window output feeding a nested
-probability. Current verification: 576 tests pass; mypy reports no issues.
+**Status:** phases 0–7 are implemented and verified; phase 3–4 are committed
+in `08a3ac0`, phase 5 in `ee39c02`, phase 6 in `1be477f`, and phase 7 remains
+uncommitted in the worktree. Phase 3 tests include an antecedent frequency's
+exclusive-window output feeding a nested probability. Current verification:
+592 tests pass; mypy reports no issues.
 **Scope:** component calculation,
 configuration, validation, tests, and user-facing documentation. This document
 is a handoff for a new implementation session, not a description of all current
@@ -170,11 +170,12 @@ component `[1,1,1,1, 1,1,1,1, 0,0,0,0]`. Test both cases end to end.
 - `evaluate_component(..., data_column=0)` selects a zero-based data-column
   index, excluding final DOWY column; `evaluate_components` forwards it.
   Reject negative, out-of-range, non-data positions and invalid last DOWY.
-  Default retains first-data-column calculation and existing output shape.
-  Proposed multi-column result: preserve unselected data columns, rename
-  only selected column to `dv`, and retain `dv_name`; test output shape,
-  ordering, collisions, and index preservation before implementation. CLI
-  scenario splitting still passes one selected series at a time.
+  Default selects the first data column. Each `Result.df` contains only the
+  evaluated data column under its original name (also recorded as
+  `Result.dv_name`), then DOWY, characteristic outputs, and component output.
+  Datetime indices are named `time`; other index types/names are preserved.
+  Reject duplicate output column names. CLI scenario splitting still passes
+  one selected series at a time.
 
 ## Execution sequence: red -> green -> refactor per slice
 
@@ -192,8 +193,8 @@ type check, docs examples, and downstream smoke checks at phase boundaries.
 | 3. Nested frequency | **Implemented; committed in `08a3ac0`.** Test exact two 3-year matrices, timestep fraction, leading partial-year exclusion, truncated outer windows, annual broadcasts, and interaction where an antecedent frequency's exclusive-window output feeds a nested probability. | `patterns/water_year.py`, `patterns/characteristics.py`, `patterns/core.py` | Inner probability counts eligible timesteps and broadcasts annual verdict; inner/outer N-windows are forward. Antecedent exclusive-vs-union effect is covered end to end. Trailing partial-year completeness remains phase 5. |
 | 4. Component logic | **Implemented; committed in `08a3ac0`.** Test A/B truth table and three-valued unknown propagation, including nested/unnested frequency terminals. | `patterns/core.py` | Failure means complement of combined failure condition, not all-bad-conditions-absent. Frequency terminal verdict is not re-ANDed with source and unknown remains unknown. |
 | 5. Time handling | **Implemented and committed in `ee39c02`.** Test October-start calendar timing, leap-day convention, daily/monthly completeness, gaps/unsupported cadence, nested annual broadcast, and event-rate exposure. | `timeseries.py`, `patterns/water_year.py`, `patterns/characteristics.py`, `patterns/core.py`; formatter consumer review deferred where it belongs to reporting TODO | Timing uses calendar DOY; annual stats and event-rate exposure exclude leading/trailing partial years. Daily/monthly cadence required when dates are available. |
-| 6. Rate/validation | **Implemented and verified in worktree.** Test denominator-only minimum (including zero/negative denominators and smoothing), attainable frequency bounds/zero-aware `!=` anchors, boolean count rejection, empty components, and invalid frequency position. | `patterns/characteristics.py`, `parsing/characteristics.py`, `parsing/builders.py` | Rate minimum gates only the lagged denominator; attainable counts include both 0 and N, impossible predicates and invalid component structures use standard parser errors. |
-| 7. Series selection | Test default/intermediate/invalid data-column indices across direct API and scenario seam. | `patterns/core.py`, `scenarios.py` if needed | Selected series drives every characteristic, default behavior preserved. |
+| 6. Rate/validation | **Implemented and committed in `1be477f`.** Test denominator-only minimum (including zero/negative denominators and smoothing), attainable frequency bounds/zero-aware `!=` anchors, boolean count rejection, empty components, and invalid frequency position. | `patterns/characteristics.py`, `parsing/characteristics.py`, `parsing/builders.py` | Rate minimum gates only the lagged denominator; attainable counts include both 0 and N, impossible predicates and invalid component structures use standard parser errors. |
+| 7. Series selection | **Implemented and verified in worktree.** Test default/intermediate/invalid data-column indices through `evaluate_component`, `evaluate_components`, and scenario API; selected-flow magnitude/rate/frequency behavior; invalid DOWY; result columns/collisions; and index preservation. | `patterns/core.py`; `scenarios.py` continues splitting one selected series at a time | Selected series drives all data-dependent diagnostics and frequency source conditions. Result contains only selected data (original name and `dv_name`), DOWY, characteristic columns, and component column. Datetime index name is `time`; non-datetime index is preserved. |
 | 8. Docs and release | Validate all published simple and nested examples against tests; migration and ADR review. | Files listed below | Docs accurately describe implemented output, warning, metrics and limitations. |
 
 ### Phase 8 documentation checklist (mandatory, not optional cleanup)
@@ -277,20 +278,22 @@ this deferred event-count/reporting policy before interview.
 Continue in a fresh agent session with:
 
 > Implement `docs/plans/2026-10-01-pattern-correctness-tdd.md` one TDD
-> phase at a time, starting phase 7. Read the entire plan and check
-> `git status` first; do not overwrite unrelated changes. Phases 3–4 are
-> committed in `08a3ac0`, phase 5 in `ee39c02`, and phase 6 is implemented
-> but uncommitted. The worktree also contains a pre-existing documentation
-> edit in `hydropattern/patterns/characteristics.py`; preserve it. Phase 3
-> includes an end-to-end test proving antecedent frequency exclusivity changes
-> nested probability. Phase 5 uses timestamps to exclude incomplete years and
-> rejects gaps/unsupported cadence. Phase 6 fixes denominator-only rate
-> thresholds and frequency count validation; 576 tests pass and mypy is clean.
-> Use red-green-refactor and report each phase's golden output and behavior
-> delta. Update mandatory README, user reference, ADRs, examples, and migration
-> notes by phase 8. Do not implement deferred reporting/event-count TODO;
-> interview me after phases 0–8 and create a separate plan. Stop to clarify
-> genuinely unresolved semantics before altering public behavior.
+> phase at a time, starting phase 8. Read the entire plan and check
+> `git status` first; preserve the uncommitted phase-7 changes. Phases 3–4 are
+> committed in `08a3ac0`, phase 5 in `ee39c02`, and phase 6 in `1be477f`.
+> Phase 3 includes an end-to-end test proving antecedent frequency exclusivity
+> changes nested probability. Phase 5 uses timestamps to exclude incomplete
+> years and rejects gaps/unsupported cadence. Phase 6 fixes denominator-only
+> rate thresholds and frequency count validation. Phase 7 adds data-column
+> selection; each result keeps only its evaluated flow column under the source
+> name and preserves it in `dv_name`; scenario evaluation continues splitting
+> one flow series at a time. Datetime result indices are named `time`. Current verification: 592
+> tests pass and mypy is clean. Use red-green-refactor and report each phase's
+> golden output and behavior delta. Phase 8 must update README, user reference,
+> ADRs, examples, and migration notes. Do not implement deferred
+> reporting/event-count TODO; interview me after phases 0–8 and create a
+> separate plan. Stop to clarify genuinely unresolved semantics before
+> altering public behavior.
 
 This is a multi-phase change. A new session can implement one phase and
 use this same path as durable handoff for subsequent sessions.
