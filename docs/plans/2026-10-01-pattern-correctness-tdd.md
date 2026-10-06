@@ -1,10 +1,16 @@
 # Pattern correctness: TDD implementation plan
 
-**Status:** phases 0–7 are implemented and verified; phase 3–4 are committed
-in `08a3ac0`, phase 5 in `ee39c02`, phase 6 in `1be477f`, and phase 7 remains
-uncommitted in the worktree. Phase 3 tests include an antecedent frequency's
-exclusive-window output feeding a nested probability. Current verification:
-592 tests pass; mypy reports no issues.
+**Status:** phases 0–7 are implemented, verified, and committed. Phase 8
+documentation implementation and verification are complete, but its changes
+are **pending user review and discussion before commit**. Do not commit or
+revise those documentation changes until that discussion happens. Phase 3–4
+are committed in `08a3ac0`, phase 5 in `ee39c02`, phase 6 in `1be477f`, and
+phase 7 in `ed786c7`. Phase 3 tests include an antecedent frequency's
+exclusive-window output feeding a nested probability. Phase 8 updates the
+README, user reference, ADRs, examples, migration notes, and executable
+documentation checks. Current verification: 596 tests pass; mypy reports no
+issues. The frequency, minimal, and detailed example configurations run
+successfully from the CLI.
 **Scope:** component calculation,
 configuration, validation, tests, and user-facing documentation. This document
 is a handoff for a new implementation session, not a description of all current
@@ -255,7 +261,16 @@ If a gate fails, stop that slice, diagnose it, and revert **only** its own
 changes if necessary; never reset the entire worktree. Do not conflate
 reporting/event-count redesign with the correctness migration.
 
-## Deferred TODO: separate reporting plan after phases 0-8
+## Follow-up work (separate sessions/issues)
+
+### Documentation review before phase 8 commit
+
+Phase 8 documentation changes are present in the worktree but are not ready
+to commit. Discuss requested documentation changes in a separate issue and
+session first. Preserve the current changes while doing that work; do not
+commit phase 8 until the user approves the resulting documentation.
+
+### Deferred reporting/event-count redesign
 
 Interview user **after** preceding behavior is implemented and documented:
 does `Result.event_count()` count original hydrologic source events,
@@ -273,27 +288,28 @@ up/downstream consumers. `Result.frequency_table` currently has CC 6,
 prioritize coverage and statistical interpretation. No implementation of
 this deferred event-count/reporting policy before interview.
 
-## New-session handoff
+## Handoff
 
-Continue in a fresh agent session with:
+Current phase 8 worktree changes are: `README.md`,
+`docs/adr/0002-frequency-sliding-window.md`,
+`docs/adr/0003-pattern-correctness-contract.md`,
+`docs/plans/2026-10-01-pattern-correctness-tdd.md`,
+`docs/user/reference.md`, `docs/user/migration.md`,
+`examples/detailed.toml`, `examples/frequency.toml`, and
+`tests/test_documented_contracts.py`. The new ADR, migration note, example,
+and test are untracked. Preserve all of these changes.
 
-> Implement `docs/plans/2026-10-01-pattern-correctness-tdd.md` one TDD
-> phase at a time, starting phase 8. Read the entire plan and check
-> `git status` first; preserve the uncommitted phase-7 changes. Phases 3–4 are
-> committed in `08a3ac0`, phase 5 in `ee39c02`, and phase 6 in `1be477f`.
-> Phase 3 includes an end-to-end test proving antecedent frequency exclusivity
-> changes nested probability. Phase 5 uses timestamps to exclude incomplete
-> years and rejects gaps/unsupported cadence. Phase 6 fixes denominator-only
-> rate thresholds and frequency count validation. Phase 7 adds data-column
-> selection; each result keeps only its evaluated flow column under the source
-> name and preserves it in `dv_name`; scenario evaluation continues splitting
-> one flow series at a time. Datetime result indices are named `time`. Current verification: 592
-> tests pass and mypy is clean. Use red-green-refactor and report each phase's
-> golden output and behavior delta. Phase 8 must update README, user reference,
-> ADRs, examples, and migration notes. Do not implement deferred
-> reporting/event-count TODO; interview me after phases 0–8 and create a
-> separate plan. Stop to clarify genuinely unresolved semantics before
-> altering public behavior.
+For the next documentation session:
 
-This is a multi-phase change. A new session can implement one phase and
-use this same path as durable handoff for subsequent sessions.
+> Discuss requested changes to the phase 8 documentation in the separate
+> issue before editing or committing. Read the current worktree and this plan
+> first; preserve all phase 8 changes. Do not commit until the user approves
+> the revised documentation.
+
+For the separate reporting/event-count session:
+
+> Start by interviewing the user about the open event-count, nested-year, and
+> event-rate semantics in the "Deferred reporting/event-count redesign"
+> section of `docs/plans/2026-10-01-pattern-correctness-tdd.md`. Create a
+> separate TDD plan only after those decisions are clear. Do not change the
+> pending phase 8 documentation as part of that work.

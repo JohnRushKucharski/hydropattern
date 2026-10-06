@@ -153,3 +153,66 @@ where "path_to_toml_file" is replaced with a valid path to the input .toml file.
 > doing so raises a `CLI_CONFLICTING_OPTIONS` error. Default is
 > `--override-toml-options`, which keeps the normal CLI-overrides-toml precedence
 > described above.
+
+### Pattern evaluation example
+
+The standalone frequency example includes compact configuration, portable
+ordered characteristic tables, explicit exclusive windows, and nested annual
+frequency:
+
+```console
+uv run python -m hydropattern run examples/frequency.toml --no-excel
+```
+
+Un-nested `N` counts input timesteps, not years. Compact TOML remains supported
+but emits a warning because table-key order is not guaranteed by TOML. Use
+ordered tables when explicit characteristic order is important:
+
+```toml
+# Compact; order follows the parsed table keys and warns.
+[components.pulse]
+magnitude = [">", 0]
+frequency = [">=", 1, 5]
+```
+
+Equivalent ordered configuration:
+
+```toml
+[components.pulse]
+[[components.pulse.characteristics]]
+type = "magnitude"
+metrics = [">", 0]
+[[components.pulse.characteristics]]
+type = "frequency"
+metrics = [">=", 1, 5]
+```
+
+The Python API evaluates one selected data column and retains its name in the
+result. This example prints the same frequency array asserted by
+`tests/test_documented_contracts.py`:
+
+```python
+import pandas as pd
+
+from hydropattern.parsers import build_components, parse_request
+from hydropattern.patterns import evaluate_component
+
+source = [0, 1, 0, 0, 1, 0, 0, 0, 0, 0]
+data = pd.DataFrame(
+    {"flow": source, "dowy": range(1, len(source) + 1)},
+    index=pd.date_range("2020-01-01", periods=len(source), name="time"),
+)
+request = parse_request(
+    {"pulse": {"magnitude": [">", 0], "frequency": [">=", 1, 5]}}
+)
+result = evaluate_component(data, build_components(request)[0])
+
+print(result.df["frequency_ge1in5(union)"].tolist())
+# [0, 1, 1, 1, 1, 1, 1, 1, 1, 0]
+# Result columns: flow, dowy, magnitude_gt0, frequency_ge1in5(union), pulse
+```
+
+See the [complete pattern reference](docs/user/reference.md#frequency) for
+frequency semantics, golden arrays, and the `Result` column contract. The
+[migration notes](docs/user/migration.md) describe behavior changes from
+earlier releases.

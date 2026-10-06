@@ -70,7 +70,7 @@ success_pattern = false         # Describes baseflow failure.
 # third component.
 [components.bankfull_flow]
 magnitude = [">", 2.0]
-frequency = [">=", 1, 5]         # at least once every 5 years.
+frequency = [">=", 1, 5]         # at least once in the next 5 input timesteps.
 
 # ---------------------OUTPUT OPTIONS--------------------- #
 # [output]
@@ -138,24 +138,24 @@ frequency = [">=", 1, 5]         # at least once every 5 years.
 #       moving average from time series of hydrologic values, and
 #       look_back=n. Defaults to n=1.
 #   - value: is compared against z_t (defined above).
-#   - min: minimum value for lookback value: y[t-n].
-#       Must be a positive real value.
-#       Defaults to 0, see lookback and value note.
-#   - look_back and value: if y_[t-n] is 0 and min is 0
-#        an exception is NOT raised and any positive value will succeed.    
+#   - min: strict minimum for the lagged denominator y[t-n].
+#       The ratio is evaluated only when y[t-n] > min; values at or below
+#       min are masked, not replaced by a floor value. Defaults to 0.
 # Duration: in form [operator, time_steps]
 #   - operators: >, <, =
 #   - time_steps: number of previous timesteps over which 
 #       other component characteristics must be true.
 #   - time_steps: must be positive integer.
-# Frequency: [operator, value] OR [operator, n_times, N_years, (exclusive)]
+# Frequency:
+#   - un-nested: [operator, n, N_steps, (exclusive_event_window)] or
+#       [min_n, max_n, N_steps, (exclusive_event_window)]
+#   - nested: [[operator, probability], [operator, n, N_years, (exclusive_event_window)]]
 #   - operators: >, <, =
-#   - value: annual frequency as postive real number on range [0, 1].
-#   - n_times: number of time condition must occur in N_years.
-#   - N_years: continous period of years over which condition
-#       is evaluated (forward-looking window from each eligible timestep).
-#   - n_times and N_years: must be postive integers.
-#   - exclusive: optional trailing bool, defaults to false (union mode:
-#       every qualifying window is marked). true = exclusive mode: once a
-#       window qualifies, later windows inside its span are skipped.
+#   - un-nested N_steps are input timesteps, not assumed years. Windows run
+#       forward from eligible source timesteps and truncate at record end.
+#   - nested probability is eligible timesteps / valid timesteps in a complete
+#       water year; the outer window counts annual verdicts.
+#   - exclusive_event_window defaults to false (qualifying overlapping
+#       windows are unioned). true suppresses later anchors within a
+#       qualifying fixed-length span.
 # ------------------------------------------------------- #

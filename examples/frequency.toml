@@ -1,0 +1,37 @@
+# Frequency examples: run from the repository root with
+# uv run python -m hydropattern run examples/frequency.toml --no-excel
+[timeseries]
+path = "examples/timeseries.csv"
+date_format = "%Y-%m-%d"
+
+# Compact component syntax. The frequency window unit is one timestep (days
+# for this daily dataset), not years. The omitted flag defaults to union mode.
+[components.compact_frequency]
+magnitude = [">=", 1.0]
+frequency = [">=", 1, 5]
+
+# Portable ordered syntax. `true` means a qualifying window claims a fixed
+# five-step span and suppresses later anchors within that span.
+[components.ordered_exclusive_frequency]
+success_pattern = true
+
+[[components.ordered_exclusive_frequency.characteristics]]
+type = "magnitude"
+metrics = [">=", 1.0]
+
+[[components.ordered_exclusive_frequency.characteristics]]
+type = "frequency"
+metrics = [">=", 1, 5, true]
+
+# Nested frequency: annual probability is eligible timesteps / valid timesteps
+# in each complete water year; the outer count window is measured in years.
+[components.nested_frequency]
+success_pattern = true
+
+[[components.nested_frequency.characteristics]]
+type = "magnitude"
+metrics = [">=", 1.0]
+
+[[components.nested_frequency.characteristics]]
+type = "frequency"
+metrics = [[">=", 0.5], [">=", 1, 2]]

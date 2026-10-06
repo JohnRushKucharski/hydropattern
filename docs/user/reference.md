@@ -190,13 +190,14 @@ z_t = y_t / y_[t-n]
 where `y` is the raw or moving-average series and `look_back = n`. The comparison is made
 against `z_t`.
 
-**`value` must be > 0** because `z_t` is always positive when evaluated (the ratio of two
-positive flow values). A threshold ≤ 0 would never be meaningful.
+**`value` must be > 0**. The denominator is only valid when it exceeds `min`;
+the numerator may be zero or negative, so the resulting ratio is not necessarily
+positive.
 
-> ⚠️ **Divide-by-zero warning**: When `min = 0` (the default), a denominator value
-> `y[t-n] = 0` in the timeseries will raise a runtime error. If your data may contain
-> zero-flow timesteps, set `min` to a small positive value (e.g. `0.001`) to replace
-> zero denominators with that floor value.
+`min` is a strict denominator threshold, not a floor: a lagged value `y[t-n]`
+is used only when `y[t-n] > min`. Otherwise that timestep's ratio is undefined
+and the diagnostic is false. For example, `min = 0.1` does not replace a zero
+denominator with `0.1`; it excludes zero and all other denominators `<= 0.1`.
 
 **Parameter order is strict**: `ma_periods` is always 3rd, `look_back` always 4th,
 `min` always 5th. You cannot provide `min` without also providing `ma_periods` and
@@ -207,25 +208,133 @@ positive flow values). A threshold ≤ 0 would never be meaningful.
 rate_of_change = [">", 2.0]              # Flow doubled since previous timestep
 rate_of_change = [">", 2.0, 3]          # 3-day MA doubled since previous 3-day MA
 rate_of_change = [">", 2.0, 1, 7]       # Flow doubled since 7 timesteps ago
-rate_of_change = [">", 2.0, 1, 1, 0.1]  # Floor denominator at 0.1 to avoid divide-by-zero
+rate_of_change = [">", 2.0, 1, 1, 0.1]  # Evaluate only when lagged flow > 0.1
 ```
 
 ---
 
 ### Frequency
 
-Un-nested `[operator, n, N]` and `[min_n, max_n, N]` metrics evaluate forward,
-event-anchored timestep windows. Nested frequency metrics contain an intra-annual
-base pattern and an interannual pattern over annual verdicts.
+Frequency classifies forward windows from eligible source observations. It is a
+retrospective classification: a full N-step window may use later observations,
+so its verdict is not a real-time prediction available on the anchor day. Windows
+at the end of the record are truncated and evaluated using the observations
+available there.
 
-For a nested probability base `[operator, p]`, the probability is the fraction of
-eligible timesteps in each water year. Compare once per year and broadcast that
-verdict across the year's output rows. `exclusive_event_window` has no effect on
-this probability form: it has one annual trial, not overlapping candidate windows.
-Only complete water years count. Daily and monthly observations are supported;
-gaps and other cadences raise an error for annual calculations.
-The interannual count/between pattern evaluates windows in units of water years;
-its `exclusive_event_window` setting controls overlap suppression.
+#### Timestep-window forms
+
+```toml
+# Count predicate
+frequency = [operator, n, N, (exclusive_event_window)]
+
+# Inclusive count range
+frequency = [min_n, max_n, N, (exclusive_event_window)]
+```
+
+For an un-nested frequency, `N` is measured in input timesteps—not assumed to be
+years. On daily input it is days; on monthly input it is months. Nested
+interannual `N` is instead measured in complete water-year trials.
+
+| Field | Type and valid range | Meaning |
+|---|---|---|
+| `operator` | `<`, `<=`, `>`, `>=`, `=`, `!=` | Predicate applied to the number of eligible source timesteps in a candidate window. |
+| `n` | integer, `0 <= n <= N` | Count threshold for operator form. |
+| `min_n`, `max_n` | integers, `0 <= min_n < max_n <= N` | Inclusive lower and upper count bounds. |
+| `N` | positive integer | Maximum forward window length in the form's timestep or year units. |
+| `exclusive_event_window` | boolean, default `false` | `false`: union every qualifying overlapping window. `true`: a qualifying anchor claims its fixed N-step span; later anchors in that span are skipped. |
+
+Impossible count predicates are rejected: for example, `< 0` and `> N` cannot
+be satisfied by a count in `[0, N]`. Equality at zero or N and `>= N` are valid.
+Between bounds include both endpoints.
+
+The source is the conjunction of the characteristic conditions before frequency.
+The count is eligible source **timesteps**, not runs/events. A qualifying
+candidate marks every timestep it spans, including source-zero timesteps.
+Positive-count predicates anchor only at source-success timesteps. If zero can
+satisfy the predicate (for example `= 0`, `< 1`, or `!= 1`), every timestep can
+anchor so absence is observable. `!=` follows the same rule: when zero does not
+satisfy the predicate, only source successes anchor.
+
+With `exclusive_event_window = false`, overlapping qualifying windows are
+unioned, and a later source success can extend the marked output. With `true`,
+only a qualifying candidate starts suppression; a failed candidate does not
+suppress later anchors. Anchors inside a claimed span cannot extend it. An
+anchor at the span's final timestep is still suppressed; the next timestep is
+eligible to anchor again.
+
+**Six timestep-window golden examples** (positions are zero-based; each row's
+output is the frequency diagnostic and, for a positive component, the component
+output):
+
+| Eligible source | Metrics | Exclusive | Expected output |
+|---|---|---:|---|
+| `[1,0,0,0,0,0]` | `[">=",1,5]` | either | `[1,1,1,1,1,0]` |
+| `[0,0,0,0,1,0]` | `[">=",1,5]` | either | `[0,0,0,0,1,1]` |
+| `[0,0,0,0,0,1,0,0,0,0,0]` | `[">=",1,5]` | either | `[0,0,0,0,0,1,1,1,1,1,0]` |
+| `[0,1,0,0,1,0,0,0,0,0]` | `[">=",1,5]` | `false` | `[0,1,1,1,1,1,1,1,1,0]` |
+| `[0,1,0,0,1,0,0,0,0,0]` | `[">=",1,5]` | `true` | `[0,1,1,1,1,1,0,0,0,0]` |
+| `[1,0,1,0,0,0,0]` | `[">=",2,5]` | `true` | `[1,1,1,1,1,0,0]` |
+
+`examples/frequency.toml` is a runnable example of compact and ordered
+configuration, default/explicit exclusivity, and nested frequency:
+
+```console
+uv run python -m hydropattern run examples/frequency.toml --no-excel
+```
+
+#### Nested annual and interannual frequency
+
+Nested form places a base pattern and an outer pattern in one frequency
+characteristic:
+
+```toml
+# Probability of eligible timesteps per complete water year,
+# then at least one qualifying year in each forward 2-year window.
+frequency = [[">=", 0.5], [">=", 1, 2]]
+```
+
+For the base probability `[operator, p]`, probability is eligible timesteps
+divided by valid timesteps in a complete water year. The comparison is made
+once per year and its verdict is broadcast across every row of that year; it
+is not gated by eligibility on the last timestep. The probability form has one
+annual trial, so `exclusive_event_window` has no effect on it. The outer
+count/between pattern consumes one annual verdict per complete water year and
+uses forward windows, truncation, union, and exclusivity in units of years.
+Partial trailing outer windows can be classified using the complete annual
+trials available; a partial water year itself is not an annual trial.
+
+When timestamps are present, only cadence-verified complete daily or monthly
+water years contribute to annual statistics; leading and trailing partial
+years are excluded. Unsupported cadence, irregular gaps, invalid, duplicate,
+or unordered timestamps raise an error for annual calculations. Direct
+DataFrames without datetime timestamps can identify years only by DOWY resets,
+so they cannot verify calendar completeness.
+
+For four timesteps per test water year and base `[[">=", 0.5], [">=", 1, 2]]`:
+
+```text
+magnitude       [1,1,1,0, 0,0,0,0, 1,0,1,0]
+base fraction   [3/4,     0/4,     2/4    ]
+intra-annual    [1,1,1,1, 0,0,0,0, 1,1,1,1]
+interannual     [1,1,1,1, 1,1,1,1, 1,1,1,1]
+component       [1,1,1,1, 1,1,1,1, 1,1,1,1]
+```
+
+If years two and three are swapped, the second nested matrix is:
+
+```text
+magnitude       [1,1,1,0, 1,0,1,0, 0,0,0,0]
+base fraction   [3/4,     2/4,     0/4    ]
+intra-annual    [1,1,1,1, 1,1,1,1, 0,0,0,0]
+interannual     [1,1,1,1, 1,1,1,1, 1,1,1,1]  # outer union
+component       [1,1,1,1, 1,1,1,1, 1,1,1,1]
+interannual     [1,1,1,1, 1,1,1,1, 0,0,0,0]  # outer exclusive
+component       [1,1,1,1, 1,1,1,1, 0,0,0,0]
+```
+
+The annual base verdicts are `[1,1,0]`. Outer union `[">=",1,2]` produces
+annual verdicts `[1,1,1]`; outer exclusive `[">=",1,2,true]` produces
+`[1,1,0]`.
 
 ---
 
@@ -241,7 +350,8 @@ success_pattern = true   # Present = all characteristics met? Defaults to true.
 | `success_pattern`| boolean | `true`  | When `true`, the component is present when all conditions are satisfied. When `false`, the characteristics describe a combined failure condition and component output is its logical complement (non-failure). An unknown characteristic verdict remains unknown unless another condition determines the conjunction. |
 
 Characteristic order is always inferred from sequence, never configured
-explicitly (no `order`/`verbose` keys). Timing, magnitude, and rate-of-change
+explicitly (the `order` and `verbose` component options are unsupported).
+Timing, magnitude, and rate-of-change
 always report their own truth value regardless of position or preceding
 characteristics; duration and frequency remain dependent on the conjunction
 of their preceding characteristics. Components use either the compact
@@ -265,6 +375,29 @@ iteration order, which TOML v1.0 does not formally guarantee (though this
 project's `tomllib` and Python dict both preserve it); using it emits a
 `UserWarning`. The ordered array form's order is TOML-guaranteed and does
 not warn.
+
+For `success_pattern = false`, characteristics describe a combined failure
+condition and the component reports its logical complement (non-failure), not
+affirmative ecological success. Unknown values remain unknown unless a known
+failure or success determines the conjunction.
+
+### Python evaluation and result columns
+
+`evaluate_component(data, component, data_column=0)` evaluates one zero-based
+data-column position; the final DOWY column is not selectable. The default is
+the first data column. `evaluate_components(data, components, data_column=0)`
+forwards the same selection to each component. To evaluate several series,
+call once for each index, or use scenario evaluation, which splits the input
+series and evaluates each independently.
+
+Each returned `Result.df` contains only the selected data column under its
+original name, then `dowy`, one column per characteristic, and the component
+column. `Result.dv_name` is the selected column's original name. Its index is
+preserved; a `DatetimeIndex` is named `time`. Invalid indices, invalid final
+DOWY values, and duplicate output column names raise `ValueError`.
+Characteristic output columns use the characteristic type and parameter
+label (for example `magnitude_gt5.0` or `frequency_ge1in5(union)`); the final
+component column uses the configured component name.
 
 ---
 
@@ -323,13 +456,14 @@ Controls the metric computed in the `{component}_summary.xlsx` summary sheets wr
 the formatter (see `hydropattern/formatters.py`), and (when plotting) the response surface's
 z-values. The section is optional; when absent, or when `mode` is omitted, the default is
 `"portion"`. This option only affects the adapter/reporting layer — core compute contracts
-(`Result`, `evaluate_component(s)`) are unchanged.
+(`Result`, `evaluate_component(s)`) include the data-column selection and result
+shape described in [Python evaluation and result columns](#python-evaluation-and-result-columns).
 
 | Value            | Description | NA/zero policy |
 |------------------|-------------|----------------|
 | `"portion"`      | Fraction of timesteps in `[0.0, 1.0]` where the condition holds. | Zero successes → `0.0`. No timesteps in a water year → blank (NA). |
 | `"percentage"`   | `portion * 100`, on a `[0, 100]` scale. | Same as portion. |
-| `"return_period"`| `1 / portion` — average recurrence interval in water years. | Zero-success (undefined/infinite) and NA portions both → blank (NA), never `inf`. |
+| `"return_period"`| Descriptive reciprocal `1 / portion`; it is not a Poisson recurrence probability or guaranteed mean recurrence interval. | Zero-success (undefined/infinite) and NA portions both → blank (NA), never `inf`. |
 
 **Examples**
 ```toml
