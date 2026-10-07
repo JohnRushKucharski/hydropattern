@@ -5,6 +5,12 @@ This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
 [user-documentation plan](../developer/plans/user-documentation.md).
+Work order relative to that plan, and the user pages each slice updates, are
+defined in the [documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md):
+R0 starts after the documentation site skeleton (sequence step S3) exists.
+Terminology follows [`CONTEXT.md`](../../CONTEXT.md). Since this plan was written,
+`exclusive_event_window` became `exclusive_windows`, and base/nested frequency
+parts are called intra-annual/interannual patterns.
 
 ## Agreed decisions
 
@@ -46,7 +52,7 @@ See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
   `[0, unknown, unknown, unknown, unknown, 0]`: the unknown either separates
   non-qualifying runs of lengths 2 and 1 or joins a qualifying run of length 4.
   Whole-run duration assessment remains unchanged.
-- Annual base probability conditions describe all observed trials in a
+- Intra-annual probability conditions describe all observed trials in a
   complete water year, not only known trials. Assess possible qualifying
   fractions; preserve a known annual verdict only when all possibilities
   agree. For 12 monthly trials with one known qualifying, one known
@@ -57,7 +63,7 @@ See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
   policy, while descriptive summary fractions still exclude unknowns.
   Unknown annual trial outcomes must never be silently converted to zero.
 - Apply the agreed uncertainty rules throughout nested frequency. Annual
-  reduction for count/between base patterns must not declare failure when
+  reduction for count/between intra-annual patterns must not declare failure when
   there are unknown outcomes and no definite success; the verdict remains
   unknown. Do not replace unknown annual trials with zero before interannual
   window evaluation.
@@ -193,7 +199,7 @@ input, unavailable calculation history, restricted rate denominators, partial
 water years, component combination, and summary denominators. Include worked
 tables for duration, frequency counts, uncertain anchors, overlapping windows,
 and exclusivity using the agreed rules.
-The user reference for `exclusive_event_window` must include the agreed
+The user reference for `exclusive_windows` must include the agreed
 exclusive-window example above, show both possible schedules, and explain why
 the middle outcomes remain known while the first and last remain unknown.
 The duration reference must explain uncertain run boundaries with the agreed
@@ -288,7 +294,9 @@ These do not require further scientific policy decisions:
 Phase IDs below belong to this reporting plan, not the earlier phases 0–8.
 For each slice: write failing acceptance tests, confirm the intended failure,
 implement the smallest complete change, refactor, run relevant regressions,
-and update directly related user documentation with worked examples.
+and update directly related user documentation with worked examples on the
+target pages listed in the sequence plan. Write only the behavior the slice
+implements; keep the strict documentation build passing.
 
 | Slice | Prerequisites | Test-first work and completion gate |
 | --- | --- | --- |

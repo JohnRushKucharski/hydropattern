@@ -40,12 +40,26 @@ A single numerical summary of a component's outcomes for one **scenario**,
 over a water year or the whole record, expressed as a portion or percentage.
 Fractions use only known outcomes;
 an interval with no known outcomes has no defined summary.
-_Avoid_: metric (without qualification), score, value (too generic).
+`portion` is the fraction of known outcomes marked as component success;
+`percentage` is the same value multiplied by 100.
+_Avoid_: metric (without qualification), score, value (too generic),
+fraction of successful timesteps (omits the known-outcome denominator).
+
+**Characteristic summary**:
+The same known-outcome fraction computed for one characteristic's diagnostic
+outcome column rather than the final component outcome. Each column has its
+own known-outcome denominator and coverage.
+_Avoid_: summary metric (reserved for final component outcomes).
 
 **Unknown outcome**:
 A characteristic or component outcome for which success or failure cannot be
 determined from the available information; it is neither success nor failure.
 _Avoid_: failure, zero (for an undetermined outcome).
+
+**Characteristic outcome**:
+A characteristic's success, failure, or unknown verdict at one timestep,
+before characteristics are combined into a **component outcome**.
+_Avoid_: component outcome (for a single characteristic's verdict).
 
 **Component outcome**:
 A component's final success, failure, or unknown verdict; for conditions
@@ -65,11 +79,18 @@ An observation interval that satisfies the conditions being considered.
 For a frequency characteristic, these are the combined conditions of its preceding characteristics.
 _Avoid_: event (for an individual qualifying timestep).
 
+**Qualifying water year**:
+A water year whose **intra-annual pattern** condition is met; the unit counted
+by an **interannual pattern**.
+_Avoid_: successful year, event year.
+
 **Trial**:
-One unit counted in a frequency characteristic's denominator: a timestep for
-un-nested and intra-annual (base) frequency patterns, a water year for interannual
-(nested) frequency patterns.
-_Avoid_: timestep, period (too generic outside this context).
+One unit counted by a frequency characteristic: a timestep for an
+**un-nested frequency** or **intra-annual pattern**, a water year for an
+**interannual pattern**. The term carries no statistical meaning; it does not
+imply independent or random trials. User documentation names the concrete
+unit (timestep or water year) and uses "trial" only when generalizing over both.
+_Avoid_: period (too generic); Bernoulli trial (implies independence).
 
 **Water year**:
 A year-long reporting and evaluation interval beginning at the configured
@@ -105,6 +126,14 @@ The configured maximum number of timesteps, or water years for interannual
 frequency, in a **frequency window**; record boundaries can shorten the observed window.
 _Avoid_: window period (for a count).
 
+**Exclusive windows**:
+The optional trailing boolean of a frequency pattern, `exclusive_windows`.
+When false (default), every anchored **frequency window** is evaluated and
+overlapping windows' successful coverage is combined (union). When true, a
+window claims its span and later anchors inside it are skipped, so windows
+never overlap. Each part of a nested frequency sets it independently.
+_Avoid_: exclusive_event_window (former name); exclusive bounds (unrelated).
+
 **Frequency count**:
 The number of qualifying trials in a **frequency window**. Unknown trial
 outcomes leave multiple possible counts; the window verdict is known only
@@ -112,8 +141,8 @@ when every possible count gives the same verdict.
 _Avoid_: component event count (for qualifying-trial counts).
 
 **Annual qualifying fraction**:
-The fraction of all observed trials in a complete water year that qualify
-for a base frequency condition. Unknown trials leave possible fractions;
+The fraction of all observed timesteps in a complete water year that qualify
+for an intra-annual probability condition. Unknown trials leave possible fractions;
 the annual condition is known only when all possibilities agree.
 _Avoid_: known-outcome summary fraction (for this whole-year condition).
 
@@ -186,17 +215,26 @@ The spacing between successive observations; cadence describes its regularity,
 such as daily or monthly sampling.
 _Avoid_: timestep frequency (to distinguish sampling from the frequency characteristic).
 
-**Base pattern**:
-The un-nested frequency form (`[op, probability]`, `[op, n, N]`, or
-`[min_n, max_n, N]`) evaluated first in a frequency characteristic — intra-annual
-when nested, the whole characteristic when not.
-_Avoid_: inner pattern, first pattern.
+**Un-nested frequency**:
+A frequency characteristic with a single pattern, such as `[op, n, N]` or
+`[min_n, max_n, N]`, evaluated over timesteps across the whole record; its
+windows may cross water-year boundaries.
+_Avoid_: intra-annual (for un-nested frequency), base pattern.
 
-**Nested pattern**:
-The optional second base pattern in `frequency = [<base pattern>, [nested pattern]]`,
-evaluated on the base pattern's per-water-year qualifying outcomes across years
-(interannual). Absent nested pattern means the frequency characteristic is un-nested.
-_Avoid_: outer pattern, second pattern.
+**Intra-annual pattern**:
+The first part of a nested frequency,
+`frequency = [[intra-annual pattern], [interannual pattern]]`, evaluated on
+timesteps within each complete water year to decide whether that year is a
+**qualifying water year**.
+_Avoid_: base pattern, inner pattern, first pattern.
+
+**Interannual pattern**:
+The second part of a nested frequency, evaluated across water years on
+the intra-annual pattern's qualifying water years.
+_Avoid_: nested pattern, outer pattern, second pattern.
+Code identifiers using `base_`/`nested_` are scheduled for renaming to
+`intra_annual_`/`interannual_` (or neutral equivalents where un-nested
+frequency shares the field).
 
 ## Example dialogue
 

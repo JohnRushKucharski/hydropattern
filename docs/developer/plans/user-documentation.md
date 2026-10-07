@@ -12,6 +12,10 @@ color reversal as the new behavior; document the implementation actually release
 The reporting plan requires a dedicated unknown-outcome section and characteristic,
 event-count, water-year, and plotting examples, not merely developer records.
 
+Work order across both plans is defined in the
+[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md).
+Phases below are labelled D1–D7 there.
+
 ## Goal and audience
 
 Provide clear, searchable documentation for hydrologists and environmental
@@ -57,8 +61,9 @@ Keep the authoring system close to ordinary Markdown:
 - No additional plugins, external search service, Docker requirement, custom
   frontend, generated API documentation, or multi-version tooling.
 - Local preview: `uv run --group docs mkdocs serve`.
-- Pull requests build the site with strict validation; main-branch updates
-  automatically deploy through GitHub Pages.
+- Pull requests build the site with strict validation. Deployment through
+  GitHub Pages is enabled only after reporting slice R10 and is triggered by a
+  version-bump commit tagged `v*`, not by every main-branch update.
 - Set the documentation source directory to `docs\user`. Developer records,
   PDFs, and protected case studies must not be copied into the site.
 
@@ -132,7 +137,7 @@ Website navigation:
 | --- | --- |
 | Start here | Installation, first run, interpreting first results |
 | User guide | Preparing data, configuring components, CLI usage, outputs, plotting |
-| Scientific concepts | Practical foundations, shared terminology, evaluation order and interpretation |
+| Scientific concepts | Practical foundations, plain-language glossary, unknown outcomes, evaluation order and interpretation |
 | Reference | Exact TOML fields, characteristic pages, CLI options, technical evaluation rules |
 | Examples | Task-labelled runnable examples with expected results |
 | Troubleshooting | Common problems, corrective actions, upgrade guidance |
@@ -167,8 +172,8 @@ Provide one page per characteristic:
 5. Equations and technical detail when useful, later on the same page.
 
 The concepts section owns the shared model; characteristic pages own their
-detailed semantics. Frequency has separate subsections for timestep windows and
-nested annual/interannual evaluation. Link directly to sections instead of
+detailed semantics. Frequency has separate subsections for un-nested frequency
+and nested intra-annual/interannual evaluation. Link directly to sections instead of
 duplicating their explanations.
 
 Troubleshooting should lead with symptoms and remedies. Retain searchable error
@@ -176,34 +181,30 @@ codes, but put Python error-envelope access and API internals in the API section
 
 ## Agreed language and scientific interpretation
 
-`CONTEXT.md` captures resolved domain terms. Use them consistently:
+[`CONTEXT.md`](../../../CONTEXT.md) is the single source of truth for domain
+terms; do not maintain a separate term table here. Use its preferred terms and
+respect every _Avoid_ entry. Resolve any new terminology conflict by updating
+`CONTEXT.md` with the user before writing documentation. The user site has a
+plain-language glossary page that follows `CONTEXT.md`; `CONTEXT.md` itself is
+not published.
 
-| Concept | Term |
-| --- | --- |
-| Values defining a characteristic condition | Characteristic parameters |
-| Reported component-outcome summary | Summary metric |
-| Observation satisfying the conditions being considered | Qualifying timestep |
-| General span examined when assessing a condition | Evaluation interval |
-| Forward interval examined by frequency | Frequency window |
-| Configured maximum size of that window | Frequency window length |
-| Uninterrupted sequence of qualifying timesteps | Qualifying run |
-| Timestep count of that sequence | Qualifying run length |
-| Configured comparison count or acceptable count range | Duration threshold / duration bounds |
-| Uninterrupted occurrence of final component success | Component event / component-success run |
-| Time interval occupied by that occurrence | Component success period |
-| Timestep count of that occurrence | Component-success run length |
-| Length expressed in calendar-time units | Calendar length |
-| Observation spacing or daily/monthly regularity | Timestep interval / cadence |
+Documentation-specific rules:
 
-A period denotes an interval, not a timestep count. Do not call sampling
-"timestep frequency" or use "duration" indiscriminately for run lengths.
-Calendar lengths require explicit units and boundary assumptions; do not infer
-equal day counts from monthly cadence or add new calendar-length outputs.
-
-Replace "classified coverage" with **fraction of successful timesteps** for
-`portion`, or **number of successful timesteps** for a count. Define successful
-as marked as component success; do not imply ecological benefit. Verify the
-summary denominator and missing-data policies against the implementation.
+- A period denotes an interval, not a timestep count. Do not call sampling
+  "timestep frequency" or use "duration" indiscriminately for run lengths.
+- Name concrete units ("qualifying timesteps", "qualifying water years");
+  use "trial" only when generalizing over both, without implying independence.
+- Use intra-annual pattern, interannual pattern, and un-nested frequency;
+  not base/nested or inner/outer.
+- Calendar lengths require explicit units and boundary assumptions; do not
+  infer equal day counts from monthly cadence. Add no calendar-length outputs
+  other than the water-year exposure and event rates agreed in the reporting plan.
+- Replace "classified coverage" with **fraction of known outcomes marked as
+  component success** for `portion` (or the **number of successful timesteps**
+  for a count), always alongside **known-outcome coverage**. Successful means
+  marked as component success; do not imply ecological benefit. Summary
+  denominators and unknown-outcome policies are defined by the reporting plan;
+  document them in the slice that implements them.
 
 ### Frequency example and interpretation
 
@@ -218,8 +219,8 @@ Lead with an explanation along these lines before presenting syntax:
 > that the preceding conditions were met on five timesteps.
 
 State the assumptions of this example and show its configuration/results.
-Explain overlapping windows, exclusivity, zero-admitting comparisons, record-end
-truncation, nested annual units, and water-year completeness in later sections.
+Explain overlapping windows, `exclusive_windows`, zero-admitting comparisons, record-end
+truncation, intra-annual/interannual evaluation, and water-year completeness in later sections.
 Frequency counts qualifying timesteps or qualifying water years, not distinct
 component events. A qualifying window and a component success period can differ
 because overlapping windows can merge into a longer component-success run.
@@ -241,8 +242,9 @@ failure-pattern settings affect the component outcome.
 Explain retrospective assessment, independent characteristic conditions versus
 dependent duration/frequency assessment, and the meaning of `success_pattern`.
 For failure-pattern configurations, distinguish non-failure from demonstrated
-ecological success. Do not present `1 / portion` as a hydrologic recurrence
-interval or guarantee of event independence.
+ecological success. `return_period` is removed in the next release; document
+only its removal and migration, and never present `1 / portion` as a hydrologic
+recurrence interval or guarantee of event independence.
 
 Check timing dates/leap-year conventions, moving-average startup behavior,
 rate-of-change denominator restrictions, missing values, annual completeness,
@@ -266,6 +268,19 @@ release:
 Use existing parser error conventions. Test every characteristic's ordered
 form, missing/invalid parameters, legacy-key rejection, conflicting keys,
 ordering, and equivalent evaluation outcomes. Preserve tests for compact syntax.
+
+Two further agreed naming changes belong to this prerequisite phase, each in
+its own TDD slice with migration notes and no compatibility alias:
+
+- Rename `exclusive_event_window` to `exclusive_windows` in spec fields,
+  function arguments, docstrings, tests, and documentation. TOML is positional,
+  so configuration files are unaffected. The interannual spec field becomes
+  `interannual_exclusive_windows`; fields shared with un-nested frequency take
+  no qualifier.
+- Rename `base_`/`nested_` code identifiers (including `is_nested`) to
+  `intra_annual_`/`interannual_`, or neutral names where un-nested frequency
+  shares the field. This explicitly overrides "avoid unrelated internal/API
+  renaming" for these identifiers only. Keep evaluation behavior unchanged.
 
 ## Examples and reviewed cleanup
 
@@ -303,8 +318,13 @@ any consolidation/deletion. The default outcome is reorganization.
 
 ## Implementation sequence and completion criteria
 
-1. **Schema prerequisite:** add failing tests, implement `parameters`-only
-   ordered tables, retain evaluation behavior, and prepare migration guidance.
+Execute in the order given by the
+[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md);
+phases 4 and 5 are split around reporting slices R0–R10 there.
+
+1. **Schema prerequisite (D1):** add failing tests, implement `parameters`-only
+   ordered tables and the `exclusive_windows` and intra-annual/interannual
+   renames, retain evaluation behavior, and prepare migration guidance.
 2. **Separate audiences:** move retained engineering records/PDFs, update
    references, preserve local changes, and leave protected case studies intact.
 3. **Build the reading path:** add minimal MkDocs setup, navigation, version
@@ -317,11 +337,13 @@ any consolidation/deletion. The default outcome is reorganization.
 6. **Review cleanup:** present specific candidates and preserved-content
    destinations; ask permission before each deletion. Cleanup is not a
    prerequisite for publishing if approval is withheld.
-7. **Publish and document maintenance:** strict PR builds, automatic main
-   deployment, developer authoring instructions, and matching-release checklist.
+7. **Publish and document maintenance:** strict PR builds, tag-triggered
+   deployment after R10, developer authoring instructions, and matching-release checklist.
 
 Validate with the smallest relevant existing pytest selectors, executable
-documentation checks, runnable example checks, type checks for parser changes,
+documentation checks (a fixture for every worked example and a parse test for
+every TOML block in `docs\user`), a pytest scan of `docs\user` for `CONTEXT.md`
+_Avoid_ terms, runnable example checks, type checks for parser changes,
 and strict MkDocs builds. Add no additional validation tools unless existing
 checks prove insufficient.
 
