@@ -2,6 +2,16 @@
 
 Status: agreed design; implementation pending.
 
+Related prerequisite: the
+[reporting and unknown-outcome TDD plan](../../plans/2026-10-06-reporting-metrics-tdd.md)
+now defines additional scientific and reporting changes for the next release.
+Keep those changes separate from editorial implementation, but coordinate the
+user-facing explanations and worked examples with this redesign. In particular,
+do not publish the former reciprocal mode, denominator policies, or failure-pattern
+color reversal as the new behavior; document the implementation actually released.
+The reporting plan requires a dedicated unknown-outcome section and characteristic,
+event-count, water-year, and plotting examples, not merely developer records.
+
 ## Goal and audience
 
 Provide clear, searchable documentation for hydrologists and environmental
