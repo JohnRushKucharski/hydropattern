@@ -25,7 +25,8 @@ To define a natural flow regime the following hierarchical labels must be define
 - Frequency: how often the pattern occurs (i.e. in 1 out of every 5 years).
 - Rate of Change: change in the size of the hydrologic pattern (i.e., doubling of the previous day's flow).
 
-**Metric:** A metric defines the truth value for each characteristic. For example, the magnitude of flow > 100.
+**Condition:** A criterion used to determine whether a characteristic is
+satisfied. For example, a magnitude condition may require flow to exceed 100.
 
 Examples are provided below.
 
@@ -77,7 +78,8 @@ The program requires two primary inputs:
 
     a. **[timeseries]**: in this section the *path* variable provides the location of the .csv or .xlsx timeseries input file, described below. The optional *date_format* variable is used to provide the timeseries datetime format code, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior. By default pandas will, with a warning message and possible error, attempt to guess format of this string, if not date format is provided. The optional *first_day_of_water_year* is used to distinguish between water and calendar years, see: https://en.wikipedia.org/wiki/Water_year. By default, the water and calendar year are assumed be the same (i.e., first_day_of_water_year = 1). The optional *sheet_name* selects which Excel sheet to read (ignored for .csv files); defaults to 0 (the first sheet). See [docs/user/reference.md](docs/user/reference.md#timeseries-options) for the full field reference.
 
-    b. **[components]**: in this section components, characteristics, and metrics are provided.
+    b. **[components]**: this section defines components, characteristics, and
+    their parameters.
 
     c. **[output]** *(optional)*: controls output directory/overwrite/Excel behavior, the `[output.metric]` summary mode, and `[output.plot]`/`[output.plot.climate-canvas]` response-surface plotting. All keys are optional and default to the same behavior as the CLI's own defaults (see [docs/user/reference.md](docs/user/reference.md#output-options) for the full schema). Any CLI flag explicitly passed (e.g. `--plot`, `--output-dir`) always overrides the corresponding `[output]` toml value.
     
@@ -181,15 +183,14 @@ Equivalent ordered configuration:
 [components.pulse]
 [[components.pulse.characteristics]]
 type = "magnitude"
-metrics = [">", 0]
+parameters = [">", 0]
 [[components.pulse.characteristics]]
 type = "frequency"
-metrics = [">=", 1, 5]
+parameters = [">=", 1, 5]
 ```
 
 The Python API evaluates one selected data column and retains its name in the
-result. This example prints the same frequency array asserted by
-`tests/test_documented_contracts.py`:
+result. This example prints the frequency outcomes for the selected data column:
 
 ```python
 import pandas as pd
@@ -212,7 +213,32 @@ print(result.df["frequency_ge1in5(union)"].tolist())
 # Result columns: flow, dowy, magnitude_gt0, frequency_ge1in5(union), pulse
 ```
 
-See the [complete pattern reference](docs/user/reference.md#frequency) for
-frequency semantics, golden arrays, and the `Result` column contract. The
+See the [frequency reference](docs/user/reference.md#frequency) for evaluation
+rules, worked examples, and the meaning of `Result` columns. The
 [migration notes](docs/user/migration.md) describe behavior changes from
 earlier releases.
+
+## Next release: ordered characteristic tables
+
+The next release will change the field used by ordered characteristic tables;
+its version number has not yet been assigned. Replace the literal TOML key
+`metrics` with `parameters`:
+
+```toml
+[[components.pulse.characteristics]]
+type = "magnitude"
+metrics = [">", 1.0]
+```
+
+becomes:
+
+```toml
+[[components.pulse.characteristics]]
+type = "magnitude"
+parameters = [">", 1.0]
+```
+
+An ordered table containing `metrics` is rejected, even if it also contains
+`parameters`. Compact characteristic-key syntax and `[output.metric]` are unchanged.
+This changes configuration syntax only: characteristic order and evaluation
+behavior remain the same.

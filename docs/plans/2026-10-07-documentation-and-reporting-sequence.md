@@ -1,6 +1,6 @@
 # Documentation and reporting work sequence
 
-**Status:** agreed ordering; implementation not started.
+**Status:** agreed ordering; S1a complete on branch `docs-reporting-s1a`.
 
 This plan defines the order in which agents pick up work from two plans:
 

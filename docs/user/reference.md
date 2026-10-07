@@ -1,6 +1,6 @@
 # hydropattern User Reference
 
-This reference covers all characteristic metric parameters, their valid values, and the
+This reference covers all characteristic parameters, their valid values, and the
 parser error codes you may encounter. It supplements the inline comments in example
 configuration files such as `examples/detailed.toml`.
 
@@ -363,11 +363,11 @@ success_pattern = true
 
 [[components.my_component.characteristics]]
 type = "magnitude"
-metrics = [">", 1.0]
+parameters = [">", 1.0]
 
 [[components.my_component.characteristics]]
 type = "duration"
-metrics = [">=", 2]
+parameters = [">=", 2]
 ```
 
 The compact form's characteristic order depends on TOML table key/value
@@ -375,6 +375,9 @@ iteration order, which TOML v1.0 does not formally guarantee (though this
 project's `tomllib` and Python dict both preserve it); using it emits a
 `UserWarning`. The ordered array form's order is TOML-guaranteed and does
 not warn.
+Each ordered characteristic table must include a `parameters` array. The
+former field `metrics` is rejected, even if `parameters` is also present; see
+the [migration notes](migration.md) for an example of the change.
 
 For `success_pattern = false`, characteristics describe a combined failure
 condition and the component reports its logical complement (non-failure), not
@@ -452,12 +455,12 @@ instead reverses this: the program must run *exactly* as specified in the toml f
 
 ### `[output.metric]`
 
-Controls the metric computed in the `{component}_summary.xlsx` summary sheets written by
-the formatter (see `hydropattern/formatters.py`), and (when plotting) the response surface's
-z-values. The section is optional; when absent, or when `mode` is omitted, the default is
-`"portion"`. This option only affects the adapter/reporting layer — core compute contracts
-(`Result`, `evaluate_component(s)`) include the data-column selection and result
-shape described in [Python evaluation and result columns](#python-evaluation-and-result-columns).
+Controls the summary calculated in the `{component}_summary.xlsx` summary sheets and,
+when plotting, the response surface's z-values. The section is optional; when absent, or
+when `mode` is omitted, the default is `"portion"`. This setting changes reported summary
+values, not characteristic or component outcomes. The `Result` object returned by
+`evaluate_component(s)` has the data-column selection and result shape described in
+[Python evaluation and result columns](#python-evaluation-and-result-columns).
 
 | Value            | Description | NA/zero policy |
 |------------------|-------------|----------------|
@@ -484,7 +487,7 @@ mode = 1               # PARSER_INVALID_VALUE: non-string mode
 threshold = 0.5        # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized key
 ```
 
-> **Migration note**: the metric mode option previously lived at the top-level `[metric]`
+> **Migration note**: the summary mode setting previously lived at the top-level `[metric]`
 > section. It has moved to `[output.metric]`; the old top-level `[metric]` is no longer read.
 
 ### `[output.plot]` and `[output.plot.climate-canvas]`
@@ -534,7 +537,7 @@ For each component, `--plot` writes two files to the run's output directory:
 | — (toml only) | component name | `[output.plot.climate-canvas].title` | Plot title. Defaults to the component's name when unset. |
 | — (toml only) | `"Precipitation Delta (%)"` | `[output.plot.climate-canvas].xlabel` | X-axis label. |
 | — (toml only) | `"Temperature Delta (C)"` | `[output.plot.climate-canvas].ylabel` | Y-axis label. |
-| — (toml only) | `[output.metric].mode` value | `[output.plot.climate-canvas].zlabel` | Colorbar label. Defaults to the configured metric mode (e.g. `"portion"`) when unset. |
+| — (toml only) | `[output.metric].mode` value | `[output.plot.climate-canvas].zlabel` | Colorbar label. Defaults to the configured summary mode (e.g. `"portion"`) when unset. |
 
 As with all `[output]` keys, an explicit CLI flag (e.g. `--plot`, `--no-interp`) always
 overrides the corresponding toml value; `title`/`xlabel`/`ylabel`/`zlabel` have no CLI
@@ -555,7 +558,7 @@ These codes appear in the `code` field of a `HydropatternError` envelope.
 | Code | Meaning | Common cause |
 |------|---------|--------------|
 | `PARSER_MISSING_SECTION` | A required top-level section is absent. | Config file missing `[timeseries]` or `[components]`. |
-| `PARSER_MISSING_FIELD` | A required field or metrics list is absent or empty. | `timing = []`, missing `path` in timeseries. |
+| `PARSER_MISSING_FIELD` | A required field or characteristic parameters are absent or empty. | `timing = []`, missing `path` in timeseries. |
 | `PARSER_INVALID_TYPE` | A parameter has the wrong Python type. | Float instead of integer for `time_steps`; non-string operator. |
 | `PARSER_INVALID_VALUE` | A parameter has the right type but is out of range or has an illegal value. | `first_doy = 0`; `ma_periods = 0`; negative magnitude threshold. |
 | `PARSER_UNKNOWN_CHARACTERISTIC` | A characteristic key is not recognised. | Typo in characteristic name, e.g. `magntiude`. |
@@ -585,6 +588,6 @@ try:
 except HydropatternError as exc:
     print(exc.envelope.code)     # 'PARSER_INVALID_VALUE'
     print(exc.envelope.message)  # Human-readable description
-    print(exc.envelope.context)  # {'metrics': [0, 100]}
+    print(exc.envelope.context)  # Additional error details, when available
     print(exc.envelope.source)   # 'parser'
 ```

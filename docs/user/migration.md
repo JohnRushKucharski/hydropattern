@@ -16,6 +16,31 @@ with historical outputs.
 | Result dataframe | Results could carry all input data columns and use a generic `dv` name. | Each result contains only the evaluated data column under its original name, then DOWY, characteristic outputs, and the component output. Datetime indexes are named `time`; other indexes are preserved. |
 | Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. `return_period` is a descriptive reciprocal of portion, not a Poisson recurrence probability or guaranteed average recurrence interval. |
 
-For the complete frequency contract, golden arrays, configuration examples,
-and Python API shape, see the [user reference](reference.md#frequency) and
-[pattern-correctness ADR](../adr/0003-pattern-correctness-contract.md).
+For frequency evaluation rules, worked examples, and Python API details, see
+the [frequency reference](reference.md#frequency) and the
+[pattern-correctness decision record](../adr/0003-pattern-correctness-contract.md).
+
+## Next release: ordered characteristic tables
+
+This change applies to the next release; its version number has not yet been
+assigned. Ordered characteristic tables will use the literal TOML key
+`parameters` instead of `metrics`:
+
+```toml
+[[components.pulse.characteristics]]
+type = "magnitude"
+metrics = [">", 1.0]
+```
+
+becomes:
+
+```toml
+[[components.pulse.characteristics]]
+type = "magnitude"
+parameters = [">", 1.0]
+```
+
+An ordered table containing `metrics` is rejected, even if it also contains
+`parameters`. Compact characteristic-key syntax and `[output.metric]` are unchanged.
+This changes configuration syntax only: characteristic order and evaluation
+behavior remain the same.

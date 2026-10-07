@@ -99,8 +99,8 @@ def test_compact_form_warns_ordered_form_does_not():
     ordered = {
         'pulse': {
             'characteristics': [
-                {'type': 'magnitude', 'metrics': ['>', 1.0]},
-                {'type': 'duration', 'metrics': ['>=', 2]},
+                {'type': 'magnitude', 'parameters': ['>', 1.0]},
+                {'type': 'duration', 'parameters': ['>=', 2]},
             ]
         }
     }
@@ -115,13 +115,94 @@ def test_compact_form_warns_ordered_form_does_not():
         assert not caught
 
 
+def test_ordered_form_accepts_parameters_field():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {'type': 'magnitude', 'parameters': ['>', 1.0]},
+            ]
+        }
+    }
+
+    request = parse_request(data)
+
+    characteristic = request.components[0].characteristics[0]
+    assert characteristic.operator == '>'
+    assert characteristic.values == (1.0,)
+
+
+def test_ordered_form_rejects_metrics_with_replacement_guidance():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {'type': 'magnitude', 'metrics': ['>', 1.0]},
+            ]
+        }
+    }
+
+    with pytest.raises(HydropatternError) as error:
+        parse_request(data)
+
+    assert 'metrics' in error.value.envelope.message
+    assert 'parameters' in error.value.envelope.message
+    assert 'replace' in error.value.envelope.message
+
+
+def test_ordered_form_requires_parameters_field():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {'type': 'magnitude'},
+            ]
+        }
+    }
+
+    with pytest.raises(HydropatternError) as error:
+        parse_request(data)
+
+    assert error.value.envelope.code == 'PARSER_MISSING_FIELD'
+    assert 'parameters' in error.value.envelope.message
+
+
+def test_ordered_form_rejects_non_array_parameters():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {'type': 'magnitude', 'parameters': 'not-an-array'},
+            ]
+        }
+    }
+
+    with pytest.raises(HydropatternError) as error:
+        parse_request(data)
+
+    assert error.value.envelope.code == 'PARSER_INVALID_TYPE'
+    assert 'parameters' in error.value.envelope.message
+
+
+def test_ordered_form_rejects_empty_parameters():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {'type': 'magnitude', 'parameters': []},
+            ]
+        }
+    }
+
+    with pytest.raises(HydropatternError) as error:
+        parse_request(data)
+
+    assert error.value.envelope.code == 'PARSER_MISSING_FIELD'
+    assert 'non-empty' in error.value.envelope.message
+
+
 def test_compact_and_ordered_forms_produce_equivalent_requests():
     compact = {'pulse': {'magnitude': ['>', 1.0], 'duration': ['>=', 2]}}
     ordered = {
         'pulse': {
             'characteristics': [
-                {'type': 'magnitude', 'metrics': ['>', 1.0]},
-                {'type': 'duration', 'metrics': ['>=', 2]},
+                {'type': 'magnitude', 'parameters': ['>', 1.0]},
+                {'type': 'duration', 'parameters': ['>=', 2]},
             ]
         }
     }
@@ -130,18 +211,75 @@ def test_compact_and_ordered_forms_produce_equivalent_requests():
         req_compact = parse_request(compact)
     req_ordered = parse_request(ordered)
     assert req_compact == req_ordered
+    df = _make_df([2.0, 3.0, 4.0, 0.0, 5.0])
+    compact_result = evaluate_component(df.copy(), build_components(req_compact)[0])
+    ordered_result = evaluate_component(df.copy(), build_components(req_ordered)[0])
+    np.testing.assert_array_equal(
+        compact_result.df.to_numpy(),
+        ordered_result.df.to_numpy(),
+    )
 
 
 def test_ordered_form_rejects_explicit_order_key():
     data = {
         'pulse': {
             'characteristics': [
-                {'type': 'magnitude', 'metrics': ['>', 1.0], 'order': 1},
+                {'type': 'magnitude', 'parameters': ['>', 1.0], 'order': 1},
             ]
         }
     }
     with pytest.raises(HydropatternError):
         parse_request(data)
+
+
+def test_ordered_form_rejects_both_parameter_field_names():
+    data = {
+        'pulse': {
+            'characteristics': [
+                {
+                    'type': 'magnitude',
+                    'metrics': ['>', 1.0],
+                    'parameters': ['>', 1.0],
+                },
+            ]
+        }
+    }
+
+    with pytest.raises(HydropatternError) as error:
+        parse_request(data)
+
+    assert 'parameters' in error.value.envelope.message
+    assert 'metrics' in error.value.envelope.message
+    assert 'remove' in error.value.envelope.message.lower()
+
+
+@pytest.mark.parametrize(
+    'characteristic, parameters',
+    [
+        ('timing', [1, 3]),
+        ('magnitude', ['>', 1.0]),
+        ('duration', ['>=', 2]),
+        ('rate_of_change', ['>', 1.0]),
+        ('frequency', ['>=', 1, 2]),
+        ('frequency', [['>', 0.5], ['>', 1, 2]]),
+    ],
+)
+def test_ordered_form_accepts_each_characteristic(characteristic, parameters):
+    ordered = {
+        'pulse': {
+            'characteristics': [
+                {'type': characteristic, 'parameters': parameters},
+            ]
+        }
+    }
+    compact = {'pulse': {characteristic: parameters}}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        compact_request = parse_request(compact)
+    ordered_request = parse_request(ordered)
+
+    assert ordered_request == compact_request
 
 
 def test_empty_component_is_rejected():

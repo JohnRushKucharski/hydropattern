@@ -24,7 +24,7 @@ def _dataframe() -> pd.DataFrame:
 def test_component_evaluation_returns_only_selected_data_column_under_its_name():
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -43,7 +43,7 @@ def test_component_evaluation_returns_only_selected_data_column_under_its_name()
 def test_default_component_evaluation_returns_first_data_column_under_original_name():
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 2.0]},
+            {'type': 'magnitude', 'parameters': ['>', 2.0]},
         ]}})
     )[0]
 
@@ -61,10 +61,10 @@ def test_component_list_evaluation_forwards_selected_data_column():
     components = build_components(
         parse_request({
             'above': {'characteristics': [
-                {'type': 'magnitude', 'metrics': ['>', 5.0]},
+                {'type': 'magnitude', 'parameters': ['>', 5.0]},
             ]},
             'below': {'characteristics': [
-                {'type': 'magnitude', 'metrics': ['<', 5.0]},
+                {'type': 'magnitude', 'parameters': ['<', 5.0]},
             ]},
         })
     )
@@ -81,7 +81,7 @@ def test_scenario_evaluation_result_contains_only_its_evaluated_flow_column():
     timeseries = Timeseries.from_dataframe(source)
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -96,8 +96,8 @@ def test_scenario_evaluation_result_contains_only_its_evaluated_flow_column():
 def test_selected_flow_drives_magnitude_and_frequency_source():
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
-            {'type': 'frequency', 'metrics': ['>=', 2, 3]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
+            {'type': 'frequency', 'parameters': ['>=', 2, 3]},
         ]}})
     )[0]
 
@@ -111,7 +111,7 @@ def test_selected_flow_drives_magnitude_and_frequency_source():
 def test_selected_flow_drives_rate_of_change():
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'rate_of_change', 'metrics': ['>', 2.0]},
+            {'type': 'rate_of_change', 'parameters': ['>', 2.0]},
         ]}})
     )[0]
 
@@ -124,7 +124,7 @@ def test_selected_flow_drives_rate_of_change():
 def test_component_evaluation_rejects_invalid_data_column(data_column):
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -136,7 +136,7 @@ def test_component_evaluation_allows_flow_column_named_dv():
     data = _dataframe().rename(columns={'low_flow': 'dv'})
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -150,7 +150,7 @@ def test_component_evaluation_preserves_dv_as_original_column_name():
     data = _dataframe().rename(columns={'target_flow': 'dv'})
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -164,7 +164,7 @@ def test_component_evaluation_rejects_result_column_name_collisions():
     data = _dataframe().rename(columns={'low_flow': 'magnitude_gt5.0'})
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -177,7 +177,7 @@ def test_component_evaluation_rejects_invalid_final_dowy_column():
     data.loc[data.index[0], 'dowy'] = 0
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 
@@ -190,7 +190,7 @@ def test_component_evaluation_names_datetime_index_time():
     data.index.name = 'observation'
     component = build_components(
         parse_request({'pulse': {'characteristics': [
-            {'type': 'magnitude', 'metrics': ['>', 5.0]},
+            {'type': 'magnitude', 'parameters': ['>', 5.0]},
         ]}})
     )[0]
 

@@ -17,11 +17,11 @@ success_pattern = true
 
 [[components.ordered_exclusive_frequency.characteristics]]
 type = "magnitude"
-metrics = [">=", 1.0]
+parameters = [">=", 1.0]
 
 [[components.ordered_exclusive_frequency.characteristics]]
 type = "frequency"
-metrics = [">=", 1, 5, true]
+parameters = [">=", 1, 5, true]
 
 # Nested frequency: annual probability is eligible timesteps / valid timesteps
 # in each complete water year; the outer count window is measured in years.
@@ -30,8 +30,8 @@ success_pattern = true
 
 [[components.nested_frequency.characteristics]]
 type = "magnitude"
-metrics = [">=", 1.0]
+parameters = [">=", 1.0]
 
 [[components.nested_frequency.characteristics]]
 type = "frequency"
-metrics = [[">=", 0.5], [">=", 1, 2]]
+parameters = [[">=", 0.5], [">=", 1, 2]]

@@ -29,7 +29,7 @@ def test_rate_of_change_minimum_is_forwarded_from_component_configuration():
         {
             'pulse': {
                 'characteristics': [
-                    {'type': 'rate_of_change', 'metrics': ['<', 0.5, 1, 1, 1.0]},
+                    {'type': 'rate_of_change', 'parameters': ['<', 0.5, 1, 1, 1.0]},
                 ]
             }
         }
@@ -150,8 +150,8 @@ def test_frequency_before_another_characteristic_is_rejected():
         {
             'pulse': {
                 'characteristics': [
-                    {'type': 'frequency', 'metrics': ['>=', 1, 2]},
-                    {'type': 'magnitude', 'metrics': ['>', 1.0]},
+                    {'type': 'frequency', 'parameters': ['>=', 1, 2]},
+                    {'type': 'magnitude', 'parameters': ['>', 1.0]},
                 ]
             }
         }
