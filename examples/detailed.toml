@@ -147,15 +147,19 @@ frequency = [">=", 1, 5]         # at least once in the next 5 input timesteps.
 #       other component characteristics must be true.
 #   - time_steps: must be positive integer.
 # Frequency:
-#   - un-nested: [operator, n, N_steps, (exclusive_event_window)] or
-#       [min_n, max_n, N_steps, (exclusive_event_window)]
-#   - nested: [[operator, probability], [operator, n, N_years, (exclusive_event_window)]]
-#   - operators: >, <, =
+#   - un-nested: [operator, n, N_steps, (exclusive_windows)] or
+#       [min_n, max_n, N_steps, (exclusive_windows)]
+#   - intra-annual/interannual: [[intra-annual pattern], [interannual pattern]].
+#       The intra-annual pattern can be a probability, count, or inclusive
+#       range; the interannual pattern can be a count or inclusive range. Each
+#       count/range pattern can have its own optional boolean. An intra-annual
+#       probability pattern has one trial per water year, so its flag has no effect.
+#   - operators: >, >=, <, <=, =, !=
 #   - un-nested N_steps are input timesteps, not assumed years. Windows run
 #       forward from eligible source timesteps and truncate at record end.
-#   - nested probability is eligible timesteps / valid timesteps in a complete
-#       water year; the outer window counts annual verdicts.
-#   - exclusive_event_window defaults to false (qualifying overlapping
-#       windows are unioned). true suppresses later anchors within a
-#       qualifying fixed-length span.
+#   - intra-annual probability is eligible timesteps / valid timesteps in a
+#       complete water year; the interannual window counts qualifying water years.
+#   - exclusive_windows defaults to false, combining results from overlapping
+#       qualifying windows. true lets each qualifying window skip later anchors
+#       within its span.
 # ------------------------------------------------------- #

@@ -8,7 +8,7 @@ that lasted 68 months against a 36-60 month duration bound) got excluded,
 and why. That future wiring is explicitly out of scope for this change.
 
 find_runs() extracts duration_fx's own run-detection loop into a shared,
-reusable primitive (same NaN-breaks-a-run semantics as mark_events) --
+reusable primitive (same NaN-breaks-a-run semantics as mark_windows) --
 duration_fx itself is refactored to call it, so there is exactly one
 run-detection implementation in the codebase, not two. Regression-verified
 against duration_fx's own existing test suite (tests/test_patterns.py),

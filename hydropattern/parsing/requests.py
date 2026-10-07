@@ -113,12 +113,12 @@ def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
             operator=base.operator,
             values=base.values,
             big_n=base.big_n,
-            exclusive_event_window=base.exclusive_event_window,
+            exclusive_windows=base.exclusive_windows,
             is_nested=True,
             nested_operator=nested.operator,
             nested_values=nested.values,
             nested_big_n=nested.big_n,
-            nested_exclusive_event_window=nested.exclusive_event_window,
+            interannual_exclusive_windows=nested.exclusive_windows,
             order=order,
         )
     parsed = validate_frequency_metrics(list(metrics))
@@ -127,7 +127,7 @@ def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
         operator=parsed.operator,
         values=parsed.values,
         big_n=parsed.big_n,
-        exclusive_event_window=parsed.exclusive_event_window,
+        exclusive_windows=parsed.exclusive_windows,
         order=order,
     )
 

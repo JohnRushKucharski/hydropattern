@@ -28,15 +28,15 @@ class CharacteristicSpec:
     min_val: float = 0.0          # minimum denominator value (rate_of_change only)
     order: int = 1                # position in evaluation sequence
     big_n: int | None = None      # trial-window size N (frequency count/between forms only)
-    exclusive_event_window: bool = False       # exclusive (True) vs union (False) windowing (frequency only)
+    exclusive_windows: bool = False       # exclusive (True) vs union (False) windowing (frequency only)
     # Nested frequency (frequency = [<base>, [<nested>]]): when is_nested is True,
-    # operator/values/big_n/exclusive_event_window above describe the BASE (intra-annual)
+    # operator/values/big_n/exclusive_windows above describe the BASE (intra-annual)
     # pattern, and nested_* below describe the NESTED (interannual) pattern.
     is_nested: bool = False
     nested_operator: str | None = None
     nested_values: tuple[float | int, ...] = ()
     nested_big_n: int | None = None
-    nested_exclusive_event_window: bool = False
+    interannual_exclusive_windows: bool = False
 
 
 @dataclass(frozen=True)

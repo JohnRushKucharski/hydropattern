@@ -18,7 +18,7 @@ from hydropattern.patterns.core import (
     find_exceeding_events,
     find_runs,
     is_dowy_timeseries,
-    mark_events,
+    mark_windows,
     moving_average,
     sliding_window_count,
     validate_order,

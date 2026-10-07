@@ -6,9 +6,9 @@ with historical outputs.
 
 | Area | Earlier behavior | Current behavior and action |
 |---|---|---|
-| Frequency flag | `event_bool` defaulted to `true`. | Use `exclusive_event_window`, now defaulting to `false` (overlapping qualifying windows are unioned). Set it to `true` to suppress later anchors within a qualifying fixed-length span. Update old configs and direct factory calls; do not rely on a silent compatibility alias. |
+| Frequency flag | `event_bool` defaulted to `true`. | The optional trailing boolean in a count or between frequency form now defaults to `false`, so overlapping qualifying windows are unioned. Set it to `true` to suppress later anchors within a qualifying fixed-length span. |
 | Frequency windows | Trailing windows ended at each evaluated timestep. | Candidate windows extend forward from eligible source timesteps, truncate at record end, and produce retrospective classifications. Un-nested N is measured in input timesteps, not years. |
-| Frequency meaning | Frequency could be interpreted as occurrence counts/events. | The predicate counts eligible source timesteps, not runs. Zero-admitting predicates can anchor at every timestep; other predicates anchor at source successes. |
+| Frequency meaning | Frequency counts could be confused with counts of component events. | The frequency condition counts qualifying timesteps, not component events. A condition that accepts zero can start at every timestep; other conditions start only at qualifying timesteps. |
 | Configuration ordering | Compact characteristic keys were accepted without warning; component `order`/`verbose` settings could be used in older configurations. | Compact form emits a portability `UserWarning`. Prefer ordered `[[components.<name>.characteristics]]` tables. Unsupported `order` and `verbose` options are errors, not ignored settings. |
 | Failure patterns | A false success-pattern setting did not consistently complement the combined failure condition. | `success_pattern = false` reports the logical complement of the combined failure condition (non-failure). Unknown outcomes remain unknown where the logic cannot determine a result. |
 | Timing | Timing could be interpreted relative to water-year day. | Timing thresholds use calendar day-of-year, including for non-January water-year starts. The existing convention maps February 28 and 29 to the same timing position. |
@@ -44,3 +44,27 @@ An ordered table containing `metrics` is rejected, even if it also contains
 `parameters`. Compact characteristic-key syntax and `[output.metric]` are unchanged.
 This changes configuration syntax only: characteristic order and evaluation
 behavior remain the same.
+
+## Next release: frequency-window API names
+
+The next release changes names used by direct Python calls. TOML files do not
+need edits: the optional boolean stays in the same position in each frequency
+list, and evaluation results do not change.
+
+```toml
+frequency = [">=", 1, 5, true]
+```
+
+Replace the keyword argument `exclusive_event_window` with
+`exclusive_windows` in `frequency_fx`,
+`nested_frequency_intra_annual_fx`, `nested_frequency_interannual_fx`, and
+`water_year_probability_ratio`. Update fields on `CharacteristicSpec`:
+
+| Before | After |
+|---|---|
+| `frequency_fx(..., exclusive_event_window=True)` | `frequency_fx(..., exclusive_windows=True)` |
+| `spec.exclusive_event_window` | `spec.exclusive_windows` |
+| `spec.nested_exclusive_event_window` | `spec.interannual_exclusive_windows` |
+| `from hydropattern.patterns import mark_events`<br>`mark_events(raw, exclusive_event_window=True)` | `from hydropattern.patterns import mark_windows`<br>`mark_windows(raw, exclusive_windows=True)` |
+
+No compatibility aliases are provided. Evaluation results do not change.

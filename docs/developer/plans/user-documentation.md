@@ -269,14 +269,15 @@ Use existing parser error conventions. Test every characteristic's ordered
 form, missing/invalid parameters, legacy-key rejection, conflicting keys,
 ordering, and equivalent evaluation outcomes. Preserve tests for compact syntax.
 
-Two further agreed naming changes belong to this prerequisite phase, each in
-its own TDD slice with migration notes and no compatibility alias:
+The S1b frequency-window API changes are complete: use `exclusive_windows` for
+Python arguments and the un-nested or intra-annual specification field,
+`interannual_exclusive_windows` for the interannual specification field, and
+`mark_windows` for the run-marking helper. There are no compatibility aliases;
+migration guidance is in `docs\user\migration.md`.
 
-- Rename `exclusive_event_window` to `exclusive_windows` in spec fields,
-  function arguments, docstrings, tests, and documentation. TOML is positional,
-  so configuration files are unaffected. The interannual spec field becomes
-  `interannual_exclusive_windows`; fields shared with un-nested frequency take
-  no qualifier.
+One further naming change remains for S1c, in its own TDD slice with migration
+notes and no compatibility alias:
+
 - Rename `base_`/`nested_` code identifiers (including `is_nested`) to
   `intra_annual_`/`interannual_`, or neutral names where un-nested frequency
   shares the field. This explicitly overrides "avoid unrelated internal/API

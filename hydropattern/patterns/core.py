@@ -155,32 +155,27 @@ def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
 #endregion
 
 #region event/window helpers
-def mark_events(raw: np.ndarray, exclusive_event_window: bool = True) -> np.ndarray:
+def mark_windows(raw: np.ndarray, exclusive_windows: bool = True) -> np.ndarray:
     '''
-    Collapses maximal runs of consecutive successes in a raw 0/1/NaN diagnostic
-    array into event-level or timestep-level markers.
-
-    This is the shared event-marking engine used by both un-nested frequency
-    (applied to a sliding-window success diagnostic) and nested frequency
-    (applied to the intra-annual base-pattern diagnostic).
+    Optionally collapses each maximal run of consecutive successes in a raw
+    0/1/NaN diagnostic array to one marker at the run's last timestep.
 
     Parameters
     ----------
-        raw (np.ndarray): a 0/1/NaN array, e.g. a sliding-window success
-            diagnostic. NaN marks insufficient history (no verdict yet).
-        exclusive_event_window (bool): if True (default), each maximal run of consecutive
-            1s collapses to a single 1 marked at the run's last trial
-            (event-level); every other trial in the run is set to 0. If False,
-            every trial in a qualifying run is marked 1 (timestep-level) and
-            `raw` is returned unchanged.
+        raw (np.ndarray): a 0/1/NaN diagnostic array. NaN marks an unknown
+            outcome and breaks a run.
+        exclusive_windows (bool): if True (default), each maximal run of
+            consecutive 1s collapses to a single 1 at its last timestep.
+            Earlier 1s in that run become 0. If False, all values are
+            returned unchanged.
 
     Returns
     -------
-        np.ndarray: same shape as `raw`. NaNs and 0s always pass through
-        unchanged; only 1s within a run may be zeroed (exclusive_event_window=True).
+        np.ndarray: same shape as `raw`. NaNs and 0s are unchanged; only
+        earlier 1s in a run may become 0 when `exclusive_windows=True`.
     '''
     result = np.array(raw, dtype=float)
-    if not exclusive_event_window:
+    if not exclusive_windows:
         return result
 
     run_start = None
@@ -229,13 +224,11 @@ def sliding_window_count(data: np.ndarray, window: int) -> np.ndarray:
 
 def count_events(success: np.ndarray) -> int:
     '''
-    Counts distinct qualifying events in a 0/1(/NaN) success array.
+    Counts distinct component events in a 0/1(/NaN) success array.
 
-    An "event" is a maximal run of consecutive successes (collapsed via the
-    existing mark_events() engine, exclusive_event_window=True -- the same run-detection
-    already used by frequency_fx/nested_frequency_interannual_fx). This is a
-    thin wrapper, not a new run-detection algorithm, so any future change to
-    what counts as a "run" only needs to happen in mark_events().
+    A component event is a maximal run of consecutive successes. The
+    mark_windows() helper collapses each run to its last timestep; this
+    function counts those markers.
 
     Works uniformly for any component's success column, regardless of
     whether it is a raw per-timestep grain (magnitude, duration, un-nested
@@ -253,9 +246,9 @@ def count_events(success: np.ndarray) -> int:
 
     Returns
     -------
-        int: number of distinct qualifying events.
+        int: number of distinct component events.
     '''
-    return int(np.nansum(mark_events(np.asarray(success, dtype=float), exclusive_event_window=True)))
+    return int(np.nansum(mark_windows(np.asarray(success, dtype=float), exclusive_windows=True)))
 
 def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     '''
@@ -267,7 +260,7 @@ def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     run-detection implementation, not two.
 
     NaN breaks a run (does not count as, or extend, a run of successes),
-    matching mark_events' existing NaN semantics.
+    matching mark_windows' existing NaN semantics.
 
     Parameters
     ----------
@@ -395,7 +388,7 @@ class Result:
         and not is_nested-branched (T is a property of the record's own
         water-year structure via its dowy column, independent of any one
         component's success-column grain).'''
-        # Local import: hydropattern.patterns.water_year imports mark_events/
+        # Local import: hydropattern.patterns.water_year imports
         # sliding_window_count from this module, so importing it back at
         # module scope here would create a circular import.
         from hydropattern.patterns.water_year import record_length_years 

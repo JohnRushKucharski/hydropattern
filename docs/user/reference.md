@@ -215,58 +215,57 @@ rate_of_change = [">", 2.0, 1, 1, 0.1]  # Evaluate only when lagged flow > 0.1
 
 ### Frequency
 
-Frequency classifies forward windows from eligible source observations. It is a
-retrospective classification: a full N-step window may use later observations,
-so its verdict is not a real-time prediction available on the anchor day. Windows
-at the end of the record are truncated and evaluated using the observations
-available there.
+Frequency evaluates forward windows from qualifying timesteps. A full window
+can include later observations, so its result is retrospective rather than a
+prediction available on the anchor timestep. At the end of the record, the
+available part of a window is evaluated.
 
 #### Timestep-window forms
 
 ```toml
 # Count predicate
-frequency = [operator, n, N, (exclusive_event_window)]
+frequency = [operator, n, N, (exclusive_windows)]
 
 # Inclusive count range
-frequency = [min_n, max_n, N, (exclusive_event_window)]
+frequency = [min_n, max_n, N, (exclusive_windows)]
 ```
 
-For an un-nested frequency, `N` is measured in input timesteps—not assumed to be
-years. On daily input it is days; on monthly input it is months. Nested
-interannual `N` is instead measured in complete water-year trials.
+For an un-nested frequency, `N` is a count of input timesteps, not years. A
+timestep is one day for daily input and one month for monthly input. For
+interannual frequency, `N` is a count of complete water years.
 
 | Field | Type and valid range | Meaning |
 |---|---|---|
-| `operator` | `<`, `<=`, `>`, `>=`, `=`, `!=` | Predicate applied to the number of eligible source timesteps in a candidate window. |
+| `operator` | `<`, `<=`, `>`, `>=`, `=`, `!=` | Condition applied to the number of qualifying timesteps in a candidate window. |
 | `n` | integer, `0 <= n <= N` | Count threshold for operator form. |
 | `min_n`, `max_n` | integers, `0 <= min_n < max_n <= N` | Inclusive lower and upper count bounds. |
-| `N` | positive integer | Maximum forward window length in the form's timestep or year units. |
-| `exclusive_event_window` | boolean, default `false` | `false`: union every qualifying overlapping window. `true`: a qualifying anchor claims its fixed N-step span; later anchors in that span are skipped. |
+| `N` | positive integer | Maximum forward window length in timesteps or water years, depending on the form. |
+| `exclusive_windows` | boolean, default `false` | `false`: combine the results of all qualifying overlapping windows. `true`: each qualifying window prevents later anchors within its N-timestep or N-water-year span, so the windows do not overlap. |
 
 Impossible count predicates are rejected: for example, `< 0` and `> N` cannot
 be satisfied by a count in `[0, N]`. Equality at zero or N and `>= N` are valid.
 Between bounds include both endpoints.
 
-The source is the conjunction of the characteristic conditions before frequency.
-The count is eligible source **timesteps**, not runs/events. A qualifying
-candidate marks every timestep it spans, including source-zero timesteps.
-Positive-count predicates anchor only at source-success timesteps. If zero can
-satisfy the predicate (for example `= 0`, `< 1`, or `!= 1`), every timestep can
-anchor so absence is observable. `!=` follows the same rule: when zero does not
-satisfy the predicate, only source successes anchor.
+A qualifying timestep is one where all preceding characteristic conditions
+in the component are met. The frequency count is the number of qualifying
+**timesteps**, not consecutive sequences or component events. A qualifying
+frequency window marks every timestep it spans, including timesteps where the
+preceding conditions are not met. If zero can satisfy the condition (for
+example `= 0`, `< 1`, or `!= 1`), every timestep can start a window so absence
+is observable. Otherwise, only qualifying timesteps can start windows.
 
-With `exclusive_event_window = false`, overlapping qualifying windows are
-unioned, and a later source success can extend the marked output. With `true`,
-only a qualifying candidate starts suppression; a failed candidate does not
-suppress later anchors. Anchors inside a claimed span cannot extend it. An
-anchor at the span's final timestep is still suppressed; the next timestep is
-eligible to anchor again.
+With `exclusive_windows = false`, the results of overlapping qualifying
+windows are combined, and a later window can extend the marked result. With
+`true`, only a qualifying window suppresses later anchors; a window that does
+not qualify does not suppress them. Anchors inside a claimed span cannot
+extend it. An anchor at the span's final timestep is still suppressed; the
+next timestep can anchor another window.
 
-**Six timestep-window golden examples** (positions are zero-based; each row's
-output is the frequency diagnostic and, for a positive component, the component
+**Six timestep-window examples** (positions are zero-based; each row's output
+is the frequency diagnostic and, for a positive component, the component
 output):
 
-| Eligible source | Metrics | Exclusive | Expected output |
+| Qualifying timesteps | Frequency condition | Exclusive | Expected output |
 |---|---|---:|---|
 | `[1,0,0,0,0,0]` | `[">=",1,5]` | either | `[1,1,1,1,1,0]` |
 | `[0,0,0,0,1,0]` | `[">=",1,5]` | either | `[0,0,0,0,1,1]` |
@@ -276,32 +275,43 @@ output):
 | `[1,0,1,0,0,0,0]` | `[">=",2,5]` | `true` | `[1,1,1,1,1,0,0]` |
 
 `examples/frequency.toml` is a runnable example of compact and ordered
-configuration, default/explicit exclusivity, and nested frequency:
+configuration, default/explicit exclusivity, and two-part frequency:
 
 ```console
 uv run python -m hydropattern run examples/frequency.toml --no-excel
 ```
 
-#### Nested annual and interannual frequency
+#### Intra-annual and interannual frequency
 
-Nested form places a base pattern and an outer pattern in one frequency
-characteristic:
+A two-part frequency characteristic combines an intra-annual pattern with an
+interannual pattern:
 
 ```toml
-# Probability of eligible timesteps per complete water year,
-# then at least one qualifying year in each forward 2-year window.
+# Fraction of qualifying timesteps per complete water year,
+# then at least one qualifying water year in each forward 2-water-year window.
 frequency = [[">=", 0.5], [">=", 1, 2]]
 ```
 
-For the base probability `[operator, p]`, probability is eligible timesteps
-divided by valid timesteps in a complete water year. The comparison is made
-once per year and its verdict is broadcast across every row of that year; it
-is not gated by eligibility on the last timestep. The probability form has one
-annual trial, so `exclusive_event_window` has no effect on it. The outer
-count/between pattern consumes one annual verdict per complete water year and
-uses forward windows, truncation, union, and exclusivity in units of years.
-Partial trailing outer windows can be classified using the complete annual
-trials available; a partial water year itself is not an annual trial.
+For count and range patterns, trailing booleans control overlapping frequency
+windows independently at each level. The intra-annual fraction form compares
+one annual fraction for each complete water year instead of using a frequency
+window, so its boolean has no effect. The interannual boolean controls windows
+across complete water years.
+
+For an intra-annual fraction form `[operator, p]`, the fraction is the number
+of qualifying timesteps divided by the total number of timesteps in a complete
+water year. The comparison is made once per complete water year, and its
+verdict is broadcast across every timestep in that year; the comparison is not
+additionally gated by whether the last timestep qualifies. This form does not
+use a frequency window, so `exclusive_windows` has no effect. The interannual
+count/range pattern counts qualifying water years in forward windows measured
+in water years. A qualifying interannual window marks every complete water
+year it spans, including years that did not qualify under the intra-annual
+condition. If the interannual count condition accepts zero, every complete
+water year can anchor a window; otherwise, only qualifying water years can
+anchor one. At the end of the record, a partial interannual window can be
+evaluated using the complete water years available, but a partial water year
+does not count as a qualifying water year.
 
 When timestamps are present, only cadence-verified complete daily or monthly
 water years contribute to annual statistics; leading and trailing partial
@@ -310,31 +320,33 @@ or unordered timestamps raise an error for annual calculations. Direct
 DataFrames without datetime timestamps can identify years only by DOWY resets,
 so they cannot verify calendar completeness.
 
-For four timesteps per test water year and base `[[">=", 0.5], [">=", 1, 2]]`:
+For four timesteps in each illustrative water year and
+`frequency = [[">=", 0.5], [">=", 1, 2]]`:
 
 ```text
 magnitude       [1,1,1,0, 0,0,0,0, 1,0,1,0]
-base fraction   [3/4,     0/4,     2/4    ]
+intra-annual fraction [3/4,     0/4,     2/4    ]
 intra-annual    [1,1,1,1, 0,0,0,0, 1,1,1,1]
 interannual     [1,1,1,1, 1,1,1,1, 1,1,1,1]
 component       [1,1,1,1, 1,1,1,1, 1,1,1,1]
 ```
 
-If years two and three are swapped, the second nested matrix is:
+If the second and third water years are swapped, the resulting arrays are:
 
 ```text
 magnitude       [1,1,1,0, 1,0,1,0, 0,0,0,0]
-base fraction   [3/4,     2/4,     0/4    ]
+intra-annual fraction [3/4,     2/4,     0/4    ]
 intra-annual    [1,1,1,1, 1,1,1,1, 0,0,0,0]
-interannual     [1,1,1,1, 1,1,1,1, 1,1,1,1]  # outer union
+interannual     [1,1,1,1, 1,1,1,1, 1,1,1,1]  # interannual union
 component       [1,1,1,1, 1,1,1,1, 1,1,1,1]
-interannual     [1,1,1,1, 1,1,1,1, 0,0,0,0]  # outer exclusive
+interannual     [1,1,1,1, 1,1,1,1, 0,0,0,0]  # interannual exclusive
 component       [1,1,1,1, 1,1,1,1, 0,0,0,0]
 ```
 
-The annual base verdicts are `[1,1,0]`. Outer union `[">=",1,2]` produces
-annual verdicts `[1,1,1]`; outer exclusive `[">=",1,2,true]` produces
-`[1,1,0]`.
+The intra-annual pattern qualifies the first two water years, giving
+`[1,1,0]`. With overlapping interannual windows, `[">=",1,2]` marks all
+three water years successful. With exclusive windows,
+`[">=",1,2,true]` marks only the first two successful.
 
 ---
 

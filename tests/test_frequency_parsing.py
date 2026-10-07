@@ -1,10 +1,10 @@
 '''Tests for the frequency characteristic enhancement (un-nested forms).
 
 Covers notes/frequencyEnhancement-resolved.md's un-nested config parsing:
-  - [operator, n, N, (exclusive_event_window)]         -> FrequencyForm.COUNT        (task: freq-parse-count)
-  - [min_n, max_n, N, (exclusive_event_window)]        -> FrequencyForm.BETWEEN      (task: freq-parse-between)
+  - [operator, n, N, (exclusive_windows)]         -> FrequencyForm.COUNT        (task: freq-parse-count)
+  - [min_n, max_n, N, (exclusive_windows)]        -> FrequencyForm.BETWEEN      (task: freq-parse-between)
 
-Standalone [operator, probability, (exclusive_event_window)] is INVALID un-nested (see
+Standalone [operator, probability, (exclusive_windows)] is INVALID un-nested (see
 notes/frequencyEnhancement-resolved.md): it survives only as the base pattern
 of a nested frequency spec (freq-nested-parse). validate_frequency_metrics
 still knows how to parse/validate the probability shape via an
@@ -32,7 +32,7 @@ from hydropattern.parsers import (
 
 
 class TestValidateFrequencyMetricsProbabilityFormRejectedUnNested(unittest.TestCase):
-    '''Standalone [operator, probability, (exclusive_event_window)] must be rejected un-nested.'''
+    '''Standalone [operator, probability, (exclusive_windows)] must be rejected un-nested.'''
 
     def test_bare_probability_form_raises(self):
         with self.assertRaises(HydropatternError) as ctx:
@@ -41,7 +41,7 @@ class TestValidateFrequencyMetricsProbabilityFormRejectedUnNested(unittest.TestC
             ctx.exception.envelope.code, str(ParserErrorCode.FREQUENCY_PROBABILITY_NOT_NESTED)
         )
 
-    def test_probability_with_explicit_exclusive_event_window_raises(self):
+    def test_probability_with_explicit_exclusive_windows_raises(self):
         with self.assertRaises(HydropatternError) as ctx:
             validate_frequency_metrics(['>', 0.5, False])
         self.assertEqual(
@@ -64,17 +64,17 @@ class TestValidateFrequencyMetricsProbabilityFormAllowedNested(unittest.TestCase
         self.assertEqual(parsed.operator, '>')
         self.assertEqual(parsed.values, (0.5,))
         self.assertIsNone(parsed.big_n)
-        self.assertFalse(parsed.exclusive_event_window)  # defaults to False (union)
+        self.assertFalse(parsed.exclusive_windows)  # defaults to False (union)
 
-    def test_probability_with_explicit_exclusive_event_window_false(self):
+    def test_probability_with_explicit_exclusive_windows_false(self):
         parsed = validate_frequency_metrics(['>', 0.5, False], allow_probability=True)
         self.assertEqual(parsed.form, FrequencyForm.PROBABILITY)
-        self.assertFalse(parsed.exclusive_event_window)
+        self.assertFalse(parsed.exclusive_windows)
 
-    def test_probability_with_explicit_exclusive_event_window_true(self):
+    def test_probability_with_explicit_exclusive_windows_true(self):
         parsed = validate_frequency_metrics(['>', 0.1, True], allow_probability=True)
         self.assertEqual(parsed.form, FrequencyForm.PROBABILITY)
-        self.assertTrue(parsed.exclusive_event_window)
+        self.assertTrue(parsed.exclusive_windows)
 
     def test_probability_boundary_zero_and_one_accepted(self):
         self.assertEqual(
@@ -112,7 +112,7 @@ class TestValidateFrequencyMetricsProbabilityFormAllowedNested(unittest.TestCase
 
 
 class TestValidateFrequencyMetricsCountForm(unittest.TestCase):
-    '''[operator, n, N, (exclusive_event_window)] -> FrequencyForm.COUNT.'''
+    '''[operator, n, N, (exclusive_windows)] -> FrequencyForm.COUNT.'''
 
     def test_bare_count_form(self):
         parsed = validate_frequency_metrics(['>', 1, 2])
@@ -120,12 +120,12 @@ class TestValidateFrequencyMetricsCountForm(unittest.TestCase):
         self.assertEqual(parsed.operator, '>')
         self.assertEqual(parsed.values, (1,))
         self.assertEqual(parsed.big_n, 2)
-        self.assertFalse(parsed.exclusive_event_window)
+        self.assertFalse(parsed.exclusive_windows)
 
-    def test_count_with_explicit_exclusive_event_window_true(self):
+    def test_count_with_explicit_exclusive_windows_true(self):
         parsed = validate_frequency_metrics(['>', 1, 2, True])
         self.assertEqual(parsed.form, FrequencyForm.COUNT)
-        self.assertTrue(parsed.exclusive_event_window)
+        self.assertTrue(parsed.exclusive_windows)
 
     def test_zero_count_threshold_is_valid_when_predicate_is_attainable(self):
         parsed = validate_frequency_metrics(['=', 0, 5])
@@ -148,7 +148,7 @@ class TestValidateFrequencyMetricsCountForm(unittest.TestCase):
 
 
 class TestValidateFrequencyMetricsBetweenForm(unittest.TestCase):
-    '''[min_n, max_n, N, (exclusive_event_window)] -> FrequencyForm.BETWEEN (inclusive bounds, ADR 0001).'''
+    '''[min_n, max_n, N, (exclusive_windows)] -> FrequencyForm.BETWEEN (inclusive bounds, ADR 0001).'''
 
     def test_bare_between_form(self):
         parsed = validate_frequency_metrics([1, 3, 5])
@@ -156,11 +156,11 @@ class TestValidateFrequencyMetricsBetweenForm(unittest.TestCase):
         self.assertIsNone(parsed.operator)
         self.assertEqual(parsed.values, (1, 3))
         self.assertEqual(parsed.big_n, 5)
-        self.assertFalse(parsed.exclusive_event_window)
+        self.assertFalse(parsed.exclusive_windows)
 
-    def test_between_with_explicit_exclusive_event_window_true(self):
+    def test_between_with_explicit_exclusive_windows_true(self):
         parsed = validate_frequency_metrics([1, 3, 5, True])
-        self.assertTrue(parsed.exclusive_event_window)
+        self.assertTrue(parsed.exclusive_windows)
 
     def test_min_n_must_be_less_than_max_n(self):
         with self.assertRaises(HydropatternError) as ctx:
@@ -231,7 +231,7 @@ class TestFrequencyBuildComponentsIntegration(unittest.TestCase):
         components = build_components(request)
         self.assertEqual(components[0].characteristics[-1].name, 'frequency_1-3in5(union)')
 
-    def test_exclusive_event_window_true_via_toml_shape(self):
+    def test_exclusive_windows_true_via_toml_shape(self):
         request = parse_request(
             {'comp': {'magnitude': ['>', 1.0], 'frequency': ['>', 1, 2, True]}}
         )
@@ -324,7 +324,7 @@ class TestNestedFrequencyParserNaming(unittest.TestCase):
         self.assertTrue(chars[1].is_nested)
 
     def test_names_use_union_and_interannual_union_markers(self):
-        # base uses its own exclusive_event_window marker; nested uses interannual_ prefix
+        # base uses its own exclusive_windows marker; nested uses interannual_ prefix
         # to distinguish the two columns when both share the same value label
         # (see notes/frequencyEnhancement.md's nested examples).
         chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
@@ -347,6 +347,19 @@ class TestNestedFrequencyParserNaming(unittest.TestCase):
 
 class TestNestedFrequencyBuildComponentsIntegration(unittest.TestCase):
     '''Nested frequency flows through parse_request -> build_components as 2 characteristics.'''
+
+    def test_nested_spec_names_interannual_exclusivity(self):
+        request = parse_request(
+            {
+                'comp': {
+                    'magnitude': ['>', 1.0],
+                    'frequency': [['>', 0.5, True], ['>', 1, 2, True]],
+                }
+            }
+        )
+        spec = request.components[0].characteristics[-1]
+        self.assertTrue(spec.exclusive_windows)
+        self.assertTrue(spec.interannual_exclusive_windows)
 
     def test_nested_shape_via_toml_produces_two_characteristics(self):
         request = parse_request(

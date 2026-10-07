@@ -149,7 +149,7 @@ def record_length_years(
     return float(len(full_years))
 
 def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
-                                 exclusive_event_window: bool = False,
+                                 exclusive_windows: bool = False,
                                  timestamps: pd.DatetimeIndex | None = None) -> np.ndarray:
     '''
     Computes, for each full water year (see identify_full_water_years), the
@@ -168,8 +168,8 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
             and denominator.
         dowy (np.ndarray): day-of-water-year values (1-365), same length as
             `eligible`.
-        exclusive_event_window (bool): retained for API compatibility; has no
-            effect because a single annual probability has no overlapping windows.
+        exclusive_windows (bool): has no effect because a single annual
+            probability has no overlapping windows.
 
     Returns
     -------

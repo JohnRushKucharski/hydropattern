@@ -1,6 +1,6 @@
 # Documentation and reporting work sequence
 
-**Status:** agreed ordering; S1a complete on branch `docs-reporting-s1a`.
+**Status:** agreed ordering; S1a and S1b complete on branch `docs-reporting-s1a`.
 
 This plan defines the order in which agents pick up work from two plans:
 
@@ -32,7 +32,7 @@ early unless marked parallel.
 | --- | --- | --- | --- |
 | S0 | Plan amendments (D0): update both plans and `CONTEXT.md` with agreed terms and this sequence | None | Editorial; user review |
 | S1a | D1: ordered tables accept `parameters`, reject `metrics` | S0 | TDD; pytest + mypy; migration note |
-| S1b | D1: rename `exclusive_event_window` → `exclusive_windows` everywhere (spec fields, function arguments, docstrings, tests, docs); interannual spec field `interannual_exclusive_windows`; no alias | S0 | TDD; pytest + mypy; migration note |
+| S1b | D1: rename `exclusive_event_window` → `exclusive_windows` everywhere (spec fields, function arguments, docstrings, tests, docs); interannual spec field `interannual_exclusive_windows`; rename `mark_events` to `mark_windows`; no aliases | S0 | TDD; targeted pytest + mypy; migration note; complete |
 | S1c | D1: rename `base_`/`nested_` identifiers to `intra_annual_`/`interannual_` (or neutral names where un-nested frequency shares the field, as with `exclusive_windows`); include spec fields, `is_nested`, builders, parser helpers, column markers if user-visible | S1b | TDD; pytest + mypy; migration note for public API |
 | S2 | D2: move developer records and PDFs to `docs\developer\`; merge `docs\plans\` into `docs\developer\plans\`; fix all links (AGENTS.md, `docs\agents\domain.md`, ADRs, plans incl. this one, code comments, test docstrings, `.github\copilot-instructions.md`) | S1a–S1c | `git mv`; search finds no stale paths; pytest; protected case studies unchanged |
 | S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan | S2 | `mkdocs build --strict`; site excludes developer records/PDFs/case studies |

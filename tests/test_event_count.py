@@ -1,6 +1,6 @@
 '''TDD for Phase 2: event_count.
 
-count_events() is a thin, DRY wrapper around the existing mark_events()
+count_events() is a thin, DRY wrapper around the existing mark_windows()
 run-collapsing engine (already used by frequency_fx/nested_frequency_fx) --
 no duplicate run-detection logic. It counts distinct qualifying events
 (maximal runs of consecutive successes) in any 0/1(/NaN) success array.
@@ -36,7 +36,7 @@ from hydropattern.parsers import duration_parser, magnitude_parser
 
 
 class TestCountEventsPureFunction(unittest.TestCase):
-    '''count_events: thin wrapper over mark_events, no new run-detection logic.'''
+    '''count_events: thin wrapper over mark_windows, no new run-detection logic.'''
 
     def test_no_successes_is_zero_events(self):
         self.assertEqual(count_events(np.array([0, 0, 0, 0])), 0)
@@ -52,7 +52,7 @@ class TestCountEventsPureFunction(unittest.TestCase):
 
     def test_leading_nan_does_not_count_as_or_extend_a_run(self):
         # NaN (e.g. insufficient trailing history) breaks a run, matching
-        # mark_events' existing NaN semantics.
+        # mark_windows' existing NaN semantics.
         self.assertEqual(count_events(np.array([np.nan, np.nan, 1, 1, 0, 1])), 2)
 
 
@@ -106,7 +106,7 @@ class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
         output = np.column_stack([dummy, intra_annual])
         df = pd.DataFrame({'flow': range(16), 'dowy': dowy})
         f = comparison_fx('>=', 1)
-        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, exclusive_event_window=False)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, exclusive_windows=False)
         broadcast = fx(df, output)
 
         # 2 distinct qualifying blocks (year1 alone; year3+year4 contiguous)
