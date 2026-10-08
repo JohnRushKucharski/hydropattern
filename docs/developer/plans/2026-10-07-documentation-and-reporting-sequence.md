@@ -1,7 +1,7 @@
 # Documentation and reporting work sequence
 
-**Status:** S1a–S1c and S2 complete on branch `docs-reporting-s1a`.
-**Next pickup:** start S3. S1a (`b2d612e`), S1b
+**Status:** S1a–S2 complete; S2 commit `fb03a08` is on local `main` (not pushed).
+**Next pickup:** start S3 on local `main`. S1a (`b2d612e`), S1b
 (`f5c93b7`), and S1c are complete; do not repeat them.
 
 This plan defines the order in which agents pick up work from two plans:
