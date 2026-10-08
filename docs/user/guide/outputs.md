@@ -51,6 +51,39 @@ sheet. For example, a flow observation can meet a magnitude condition but
 fail a later duration condition. See
 [evaluation order](../concepts/evaluation-order.md).
 
+## Counting component events
+
+A component event is a maximal uninterrupted run of final component success.
+Unknown outcomes make the number uncertain: `[1, unknown, 1]` can describe
+one event if the middle outcome is success, or two if it is failure. Its summary
+`portion` is still `1.0`, based on two known successes; known-outcome coverage
+is `2/3`. These answer different questions.
+
+In Python, `Result.event_count_bounds()` and
+`Result.event_rate_bounds()` return named `lower` and `upper` values. Their
+water-year counterparts, `event_count_bounds_by_water_year()` and
+`event_rate_bounds_by_water_year()`, return mappings keyed by ending-year
+water-year labels. Scalar `event_count()` and `event_rate()` return a value
+only when the bounds agree; otherwise they raise an error directing you to
+the corresponding bounds method.
+
+Bounds are conservative MVP bounds based only on the final outcome array.
+They treat unknown timesteps independently, so may include event counts that
+the original characteristic dependencies could not produce. For example,
+three unknown outcomes allow event-count bounds of 0–2 even when the source
+evaluation could only produce 0 or 1. Bounds do not claim dependency-exact
+possibilities.
+
+Event rates divide event counts by observed exposure across the whole record,
+including partial water years. Eighteen monthly observations with three
+events have 1.5 water years of exposure and a rate of 2 events per water year.
+Each event is attributed to the water year containing its first successful
+observed timestep; a continuous success run crossing a water-year boundary
+counts once, in its starting water year. Annual bounds are calculated from
+whole-record runs before grouping, so annual bounds need not add up to
+whole-record bounds. Rates require supported daily or monthly timestamps;
+unsupported cadence raises an error rather than guessing exposure.
+
 ## Response-surface files
 
 When plotting is enabled for a valid scenario grid, the output also includes

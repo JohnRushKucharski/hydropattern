@@ -38,6 +38,26 @@ portions. Recompute historical summaries before comparing results.
 `portion` or `percentage`. Neither mode estimates physical event likelihood
 or timing. No compatibility alias is provided.
 
+## Next release: event-count bounds and exposure
+
+Unknown final outcomes no longer count as definite separators between
+component events. `Result.event_count()` and `Result.event_rate()` now raise
+an error when final outcomes allow multiple answers; use
+`event_count_bounds()` or `event_rate_bounds()` to inspect named lower and
+upper bounds. Water-year-specific bounds are available through
+`event_count_bounds_by_water_year()` and
+`event_rate_bounds_by_water_year()`. Bounds use final outcomes independently,
+so they may include event counts impossible under the source-characteristic
+dependencies.
+
+Event rates now divide whole-record event counts by observed exposure,
+including partial water years, rather than only complete water years. For
+example, 18 monthly observations provide 1.5 water years of exposure. Annual
+event counts are attributed to the water year containing each run's first
+successful observation. Rates require supported daily or monthly timestamps;
+unsupported cadence raises an error instead of falling back to complete-year
+exposure. Review historical event-rate comparisons after upgrading.
+
 ## Next release: unknown annual frequency
 
 Nested annual conditions now retain unknown preceding outcomes instead of

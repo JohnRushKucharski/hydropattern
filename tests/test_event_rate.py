@@ -31,9 +31,15 @@ import pandas as pd
 
 from hydropattern.patterns import (
     Component,
+    EventCountBounds,
+    EventRateBounds,
+    Result,
+    count_event_bounds,
     evaluate_component,
     event_rate,
     record_length_years,
+    water_year_exposure,
+    water_year_exposure_by_year,
 )
 from hydropattern.parsers import duration_parser, magnitude_parser
 from hydropattern.timeseries import Timeseries
@@ -111,10 +117,82 @@ class TestResultEventRate(unittest.TestCase):
             is_success_pattern=True,
         )
         result = evaluate_component(df, component)
-        expected = result.event_count() / record_length_years(dowy, dates)
+        expected = result.event_count() / water_year_exposure(dates, 1)
         self.assertAlmostEqual(result.event_rate(), expected)
         self.assertEqual(result.event_count(), 2)
         self.assertEqual(record_length_years(dowy, dates), 7.0)
+
+    def test_unknown_outcomes_return_conservative_count_and_rate_bounds(self):
+        dates = pd.date_range('2020-01-01', periods=3, freq='D', name='time')
+        result = self._result([1, np.nan, 1], dates, 1)
+
+        self.assertEqual(result.event_count_bounds(), EventCountBounds(1, 2))
+        rates = result.event_rate_bounds()
+        self.assertAlmostEqual(rates.lower, 365 / 3)
+        self.assertAlmostEqual(rates.upper, 2 * 365 / 3)
+        with self.assertRaisesRegex(ValueError, 'event_count_bounds'):
+            result.event_count()
+        with self.assertRaisesRegex(ValueError, 'event_rate_bounds'):
+            result.event_rate()
+
+    def test_whole_record_rate_uses_partial_year_exposure(self):
+        dates = pd.date_range('2020-01-01', periods=18, freq='MS', name='time')
+        outcomes = np.zeros(18)
+        outcomes[[0, 2, 14]] = 1
+        result = self._result(outcomes, dates, 1)
+
+        self.assertEqual(water_year_exposure_by_year(dates, 1), {2020: 1.0, 2021: 0.5})
+        self.assertEqual(result.event_count_bounds(), EventCountBounds(3, 3))
+        self.assertEqual(result.event_rate_bounds(), EventRateBounds(2.0, 2.0))
+        self.assertEqual(result.event_rate(), 2.0)
+
+    def test_result_infers_boundary_from_timestamps_and_dowy(self):
+        dates = pd.date_range('2020-10-01', periods=18, freq='MS', name='time')
+        result = self._result(np.zeros(len(dates)), dates, 274, include_metadata=False)
+
+        self.assertEqual(result.event_rate_bounds(), EventRateBounds(0.0, 0.0))
+
+    def test_annual_event_attribution_uses_start_year_across_boundary(self):
+        dates = pd.date_range('2020-09-29', '2020-10-03', freq='D', name='time')
+        result = self._result(np.ones(len(dates)), dates, 274)
+
+        self.assertEqual(
+            result.event_count_bounds_by_water_year(),
+            {2020: EventCountBounds(1, 1), 2021: EventCountBounds(0, 0)},
+        )
+        rates = result.event_rate_bounds_by_water_year()
+        self.assertEqual(rates[2020], EventRateBounds(365 / 2, 365 / 2))
+        self.assertEqual(rates[2021], EventRateBounds(0.0, 0.0))
+
+    def test_unknown_bounds_allow_independent_mvp_completions(self):
+        self.assertEqual(count_event_bounds(np.full(3, np.nan)), EventCountBounds(0, 2))
+
+    def test_invalid_final_outcome_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'only 0, 1, or NaN'):
+            count_event_bounds(np.array([0, 2]))
+
+    def test_unsupported_timestamps_reject_event_rate_bounds(self):
+        dates = pd.DatetimeIndex(
+            ['2020-01-01', '2020-01-03', '2020-01-04'], name='time'
+        )
+        result = self._result([0, 1, 0], dates, 1)
+
+        with self.assertRaisesRegex(ValueError, 'unsupported cadence or data gap'):
+            result.event_rate_bounds()
+
+    @staticmethod
+    def _result(outcomes, dates, boundary, include_metadata=True):
+        dowy = Timeseries.from_dataframe(
+            pd.DataFrame({'flow': np.ones(len(dates))}, index=dates),
+            first_dowy=boundary,
+        ).data['dowy'].to_numpy()
+        frame = pd.DataFrame(
+            {'flow': np.ones(len(dates)), 'dowy': dowy, 'component': outcomes},
+            index=dates,
+        )
+        boundary_metadata = boundary if include_metadata else None
+        return Result(frame, Component('component', [], True),
+                      first_day_of_water_year=boundary_metadata)
 
 
 if __name__ == '__main__':

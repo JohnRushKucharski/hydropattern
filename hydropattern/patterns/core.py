@@ -9,7 +9,7 @@ patterns.py decomposition started in #30).
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -222,13 +222,75 @@ def sliding_window_count(data: np.ndarray, window: int) -> np.ndarray:
         result[t] = np.sum(data[t - window + 1:t + 1])
     return result
 
+class EventCountBounds(NamedTuple):
+    '''Inclusive lower and upper bounds for an observed component event count.'''
+    lower: int
+    upper: int
+
+
+class EventRateBounds(NamedTuple):
+    '''Inclusive lower and upper bounds for an observed component event rate.'''
+    lower: float
+    upper: float
+
+
+def _validate_outcomes(success: np.ndarray) -> np.ndarray:
+    raw_outcomes = np.asarray(success)
+    if raw_outcomes.ndim != 1 or raw_outcomes.dtype.kind not in 'biuf':
+        raise ValueError('outcomes must contain only 0, 1, or NaN.')
+    outcomes = raw_outcomes.astype(float, copy=False)
+    if np.any(
+        ~np.isnan(outcomes) & (outcomes != 0) & (outcomes != 1)
+    ):
+        raise ValueError('outcomes must contain only 0, 1, or NaN.')
+    return outcomes
+
+
+def _event_count_bounds(
+    success: np.ndarray, included: np.ndarray | None = None
+) -> EventCountBounds:
+    outcomes = _validate_outcomes(success)
+    if included is None:
+        included = np.ones(len(outcomes), dtype=bool)
+    if len(included) != len(outcomes):
+        raise ValueError('included must have the same length as outcomes.')
+
+    bounds_by_previous = {0: (0, 0)}
+    for index, outcome in enumerate(outcomes):
+        choices = (0, 1) if np.isnan(outcome) else (int(outcome),)
+        next_bounds: dict[int, tuple[int, int]] = {}
+        for previous, (minimum, maximum) in bounds_by_previous.items():
+            for current in choices:
+                starts_event = int(bool(included[index]) and current == 1 and previous == 0)
+                candidate = (minimum + starts_event, maximum + starts_event)
+                existing = next_bounds.get(current)
+                if existing is None:
+                    next_bounds[current] = candidate
+                else:
+                    next_bounds[current] = (
+                        min(existing[0], candidate[0]),
+                        max(existing[1], candidate[1]),
+                    )
+        bounds_by_previous = next_bounds
+
+    return EventCountBounds(
+        min(bounds[0] for bounds in bounds_by_previous.values()),
+        max(bounds[1] for bounds in bounds_by_previous.values()),
+    )
+
+
+def count_event_bounds(success: np.ndarray) -> EventCountBounds:
+    '''Return conservative event-count bounds for final 0/1/unknown outcomes.
+
+    Unknown timesteps are considered independently; bounds may therefore be
+    wider than counts permitted by dependencies in the source characteristics.
+    '''
+    return _event_count_bounds(success)
+
+
 def count_events(success: np.ndarray) -> int:
     '''
-    Counts distinct component events in a 0/1(/NaN) success array.
-
-    A component event is a maximal run of consecutive successes. The
-    mark_windows() helper collapses each run to its last timestep; this
-    function counts those markers.
+    Counts distinct component events when final outcomes determine one count.
 
     Works uniformly for any component's success column, regardless of
     whether it is a raw per-timestep grain (magnitude, duration, un-nested
@@ -246,9 +308,18 @@ def count_events(success: np.ndarray) -> int:
 
     Returns
     -------
-        int: number of distinct component events.
+    int: number of distinct component events.
+
+    Raises
+    ------
+    ValueError: If unknown outcomes permit more than one count.
     '''
-    return int(np.nansum(mark_windows(np.asarray(success, dtype=float), exclusive_windows=True)))
+    bounds = count_event_bounds(success)
+    if bounds.lower != bounds.upper:
+        raise ValueError(
+            'Event count is ambiguous; use count_event_bounds() to inspect bounds.'
+        )
+    return bounds.lower
 
 def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     '''
@@ -380,29 +451,90 @@ class Result:
             )
 
     def event_count(self) -> int:
-        '''Counts distinct qualifying events (maximal runs of success) for
-        this component. See count_events() for the underlying rule; applies
-        uniformly regardless of component composition (magnitude/duration/
-        frequency/nested-frequency -- see count_events() docstring).'''
-        return count_events(self.df[self.component.name].to_numpy())
+        '''Return component event count; reject ambiguous counts.'''
+        bounds = self.event_count_bounds()
+        if bounds.lower != bounds.upper:
+            raise ValueError(
+                'Event count is ambiguous; use event_count_bounds() to inspect bounds.'
+            )
+        return bounds.lower
+
+    def event_count_bounds(self) -> EventCountBounds:
+        '''Return conservative whole-record event-count bounds.
+
+        Unknown final outcomes are treated independently, so bounds may be
+        wider than counts permitted by dependencies in the source evaluation.
+        '''
+        return count_event_bounds(self.df[self.component.name].to_numpy())
+
+    def event_count_bounds_by_water_year(self) -> dict[int, EventCountBounds]:
+        '''Return event-count bounds attributed to each event's start water year.'''
+        labels = self._water_year_labels()
+        outcomes = self.df[self.component.name].to_numpy()
+        return {
+            int(year): _event_count_bounds(outcomes, labels == year)
+            for year in np.unique(labels)
+        }
 
     def event_rate(self) -> float:
-        '''Descriptive rate of component events per water year: event_count()
-        / record_length_years(dowy). See event_rate() and
-        record_length_years() docstrings for details. This is a descriptive
-        statistic; it does not imply event independence, recurrence
-        probabilities, or a Poisson process.
-        Exposure comes from the record's own water-year structure via its dowy
-        column, independent of any component's success-column grain.'''
-        # Local import: hydropattern.patterns.water_year imports
-        # sliding_window_count from this module, so importing it back at
-        # module scope here would create a circular import.
-        from hydropattern.patterns.water_year import record_length_years 
-        timestamps = self.df.index if isinstance(self.df.index, pd.DatetimeIndex) else None
-        return event_rate(
-            self.event_count(),
-            record_length_years(self.df['dowy'].to_numpy(), timestamps),
+        '''Return whole-record event rate; reject ambiguous counts or exposure.'''
+        bounds = self.event_rate_bounds()
+        if bounds.lower != bounds.upper:
+            raise ValueError(
+                'Event rate is ambiguous; use event_rate_bounds() to inspect bounds.'
+            )
+        return bounds.lower
+
+    def event_rate_bounds(self) -> EventRateBounds:
+        '''Return whole-record event-rate bounds per observed water year.'''
+        from hydropattern.patterns.water_year import water_year_exposure
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        exposure = water_year_exposure(timestamps, boundary)
+        counts = self.event_count_bounds()
+        if exposure <= 0:
+            raise ValueError('Observed water-year exposure must be greater than 0.')
+        return EventRateBounds(counts.lower / exposure, counts.upper / exposure)
+
+    def event_rate_bounds_by_water_year(self) -> dict[int, EventRateBounds]:
+        '''Return annual event-rate bounds using each year's observed exposure.'''
+        from hydropattern.patterns.water_year import water_year_exposure_by_year
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        exposures = water_year_exposure_by_year(timestamps, boundary)
+        counts = self.event_count_bounds_by_water_year()
+        return {
+            year: EventRateBounds(bounds.lower / exposures[year],
+                                  bounds.upper / exposures[year])
+            for year, bounds in counts.items()
+        }
+
+    def _timestamps(self) -> pd.DatetimeIndex:
+        if not isinstance(self.df.index, pd.DatetimeIndex):
+            raise ValueError(
+                'DatetimeIndex is required to determine observed water-year exposure.'
+            )
+        return self.df.index
+
+    def _water_year_boundary(self, timestamps: pd.DatetimeIndex) -> int:
+        from hydropattern.patterns.water_year import infer_first_day_of_water_year
+        inferred = infer_first_day_of_water_year(
+            self.df['dowy'].to_numpy(), timestamps
         )
+        if (
+            self.first_day_of_water_year is not None
+            and self.first_day_of_water_year != inferred
+        ):
+            raise ValueError(
+                'first_day_of_water_year conflicts with timestamps and dowy.'
+            )
+        return self.first_day_of_water_year or inferred
+
+    def _water_year_labels(self) -> np.ndarray:
+        from hydropattern.patterns.water_year import water_year_label
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        return np.array([water_year_label(date, boundary) for date in timestamps])
 
     def identify_water_years(
         self, first_day_of_water_year: int | None = None

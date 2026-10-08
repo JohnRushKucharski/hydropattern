@@ -10,7 +10,10 @@ from hydropattern.patterns.core import (
     CharacteristicFx,
     CharacteristicType,
     Component,
+    EventCountBounds,
+    EventRateBounds,
     Result,
+    count_event_bounds,
     count_events,
     event_rate,
     evaluate_component,
@@ -42,10 +45,12 @@ from hydropattern.patterns.characteristics import (
 )
 from hydropattern.patterns.water_year import (
     identify_full_water_years,
+    infer_first_day_of_water_year,
     or_reduce_per_water_year,
     record_length_years,
     water_year_label,
     water_year_exposure,
+    water_year_exposure_by_year,
     water_year_probability_ratio,
     windowed_count_per_water_year,
 )

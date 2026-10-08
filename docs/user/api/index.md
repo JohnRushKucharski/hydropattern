@@ -50,6 +50,36 @@ characteristic diagnostic, and the final component column. Input validation
 errors, invalid column positions, and duplicate output column names are
 reported as errors rather than silently selecting a different column.
 
+## Statistics for component events
+
+`Result` reports numbers of component events and descriptive rates for final
+component outcomes. Use bounds methods when unknown outcomes may leave more
+than one possible count or rate:
+
+```python
+count_bounds = result.event_count_bounds()
+rate_bounds = result.event_rate_bounds()
+
+print(count_bounds.lower, count_bounds.upper)
+print(rate_bounds.lower, rate_bounds.upper)
+```
+
+Both bounds objects have named `lower` and `upper` fields. The scalar methods
+`result.event_count()` and `result.event_rate()` raise `ValueError` when their
+bounds differ; use the matching bounds method instead. The
+`event_count_bounds_by_water_year()` and
+`event_rate_bounds_by_water_year()` methods return mappings keyed by ending-year
+water-year labels. A run crossing a water-year boundary is assigned to the
+water year containing its first successful observation.
+
+Rates use all observed intervals, including partial water years, and require
+supported daily or monthly timestamps. If you construct `Result` directly,
+provide its `first_day_of_water_year` metadata or ensure its timestamps and
+`dowy` column establish one consistent boundary. Bounds treat unknown final
+outcomes independently and may therefore be wider than the possibilities
+allowed by dependencies in the original evaluation; they are not exact
+source-dependency bounds.
+
 ## Read structured errors
 
 Parser and plot errors expose a `HydropatternError` with a code, message,

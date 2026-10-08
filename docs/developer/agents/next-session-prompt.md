@@ -1,7 +1,7 @@
 # Next-session handoff
 
 Continue hydropattern reporting work from branch `reporting-metrics`.
-R1–R6 are complete and committed. This branch is based on local `main` at
+R1–R7 are complete and committed. This branch is based on local `main` at
 `b05b326`. The working tree should be clean. Do not merge to `main` or push.
 
 Before further implementation:
@@ -14,9 +14,9 @@ Before further implementation:
    `b05b326`; previous documentation branches remain unchanged. Local `main`
    is already ten commits ahead of `origin/main` from earlier approved work;
    do not push it.
-3. Review R1–R6 completion notes, including the R4 correction, in the reporting plan.
-4. Report understanding and identify R7 as next. Wait for user approval before
-   starting R7. Do not begin R8–R10 or optional R11.
+3. Review R1–R7 completion notes, including the R4 correction, in the reporting plan.
+4. Report understanding and identify R8 as next. Wait for user approval before
+   starting R8. Do not begin R9–R10 or optional R11.
 
 R1 preserves unavailable order-1 comparison inputs as `NaN`. R2 propagates
 configured water-year boundaries to `Result`, uses shared ending-year labels,
@@ -39,9 +39,14 @@ whole-record portions from total successes and known outcomes, aligns
 `Result.frequency_table()` water-year labels and percentages with formatter
 summaries, and rejects removed `return_period` mode with migration guidance.
 
-Last verified before handoff: `uv run pytest -q` (761 passed),
+R7 adds named event-count/rate bounds, scalar ambiguity errors, annual
+first-success attribution, and whole-record observed exposure, including
+partial water years. Bounds treat unknown final outcomes independently and
+may include counts impossible under source-characteristic dependencies.
+
+Last verified before handoff: `uv run pytest -q` (771 passed),
 `uv run mypy hydropattern/`, `uv run mkdocs build --strict`, and
-`git diff --check` all passed. R6 commit is local and not pushed.
+`git diff --check` all passed. R7 commit is local and not pushed.
 
 Dense-unknown exact count windows cost more than the superseded R4
 approximation. A 3,653-step, 95%-unknown record with N=30 took approximately

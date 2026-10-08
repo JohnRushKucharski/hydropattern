@@ -120,21 +120,31 @@ def water_year_exposure(
     Daily water years use 366 days only when February 29 is present; otherwise
     they use 365. Monthly exposure is the number of observations divided by 12.
     '''
+    return float(sum(water_year_exposure_by_year(
+        timestamps, first_day_of_water_year
+    ).values()))
+
+
+def water_year_exposure_by_year(
+    timestamps: pd.DatetimeIndex,
+    first_day_of_water_year: int,
+) -> dict[int, float]:
+    '''Return observed exposure in water years for each labelled water year.'''
     dates = pd.DatetimeIndex(timestamps)
     if dates.hasnans or not dates.is_monotonic_increasing or dates.has_duplicates:
         raise ValueError('timestamps must be valid, unique, and increasing.')
     cadence = _water_year_cadence(dates)
     boundary = validate_water_year_boundary(first_day_of_water_year)
     labels = np.array([water_year_label(date, boundary) for date in dates])
-    exposure = 0.0
+    exposures = {}
     for label in np.unique(labels):
         year_dates = dates[labels == label]
         if cadence == 'daily':
             denominator = 366 if ((year_dates.month == 2) & (year_dates.day == 29)).any() else 365
         else:
             denominator = 12
-        exposure += len(year_dates) / denominator
-    return exposure
+        exposures[int(label)] = len(year_dates) / denominator
+    return exposures
 
 
 def _water_year_cadence(dates: pd.DatetimeIndex) -> str:
@@ -217,6 +227,26 @@ def _infer_first_day_of_water_year(
             'Cannot establish one water-year boundary from timestamps and dowy.'
         )
     return int(unique_candidates[0])
+
+
+def infer_first_day_of_water_year(
+    dowy: np.ndarray, timestamps: pd.DatetimeIndex
+) -> int:
+    '''Infer one consistent water-year boundary from timestamps and DOWY.'''
+    values = np.asarray(dowy)
+    dates = pd.DatetimeIndex(timestamps)
+    if len(values) != len(dates):
+        raise ValueError('timestamps and dowy must have the same length.')
+    if dates.hasnans or not dates.is_monotonic_increasing or dates.has_duplicates:
+        raise ValueError('timestamps must be valid, unique, and increasing.')
+    if (
+        values.ndim != 1
+        or np.any(~np.isfinite(values))
+        or np.any(values != np.floor(values))
+        or np.any((values < 1) | (values > 365))
+    ):
+        raise ValueError('dowy must contain integer values between 1 and 365.')
+    return _infer_first_day_of_water_year(values, dates)
 
 def record_length_years(
     dowy: np.ndarray,
