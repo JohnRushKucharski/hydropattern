@@ -32,6 +32,8 @@ nav:
           - Duration: reference/characteristics/duration.md
           - Frequency: reference/characteristics/frequency.md
       - CLI options and errors: reference/cli.md
+  - Examples:
+      - Runnable packs: examples/index.md
   - Upgrade guidance: migration.md
   - Python API: api/index.md
 validation:

@@ -2,7 +2,9 @@
 
 Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
 is complete on `docs-reporting-s4` and integrated into local `main`, without
-pushing. Reporting-related D4 work and D5–D7 remain pending.
+pushing. The unaffected D5 portion is complete on `docs-reporting-s5`,
+committed but not integrated or pushed.
+Reporting-related D4/D5 work and D6–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
 
@@ -426,3 +428,51 @@ checks, and the full pytest suite passed (678 tests). S4 is committed on
 `docs-reporting-s4` and fast-forwarded into local `main` with user approval;
 nothing has been pushed. S5 example-pack work and R0–R10 reporting
 implementation were not started as part of S4.
+
+## D5 (S5) completion record
+
+The unaffected example curation is complete on `docs-reporting-s5`. Four new
+small, self-contained packs cover seasonal thresholds, whole-run duration
+thresholds and inclusive bounds, overlapping versus exclusive frequency
+windows, and multiple scenarios. Each contains its own illustrative CSV,
+ordered TOML configuration, working-folder commands, exact output filenames,
+and expected component outcomes and summaries. The existing first-run pack
+is retained unchanged and is included in the same parametrized acceptance
+checks.
+
+`examples\detailed.toml` now uses ordered `parameters` tables, clearer
+terminology, correct whole-run duration explanations, optional-output
+comments, and links to the reference. Its original three component
+specifications, thresholds, characteristic order, failure-pattern setting,
+and input specification are preserved. No scientific algorithms changed.
+
+The site's Examples navigation now leads to `docs\user\examples\index.md`,
+with task-labelled downloads, commands, expected arrays and portions, and
+interpretation linked to the characteristic pages. Runnable files remain
+authoritative under `examples`; none are copied into the site. New download
+links target `docs-reporting-s5` and retain an explicit unavailable-until-
+pushed notice. Existing first-run and source-install references still use
+`docs-reporting-s3`. Four narrowly scoped ignore rules prevent default
+outputs from the new packs being accidentally tracked.
+
+Expected results were written first in `tests/test_s5_examples.py`. The
+initial run passed the existing first-run case and failed for the four
+missing packs and the unconverted detailed configuration. Acceptance checks
+now execute each downloaded pair in an isolated working folder and verify
+all diagnostic/component arrays, raw-column layouts, summary-sheet names,
+annual and whole-record portions, published component arrays/portions, and
+exact output files. Additional checks verify authoritative download links,
+preserved detailed component specifications, and its repository-root CLI
+command.
+
+Completion checks passed: 80 focused example/documentation tests, all 692
+pytest tests, strict MkDocs build, Ruff for the new test file, and
+`git diff --check`. Scientific source and all four protected case-study
+directories are unchanged; no files were deleted. S5 work is committed
+on its own branch with user approval, without integration or pushing.
+
+S6 / R0 is the next sequence slice and has not started. Reporting-related
+D4/D5 content, the response-surface pack, and R0–R10 remain deferred to their
+agreed slices. GitHub Pages deployment is still disabled.
+The next session must obtain explicit approval before integrating S5 into
+local `main` or starting S6 / R0. Committing S5 does not authorize either.

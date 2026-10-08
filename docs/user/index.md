@@ -29,6 +29,8 @@ the example's summary. You do not need to write Python.
   output choices.
 - The [reference](reference.md) lists configuration fields and existing
   characteristic rules.
+- [Runnable examples](examples/index.md) cover seasonal thresholds, duration,
+  frequency windows, and multiple scenarios with expected results.
 - [Upgrade guidance](migration.md) identifies completed breaking changes.
 - The [Python API](api/index.md) is available for programmatic evaluation.
 

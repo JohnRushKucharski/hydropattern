@@ -3,6 +3,17 @@
 Evaluates hydrologic timeseries against configured flow-pattern components, and reports
 results as Excel/CSV summaries and, optionally, response-surface plots across scenarios.
 
+## Implementation context
+
+Documentation sequence S1a–S4 is complete and integrated into local `main`;
+S4 integration commit is `4eadda6`. S5's unaffected example curation is
+complete and committed on `docs-reporting-s5`, not integrated into `main`.
+Nothing has been pushed. S6 / R0 baseline and R1–R10 reporting work have not
+started. See the [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
+and its linked plans for scope, completion records, and prerequisites.
+Next-session work requires explicit approval for S5 integration and for
+starting S6 / R0; the S5 commit approval does not authorize either.
+
 ## Language
 
 This file is the source of truth for domain terminology. Some entries capture

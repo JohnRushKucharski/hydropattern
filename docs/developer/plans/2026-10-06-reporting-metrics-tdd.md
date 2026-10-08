@@ -1,6 +1,10 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
 **Status:** agreed design; implementation not started.
+Documentation sequence S3–S5 is complete; S4 is integrated into local
+`main`, while S5 is committed on `docs-reporting-s5`, not integrated or
+pushed. S6 / R0 baseline is next, subject to explicit user approval.
+Do not repeat documentation slices or start R1–R10 before R0.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the

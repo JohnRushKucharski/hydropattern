@@ -1,165 +1,124 @@
-# ----------------------OVERVIEW------------------------- #
-# This is an example configuration file.
-# More information about toml files here: https://toml.io/en/
+# Comprehensive configuration for current source code / the next release.
+# PyPI v0.2.0 does not support these ordered tables with "parameters".
+# Thresholds illustrate software behavior, not universal ecological criteria.
+#
+# Open a terminal in the repository root:
+#   uv run hydropattern run examples\detailed.toml --no-excel
+# Input paths resolve from that working folder, not this file's folder.
+# See docs/user/examples/index.md for small downloadable example packs.
+# Exact field reference: docs/user/reference/configuration.md
+# Scientific background: https://doi.org/10.2307/1313099
+# Functional flows: https://doi.org/10.1002/rra.3575
 
-# These files configure the hydropattern application.
-# The application tracks the occurence of components of
-# natural flow regimes in hydrologic timeseries.
-
-# This example file contains configuration data needed to:
-# 1 - identify hydrologic timeseries that will be evaluated, and
-# 2 - define a natural flow regime components.
-# Learn more about natural flow regime in this paper:
-# Poff, N. L., Allan, J. D., Bain, M. B., Karr, J. R., Prestegaard, K. L., Richter, B. D., Sparks, R. E., & Stromberg, J. C. (1997). The Natural Flow Regime. BioScience, 47(11), 769–784. https://doi.org/10.2307/1313099
-
-# The program uses the functional flows terminology.
-# Learn more about function flows in this paper:
-# Yarnell, S. M., Stein, E. D., Webb, J. A., Grantham, T., Lusardi, R. A., Zimmerman, J., Peek, R. A., Lane, B. A., Howard, J., & Sandoval-Solis, S. (2020). A functional flows approach to selecting ecologically relevant flow metrics for environmental flow applications. River Research and Applications, 36(2), 318-324. https://doi.org/10.1002/rra.3575
-# Note: Figure 2 and Table 2 are particularly helpful.
-
-# Basic terminology:
-# COMPONENT: Natural flow regimes are composed of one or 
-#   more components.
-# CHARACTERISTIC: components are composed of one or more
-#   of the following characteristics:
-#   Magnitude, Timing, Duration, Frequency, Rate of Change.
-# METRICS: describe the the truth value for each characteristic
-#   (when evaluated in a hydrologic timeseries).
-#   Timing, Magnitude, and Rate of Change are always evaluated
-#   independently (diagnostic columns); Duration and Frequency
-#   gate on all preceding characteristics in evaluation order.
-# SUCCESS PATTERN: describes if each characteristic being
-#   true represents a success or failure.
-#   true by default.
-# ------------------------------------------------------- #
-
-# ------------------IDENTIFY TIMESERIES------------------ #
+# Input: "time" followed by one or more numeric scenario columns.
 [timeseries]
 path = "examples/single_timeseries.csv"
-date_format = "%Y-%m-%d"        # datetime format code. defaults to '' (pandas auto-detects).
-# options:
-# first_day_of_water_year = 1   # defaults to 1. i.e., 1 = 1 January
-# sheet_name = 0                # Excel sheet name/index, ignored for *.csv. defaults to 0.
+date_format = "%Y-%m-%d"       # Omit to infer the input date format.
+# first_day_of_water_year = 1 # Default: January 1; 274 means October 1.
+# sheet_name = 0              # First Excel sheet; ignored for CSV input.
+# Water-year boundaries use a 365-day calendar scale, in the range 1-365.
+# February 28 and 29 share a seasonal label; see the timing reference.
 
-# -------------------DEFINE COMPONENTS------------------- #
-# first component.
-[components.november_pulse_flow]# name of the component.
+# Ordered tables explicitly fix evaluation order. Timing, magnitude, and
+# rate of change are independent diagnostics. Duration and frequency assess
+# the combined conditions of all preceding characteristics.
+# Compact syntax remains supported; do not mix it with ordered tables.
 
-# component compute options:
-# success_pattern = true        # component is present if all characteristics are met, defaults to true.
+# November pulse: inclusive season, flow threshold, and rising-flow ratio.
+[components.november_pulse_flow]
+success_pattern = true
 
-# note: characteristics are evaluated in the order they are provided below;
-# timing/magnitude/rate_of_change are always independent diagnostics, while
-# duration/frequency gate on all preceding characteristics in that order.
+[[components.november_pulse_flow.characteristics]]
+type = "timing"
+parameters = [305, 335]       # November 1 through December 1, inclusive.
 
-# characteristics:
-timing = [305, 335]             # 1 November - 1 December.
-magnitude = [">", 1.0]          # Flow > 1.0.
-rate_of_change = [">", 2.0, 1]  # Flow_t > Flow_t-1 x 2.0.
-# component compute settings
-# options:
-success_pattern = true          # Component is present when characteristics are met.
+[[components.november_pulse_flow.characteristics]]
+type = "magnitude"
+parameters = [">", 1.0]      # Flow units are the same as the input.
 
-# second component.
+[[components.november_pulse_flow.characteristics]]
+type = "rate_of_change"
+parameters = [">", 2.0, 1]   # Unsmoothed current / previous flow > 2.
+
+# Failure pattern: non-failure is not proof of ecological benefit.
 [components.dry_season_baseflow]
-timing = [152, 305]             # 1 June - 1 November.
-magnitude = ["<", 1.0]          # Flow < 1.0.
-duration = [">", 7]             # For more than 7 timesteps.
-success_pattern = false         # Describes baseflow failure.
+success_pattern = false
 
-# third component.
+[[components.dry_season_baseflow.characteristics]]
+type = "timing"
+parameters = [152, 305]       # June 1 through November 1, inclusive.
+
+[[components.dry_season_baseflow.characteristics]]
+type = "magnitude"
+parameters = ["<", 1.0]
+
+[[components.dry_season_baseflow.characteristics]]
+type = "duration"
+parameters = [">", 7]        # Accept entire qualifying runs longer than 7.
+# Whole-run assessment marks the entire run, not only timesteps after 7.
+# Inclusive bounds such as [3, 7] accept whole runs of length 3 through 7.
+
+# Un-nested frequency counts qualifying timesteps, not component events.
 [components.bankfull_flow]
-magnitude = [">", 2.0]
-frequency = [">=", 1, 5]         # at least once in the next 5 input timesteps.
 
-# ---------------------OUTPUT OPTIONS--------------------- #
+[[components.bankfull_flow.characteristics]]
+type = "magnitude"
+parameters = [">", 2.0]
+
+[[components.bankfull_flow.characteristics]]
+type = "frequency"
+parameters = [">=", 1, 5]     # At least one qualifying timestep in a window.
+# Windows look forward from qualifying anchors; overlap is combined.
+# A final true flag selects exclusive windows: [">=", 1, 5, true].
+# Record-end windows are assessed using the observations still available.
+# Terminal frequency determines the final component outcome, including
+# covered timesteps where the preceding magnitude condition is not met.
+
+# Optional output settings (defaults remain active while commented out).
 # [output]
-# directory = "examples/output"   # optional; defaults to "<config_stem>_output"
-# excel = true                    # optional; defaults to true
-# overwrite = true                # optional; defaults to true
+# directory = "examples/output" # Default: "<config_stem>_output".
+# excel = true                  # --no-excel selects raw CSV instead.
+# overwrite = true              # False retains numbered alternatives.
+# Component summary workbooks are written even when raw results use CSV.
 #
 # [output.metric]
-# mode = "portion"                # optional; one of portion/percentage/return_period
+# mode = "portion"              # Use portion or percentage for next release.
+# The legacy return_period mode is scheduled for removal, not redefined
+# as a hydrologic recurrence interval. See docs/user/migration.md.
 #
 # [output.plot]
-# enabled = true                  # optional; defaults to false
+# enabled = false               # This file's input is not a scenario grid.
+# Plotting requires scenario names such as "_0_1.5": precipitation delta
+# first, temperature delta second. See docs/user/guide/plotting.md.
 #
 # [output.plot.climate-canvas]
-# interpolate = true              # optional; defaults to true
-# show = false                    # optional; defaults to false
-# title = "Response Surface"      # optional; defaults to component name
+# interpolate = true
+# fillin = false
+# show = false
+# title = "Response Surface"    # Default: component name.
 # xlabel = "Precipitation Delta (%)"
 # ylabel = "Temperature Delta (C)"
-# zlabel = "portion"              # optional; defaults to [output.metric].mode
-# threshold = 0.5                 # optional; defaults to z-range midpoint
-# color_map = "RdBu"              # optional; matplotlib colormap name
-# color_map_ticks = [-2.0, 0.0, 2.0] # optional; explicit colorbar ticks
+# zlabel = "portion"            # Default: configured summary mode.
+# threshold = 0.5               # Default: plotted range midpoint.
+# color_map = "RdBu"
+# color_map_ticks = [0.0, 0.5, 1.0]
 
-# -------------Timeseries Parameter Notes---------------- #
-# Path: must be path to *.csv or *.xlsx/*.xls file, with following header row:
-#   time, <column_name_1>, ..., <column_name_n>
-#   - required. Each data column beyond 'time' is treated as its own scenario.
-# Date_format: string datetime format code
-#   - optional, defaults to '' (pandas auto-detects the format).
-#   ex: use "%Y-%m-%d" for date in format "1900-01-31" (i.e., 31 Jan 1900).
-#   see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior 
-# First_day_of_water_year: day of year associated with start of water year.  
-#   - optional, defaults to 1 (i.e., 01 Jan).
-#   - based on 365 day year (i.e. 59 = 28 Feb, 60 = 01 Mar)
-#   - must be positive integer on range [1, 365].
-#   - note during leap years (i.e. day of year, day of water year is same for 28 and 29 Feb)
-# Sheet_name: Excel sheet name or index to read.
-#   - optional, defaults to 0 (first sheet). Ignored for *.csv files.
-# See docs/user/reference.md for the full documented [timeseries] field reference.
-# ------------------------------------------------------- #
-
-# -------------Characteristic Metric Notes--------------- #
-# Timing: in form [first_doy, last_doy] 
-#   - day of year (doy) NOT day of water year values.
-#   - both doy values are inclusive.
-#   - must be positive integers on range [1, 366].
-# Magnitude: in form [operator, value, (optional)ma_periods]
-#   - operators: >, <, =
-#   - value: same units as timeseries.
-#   - value: must be positive real number.
-#   - ma_periods: creates moving average for time series s.t:
-#           y_t = | 0 if t < k - 1 
-#                 | (x_[t-k+1]+x[t-k+2]+...+x_t)/k o/w
-#       where x is a time series of hyrologic values, and
-#       ma_periods=k. Defaults to k=1.
-#   - value is compared against y_t (defined above).
-# Rate of Change: in form ...
-#   [operator, value, (optional)ma_periods, (optional)look_back, (optional)min]
-#   - operators: >, <, =
-#   - ma_periods: same as for magnitude characteristic above.
-#   - look_back: positive integer used in equation:
-#           z_t = y_t / y_[t-n]
-#       where y is time series of hydrologic values or
-#       moving average from time series of hydrologic values, and
-#       look_back=n. Defaults to n=1.
-#   - value: is compared against z_t (defined above).
-#   - min: strict minimum for the lagged denominator y[t-n].
-#       The ratio is evaluated only when y[t-n] > min; values at or below
-#       min are masked, not replaced by a floor value. Defaults to 0.
-# Duration: in form [operator, time_steps]
-#   - operators: >, <, =
-#   - time_steps: number of previous timesteps over which 
-#       other component characteristics must be true.
-#   - time_steps: must be positive integer.
-# Frequency:
-#   - un-nested: [operator, n, N_steps, (exclusive_windows)] or
-#       [min_n, max_n, N_steps, (exclusive_windows)]
-#   - intra-annual/interannual: [[intra-annual pattern], [interannual pattern]].
-#       The intra-annual pattern can be a probability, count, or inclusive
-#       range; the interannual pattern can be a count or inclusive range. Each
-#       count/range pattern can have its own optional boolean. An intra-annual
-#       probability pattern has one trial per water year, so its flag has no effect.
-#   - operators: >, >=, <, <=, =, !=
-#   - un-nested N_steps are input timesteps, not assumed years. Windows run
-#       forward from eligible source timesteps and truncate at record end.
-#   - intra-annual probability is eligible timesteps / valid timesteps in a
-#       complete water year; the interannual window counts qualifying water years.
-#   - exclusive_windows defaults to false, combining results from overlapping
-#       qualifying windows. true lets each qualifying window skip later anchors
-#       within its span.
-# ------------------------------------------------------- #
+# Further characteristic syntax (substitute parameters in ordered tables):
+# - Timing: [first_day, last_day], inclusive; reversed bounds cross year end.
+# - Magnitude: [operator, threshold, optional_ma_periods].
+# - Rate of change: [operator, threshold, optional_ma_periods,
+#                   optional_look_back, optional_min].
+#   Compares current / lagged flow after optional smoothing; lagged flow
+#   must be strictly above min (default 0). This is not a subtraction.
+# - Duration: [operator, timestep_count] or inclusive [minimum, maximum].
+# - Frequency: [operator, count, window_length, optional_exclusive_windows]
+#   or [minimum_count, maximum_count, window_length, optional_flag].
+# - Nested frequency: [[intra-annual pattern], [interannual pattern]].
+#   For example [[">=", 0.5], [">=", 1, 2]] tests a qualifying fraction
+#   within each complete water year, then counts qualifying water years
+#   in two-water-year windows. See the frequency reference for details.
+# All comparisons accept <, <=, >, >=, =, != where valid for the condition.
+# Characteristic parameters are not summary metrics.
+# See docs/user/reference/characteristics/ for defaults and restrictions.
+# Unknown-outcome/reporting changes are deferred to their implementation;
+# this configuration does not claim those future rules are already active.
