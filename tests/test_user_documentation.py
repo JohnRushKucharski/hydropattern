@@ -114,7 +114,9 @@ def test_first_run_pair_works_from_download_folder(tmp_path, monkeypatch):
         published, outcomes.drop(columns="dowy"), check_dtype=False,
     )
     summaries = pd.read_excel(output / "sustained_flow_summary.xlsx", sheet_name=None, index_col=0)
-    assert set(summaries) == {"magnitude_gt1", "duration_ge2", "sustained_flow"}
+    assert set(summaries) == {
+        "magnitude_gt1", "duration_ge2", "sustained_flow", "reporting_details",
+    }
     for name, expected in {"magnitude_gt1": 0.5, "duration_ge2": 0.25,
                            "sustained_flow": 0.25}.items():
         assert summaries[name].index.tolist() == ["total", 2020]

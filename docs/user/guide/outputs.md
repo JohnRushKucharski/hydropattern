@@ -29,8 +29,10 @@ worked output.
 
 hydropattern writes one `{component}_summary.xlsx` workbook per component.
 It has a sheet for each characteristic diagnostic and a sheet for the final
-component outcome. Rows include `total` for the whole recorded series and
-water-year labels for observations assigned to each water year.
+component outcome, plus a `reporting_details` sheet (with numeric suffix if a
+characteristic already uses that sheet name). Rows in metric sheets include
+`total` for the whole recorded series and water-year labels for observations
+assigned to each water year.
 
 The default `portion` mode reports a fraction from 0 to 1; `percentage`
 reports the same quantity from 0 to 100. Each outcome column has its own
@@ -45,6 +47,34 @@ columns can have different known-outcome coverage, so each is summarized
 separately. Water-year rows use the configured water-year boundary. The
 [glossary](../concepts/glossary.md#outcomes) distinguishes unknown outcomes
 from failures.
+
+The `reporting_details` sheet has one row per scenario, outcome column, and
+interval (`total` or one water year). It reports successful, known, and total
+timestep counts; known-outcome coverage; and completeness status. The whole-
+record row uses `whole_record`; annual rows use `complete`, `partial`, or
+`undetermined`. An undetermined status includes a reason when cadence or
+calendar data cannot establish completeness.
+
+| Column | Meaning |
+|---|---|
+| `scenario`, `outcome_column`, `interval` | Scenario name, characteristic or component name, and `total` or ending-year water-year label. |
+| `successful_timesteps`, `known_timesteps`, `total_timesteps` | Count of successes, determined outcomes, and recorded observations for this row. |
+| `known_outcome_coverage` | `known_timesteps / total_timesteps`; blank for an empty interval. |
+| `completeness`, `completeness_reason` | Whole-record or annual calendar completeness; reason is supplied when annual completeness is undetermined. |
+| `event_count_lower`, `event_count_upper` | Conservative component event-count bounds. |
+| `observed_exposure_water_years` | Observed interval exposure used for event rates. |
+| `event_rate_lower`, `event_rate_upper` | Event-count bounds divided by observed exposure. |
+| `availability_status`, `availability_reason` | Whether component event statistics are available and why any are missing. |
+
+Component rows also report event-count bounds, observed exposure in water
+years, event-rate bounds, availability status, and any reason a statistic is
+unavailable. Unsupported cadence does not remove outcome counts or summaries;
+it leaves time-based exposure and event rates blank and explains why.
+Characteristic rows leave event-statistic fields blank because event counts
+describe final component outcomes, not characteristic diagnostics. These
+details are additional; existing metric sheets and raw timestep files retain
+their layouts. The details sheet is written with either `--excel` or
+`--no-excel`, since component summary workbooks are always written.
 
 The component summary is not interchangeable with any one characteristic
 sheet. For example, a flow observation can meet a magnitude condition but

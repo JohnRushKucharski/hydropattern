@@ -95,7 +95,10 @@ def test_example_pack_cli_matches_published_outcomes(pack, tmp_path, monkeypatch
         outcomes = pd.read_csv(output / raw_name)
         assert outcomes.columns.tolist() == ["time", scenario, "dowy", *columns]
         summaries = pd.read_excel(output / summary_name, sheet_name=None, index_col=0)
-        assert set(summaries) == {SUMMARY_SHEETS.get(column, column) for column in columns}
+        assert set(summaries) == {
+            *(SUMMARY_SHEETS.get(column, column) for column in columns),
+            "reporting_details",
+        }
         for column, expected in columns.items():
             assert outcomes[column].tolist() == expected
             portion = sum(expected) / len(expected)

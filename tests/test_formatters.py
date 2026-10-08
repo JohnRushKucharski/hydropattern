@@ -15,10 +15,12 @@ from hydropattern.formatters import (
     compute_portion_series,
     plot_components,
     resolve_color_map,
+    write_results,
     write_summary,
 )
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
 from hydropattern.patterns import Characteristic, CharacteristicType, Component, Result
+from hydropattern.timeseries import to_day_of_water_year
 
 
 def _make_result(values: list[int], years: list[int],
@@ -333,6 +335,43 @@ class TestWriteSummary(unittest.TestCase):
         r_b = _make_result([0, 0, 1, 1], [2000, 2000, 2001, 2001])
         return {'scenario_a': [r_a], 'scenario_b': [r_b]}
 
+    def _monthly_result(
+        self,
+        characteristic_name: str = 'magnitude',
+        characteristic_values: list[float] | None = None,
+        component_values: list[float] | None = None,
+    ) -> Result:
+        dates = pd.date_range('2020-01-01', periods=24, freq='MS', name='time')
+        characteristic_values = characteristic_values or [1, np.nan] + [0] * 22
+        component_values = component_values or [1, 0, np.nan] + [0] * 21
+        first_day_of_wy = 274
+        component = Component(
+            name='comp',
+            characteristics=[
+                Characteristic(
+                    name=characteristic_name,
+                    fx=lambda df, out: np.array(characteristic_values),
+                    type=CharacteristicType.MAGNITUDE,
+                )
+            ],
+            is_success_pattern=True,
+        )
+        df = pd.DataFrame({
+            'flow': np.ones(len(dates)),
+            'dowy': [to_day_of_water_year(date, first_day_of_wy) for date in dates],
+            characteristic_name: characteristic_values,
+            'comp': component_values,
+        }, index=dates)
+        return Result(df=df, component=component, first_day_of_water_year=first_day_of_wy)
+
+    def _monthly_scenario_results(self, characteristic_name: str = 'magnitude'):
+        return {
+            'scenario_a': [self._monthly_result(characteristic_name)],
+            'scenario_b': [self._monthly_result(
+                characteristic_name, [0] * 24, [1] * 24
+            )],
+        }
+
     def test_creates_summary_file_per_component(self):
         '''One {component}_summary.xlsx file per component in output dir.'''
         import tempfile
@@ -355,6 +394,148 @@ class TestWriteSummary(unittest.TestCase):
             # component 'comp' has one characteristic 'magnitude' + component itself
             self.assertIn('magnitude', sheetnames)
             self.assertIn('comp', sheetnames)
+
+    def test_reporting_details_align_counts_coverage_and_partial_years(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary(
+                self._monthly_scenario_results(), output_path, first_day_of_wy=274
+            )
+            details = pd.read_excel(
+                output_path / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        characteristic_total = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'magnitude')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(characteristic_total['successful_timesteps'], 1)
+        self.assertEqual(characteristic_total['known_timesteps'], 23)
+        self.assertEqual(characteristic_total['total_timesteps'], 24)
+        self.assertAlmostEqual(characteristic_total['known_outcome_coverage'], 23 / 24)
+        self.assertEqual(characteristic_total['completeness'], 'whole_record')
+        self.assertTrue(pd.isna(characteristic_total['event_count_lower']))
+
+        component_total = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'comp')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(component_total['known_timesteps'], 23)
+        self.assertEqual(component_total['successful_timesteps'], 1)
+        self.assertEqual(component_total['observed_exposure_water_years'], 2.0)
+        self.assertEqual(component_total['availability_status'], 'available')
+        self.assertEqual(component_total['event_count_lower'], 1)
+        self.assertEqual(component_total['event_count_upper'], 2)
+
+        annual = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'comp')
+            & (details['interval'] != 'total')
+        ].set_index('interval')
+        self.assertEqual(annual.loc[2020, 'completeness'], 'partial')
+        self.assertEqual(annual.loc[2021, 'completeness'], 'complete')
+        self.assertEqual(annual.loc[2022, 'completeness'], 'partial')
+        self.assertEqual(annual.loc[2021, 'total_timesteps'], 12)
+        self.assertEqual(annual.loc[2020, 'observed_exposure_water_years'], 0.75)
+        self.assertEqual(
+            details[
+                (details['scenario'] == 'scenario_b')
+                & (details['outcome_column'] == 'comp')
+                & (details['interval'] == 'total')
+            ].iloc[0]['successful_timesteps'],
+            24,
+        )
+
+    def test_reporting_details_sheet_name_avoids_characteristic_collision(self):
+        import tempfile
+
+        from openpyxl import load_workbook
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary(
+                self._monthly_scenario_results('reporting_details'),
+                output_path,
+                first_day_of_wy=274,
+            )
+            workbook = load_workbook(
+                output_path / 'comp_summary.xlsx', read_only=True
+            )
+            sheetnames = workbook.sheetnames
+            workbook.close()
+
+        self.assertIn('reporting_details', sheetnames)
+        self.assertIn('reporting_details_1', sheetnames)
+
+    def test_unsupported_cadence_keeps_counts_and_marks_event_rates_unavailable(self):
+        import tempfile
+
+        result = self._monthly_result()
+        result.df = result.df.drop(result.df.index[4])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary({'scenario': [result]}, output_path, first_day_of_wy=274)
+            details = pd.read_excel(
+                output_path / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        component_total = details[
+            (details['outcome_column'] == 'comp')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(component_total['known_timesteps'], 22)
+        self.assertEqual(component_total['event_count_lower'], 1)
+        self.assertEqual(
+            component_total['availability_status'], 'event_rate_unavailable'
+        )
+        self.assertTrue(pd.isna(component_total['observed_exposure_water_years']))
+        self.assertIn('unsupported cadence', component_total['availability_reason'])
+        annual = details[details['interval'] != 'total']
+        self.assertTrue((annual['completeness'] == 'undetermined').all())
+
+    def test_csv_and_excel_exports_keep_raw_layout_and_add_details_summary(self):
+        import tempfile
+
+        scenario_results = self._monthly_scenario_results()
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_directory = Path(tmp) / 'csv'
+            excel_directory = Path(tmp) / 'excel'
+            write_results(
+                scenario_results, 'input.toml', str(csv_directory), False,
+                first_day_of_wy=274,
+            )
+            write_results(
+                scenario_results, 'input.toml', str(excel_directory), True,
+                first_day_of_wy=274,
+            )
+
+            raw_csv = pd.read_csv(csv_directory / 'scenario_a_comp.csv')
+            raw_excel = pd.read_excel(excel_directory / 'input_output.xlsx')
+            self.assertEqual(
+                list(raw_csv.columns),
+                ['time', 'flow', 'dowy', 'magnitude', 'comp'],
+            )
+            self.assertEqual(
+                list(raw_excel.columns),
+                ['time', 'flow', 'dowy', 'magnitude', 'comp'],
+            )
+            csv_details = pd.read_excel(
+                csv_directory / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+            excel_details = pd.read_excel(
+                excel_directory / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        pd.testing.assert_frame_equal(csv_details, excel_details)
 
     def test_summary_sheet_columns_are_scenarios(self):
         '''Each summary sheet has scenario names as columns.'''

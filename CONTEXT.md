@@ -6,12 +6,12 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 ## Implementation context
 
 Documentation sequence S1a–S5 is complete and integrated into local `main`
-at `b05b326`. S6 / R0 baseline is recorded; R1–R5 are complete on
-`reporting-metrics` (R3: `d40b640`, R4: `59e69eb`, R4 correction: `e53612a`).
-R1–R7 are complete on `reporting-metrics`; R8–R10 and optional R11 have not
-started. Nothing has been pushed. Wait for user approval before R8.
-Keep completed reporting slices as separate commits on `reporting-metrics`;
-do not merge to `main` or push without approval. See the
+at `b05b326`. S6 / R0 baseline is recorded; R1–R7 are complete on
+`reporting-metrics` (R3: `d40b640`, R4: `59e69eb`, R4 correction:
+`e53612a`, R7: `27112d2`). R8 reporting details are implemented on this
+branch; R9–R10 and optional R11 have not started. R1–R8 are committed.
+Nothing has been merged to `main` or pushed. Wait for user approval before R9.
+Keep reporting slices separate on `reporting-metrics`. See the
 [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
 and its linked plans for scope, completion records, and prerequisites.
 

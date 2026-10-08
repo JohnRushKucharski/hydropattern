@@ -13,8 +13,16 @@ from climate_canvas.plots_utilities import plot_response_surface  # type: ignore
 from matplotlib.colors import Normalize
 
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
-from hydropattern.patterns import Component, Result, water_year_label
+from hydropattern.patterns import (
+    Component,
+    EventCountBounds,
+    Result,
+    identify_full_water_years,
+    water_year_label,
+)
+from hydropattern.patterns.water_year import water_year_exposure_by_year
 from hydropattern.scenario_grid import build_grid, require_scenario_grid
+from hydropattern.timeseries import to_day_of_water_year
 
 
 def _water_year_label(date: pd.Timestamp, first_day_of_wy: int) -> int:
@@ -267,6 +275,250 @@ def _write_component_summary(scenario_results: dict[str, list[Result]],
             scenario_results, component.name, component.name, first_day_of_wy, metric_mode
         )
         comp_df.to_excel(writer, sheet_name=comp_sheet)
+        used_sheet_names = {
+            _clean_variable_name(char.name)[:31].casefold()
+            for char in component.characteristics
+        }
+        used_sheet_names.add(comp_sheet.casefold())
+        details_sheet = _unique_sheet_name('reporting_details', used_sheet_names)
+        details = _build_reporting_details_sheet(
+            scenario_results, component.name, first_day_of_wy
+        )
+        details.to_excel(writer, sheet_name=details_sheet, index=False)
+
+
+def _build_reporting_details_sheet(
+    scenario_results: dict[str, list[Result]],
+    component_name: str,
+    first_day_of_wy: int,
+) -> pd.DataFrame:
+    '''Build per-scenario, per-outcome reporting counts and component event details.'''
+    rows: list[dict[str, object]] = []
+    for scenario_name, results in scenario_results.items():
+        result = next(r for r in results if r.component.name == component_name)
+        rows.extend(_reporting_rows_for_scenario(
+            scenario_name, result, component_name, first_day_of_wy
+        ))
+    return pd.DataFrame(rows)
+
+
+def _reporting_rows_for_scenario(
+    scenario_name: str,
+    result: Result,
+    component_name: str,
+    first_day_of_wy: int,
+) -> list[dict[str, object]]:
+    attributed_result = _result_with_water_year_days(result, first_day_of_wy)
+    intervals, completeness_reason = _reporting_intervals(
+        attributed_result, first_day_of_wy
+    )
+    count_by_year, count_error = _event_counts_by_water_year(attributed_result)
+    exposure_by_year, exposure_error = _observed_exposure_by_water_year(
+        result, first_day_of_wy
+    )
+    total_exposure = sum(exposure_by_year.values()) if exposure_by_year else None
+    total_count = result.event_count_bounds()
+    outcome_columns = [
+        *(char.name for char in result.component.characteristics),
+        component_name,
+    ]
+    rows = []
+    for interval, group, interval_status in intervals:
+        for outcome_column in outcome_columns:
+            outcomes = group[outcome_column]
+            known = int(outcomes.notna().sum())
+            row = {
+                'scenario': scenario_name,
+                'outcome_column': outcome_column,
+                'interval': interval,
+                'successful_timesteps': int(outcomes.sum()),
+                'known_timesteps': known,
+                'total_timesteps': len(outcomes),
+                'known_outcome_coverage': known / len(outcomes) if len(outcomes) else np.nan,
+                'completeness': interval_status,
+                'completeness_reason': completeness_reason,
+            }
+            if outcome_column == component_name:
+                row.update(_event_detail_values(
+                    interval, total_count, total_exposure,
+                    count_by_year, count_error, exposure_by_year, exposure_error,
+                ))
+            else:
+                row.update(_empty_event_detail_values())
+            rows.append(row)
+    return rows
+
+
+def _event_counts_by_water_year(
+    result: Result,
+) -> tuple[dict[int, EventCountBounds], str | None]:
+    try:
+        return result.event_count_bounds_by_water_year(), None
+    except (KeyError, ValueError) as error:
+        if 'conflicts' in str(error):
+            raise
+        return {}, str(error)
+
+
+def _result_with_water_year_days(
+    result: Result,
+    first_day_of_wy: int,
+) -> Result:
+    if not isinstance(result.df.index, pd.DatetimeIndex):
+        return result
+    if (
+        result.first_day_of_water_year is not None
+        and result.first_day_of_water_year != first_day_of_wy
+    ):
+        raise ValueError(
+            'first_day_of_water_year conflicts with Result boundary metadata.'
+        )
+    if 'dowy' in result.df.columns:
+        return result
+    df = result.df.copy()
+    df['dowy'] = [
+        to_day_of_water_year(timestamp, first_day_of_wy)
+        for timestamp in df.index
+    ]
+    return Result(
+        df=df,
+        component=result.component,
+        dv_name=result.dv_name,
+        first_day_of_water_year=first_day_of_wy,
+    )
+
+
+def _observed_exposure_by_water_year(
+    result: Result,
+    first_day_of_wy: int,
+) -> tuple[dict[int, float], str | None]:
+    if not isinstance(result.df.index, pd.DatetimeIndex):
+        return {}, 'DatetimeIndex is required to determine observed water-year exposure.'
+    try:
+        return water_year_exposure_by_year(result.df.index, first_day_of_wy), None
+    except ValueError as error:
+        return {}, str(error)
+
+
+def _event_detail_values(
+    interval: str | int,
+    total_count: EventCountBounds,
+    total_exposure: float | None,
+    count_by_year: dict[int, EventCountBounds],
+    count_error: str | None,
+    exposure_by_year: dict[int, float],
+    exposure_error: str | None,
+) -> dict[str, object]:
+    if interval == 'total':
+        count_bounds: EventCountBounds | None = total_count
+        exposure = total_exposure
+    else:
+        year = int(interval)
+        count_bounds = count_by_year.get(year)
+        exposure = exposure_by_year.get(year)
+
+    reasons = []
+    if count_bounds is None:
+        reasons.append(
+            'Event-count bounds unavailable: '
+            f'{count_error or "water-year attribution unavailable."}'
+        )
+    if exposure is None or exposure <= 0:
+        reasons.append(
+            'Observed exposure unavailable: '
+            f'{exposure_error or "no positive exposure for interval."}'
+        )
+    rate_lower = None
+    rate_upper = None
+    rate_available = (
+        count_bounds is not None and exposure is not None and exposure > 0
+    )
+    if rate_available:
+        assert count_bounds is not None and exposure is not None
+        rate_lower = count_bounds.lower / exposure
+        rate_upper = count_bounds.upper / exposure
+    if count_bounds is None:
+        availability_status = 'event_count_unavailable'
+    elif not rate_available:
+        availability_status = 'event_rate_unavailable'
+    else:
+        availability_status = 'available'
+    return {
+        'event_count_lower': count_bounds.lower if count_bounds is not None else None,
+        'event_count_upper': count_bounds.upper if count_bounds is not None else None,
+        'observed_exposure_water_years': exposure,
+        'event_rate_lower': rate_lower,
+        'event_rate_upper': rate_upper,
+        'availability_status': availability_status,
+        'availability_reason': '; '.join(reasons) or None,
+    }
+
+
+def _empty_event_detail_values() -> dict[str, object]:
+    return {
+        'event_count_lower': None,
+        'event_count_upper': None,
+        'observed_exposure_water_years': None,
+        'event_rate_lower': None,
+        'event_rate_upper': None,
+        'availability_status': 'not_applicable',
+        'availability_reason': None,
+    }
+
+
+def _reporting_intervals(
+    result: Result,
+    first_day_of_wy: int,
+) -> tuple[list[tuple[str | int, pd.DataFrame, str]], str | None]:
+    intervals: list[tuple[str | int, pd.DataFrame, str]] = [
+        ('total', result.df, 'whole_record')
+    ]
+    if not isinstance(result.df.index, pd.DatetimeIndex) or result.df.empty:
+        return intervals, None
+
+    years = np.array([
+        water_year_label(timestamp, first_day_of_wy)
+        for timestamp in result.df.index
+    ])
+    annual_groups = [
+        (int(year), result.df.iloc[years == year])
+        for year in dict.fromkeys(years)
+    ]
+    try:
+        full_years = identify_full_water_years(
+            result.df['dowy'].to_numpy(),
+            result.df.index,
+            first_day_of_wy,
+        )
+    except ValueError as error:
+        if not any(
+            reason in str(error)
+            for reason in ('cadence', 'data gap', 'timestamps must be valid')
+        ):
+            raise
+        reason = str(error)
+        intervals.extend((year, group, 'undetermined') for year, group in annual_groups)
+        return intervals, reason
+
+    complete_labels = {
+        water_year_label(result.df.index[end], first_day_of_wy)
+        for _, end in full_years
+    }
+    intervals.extend(
+        (year, group, 'complete' if year in complete_labels else 'partial')
+        for year, group in annual_groups
+    )
+    return intervals, None
+
+
+def _unique_sheet_name(name: str, used_names: set[str]) -> str:
+    candidate = name[:31]
+    suffix = 1
+    while candidate.casefold() in used_names:
+        ending = f'_{suffix}'
+        candidate = f'{name[:31 - len(ending)]}{ending}'
+        suffix += 1
+    return candidate
 
 
 def _resolve_output_path(

@@ -1,22 +1,23 @@
 # Next-session handoff
 
 Continue hydropattern reporting work from branch `reporting-metrics`.
-R1–R7 are complete and committed. This branch is based on local `main` at
-`b05b326`. The working tree should be clean. Do not merge to `main` or push.
+R1–R8 are committed on this branch, based on local `main` at `b05b326`.
+The worktree should be clean. Do not merge to `main` or push.
 
-Before further implementation:
+Before further work:
 
-1. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
+1. Confirm branch, clean status, and latest commits.
+2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
-2. Confirm current branch, clean status, and commit history. `main`,
+3. Confirm commit history. `main`,
    `docs-reporting-s5`, and `docs-reporting-r0` intentionally remain at
    `b05b326`; previous documentation branches remain unchanged. Local `main`
    is already ten commits ahead of `origin/main` from earlier approved work;
    do not push it.
-3. Review R1–R7 completion notes, including the R4 correction, in the reporting plan.
-4. Report understanding and identify R8 as next. Wait for user approval before
-   starting R8. Do not begin R9–R10 or optional R11.
+4. Review R1–R8 completion notes, including the R4 correction, in the reporting plan.
+5. R9 is next. Obtain user approval before implementation. Do not begin R10
+   or optional R11.
 
 R1 preserves unavailable order-1 comparison inputs as `NaN`. R2 propagates
 configured water-year boundaries to `Result`, uses shared ending-year labels,
@@ -45,16 +46,15 @@ partial water years. Bounds treat unknown final outcomes independently and
 may include counts impossible under source-characteristic dependencies.
 Implementation commit: `27112d2`.
 
-R8 adds a reporting-details sheet while preserving existing metric sheets and
-raw timestep files. Capture successful/known/total counts, known-outcome
-coverage, completeness, component event-count/rate bounds, observed exposure,
-and availability reasons. Test scenario/column alignment, partial-year rows,
-Excel sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency.
-Sequence plan identifies `docs/user/guide/outputs.md` as its user-doc target.
+R8 adds `reporting_details` sheet to each component summary workbook while
+preserving existing metric sheets and raw timestep files. It reports
+successful/known/total counts, known-outcome coverage, completeness, component
+event-count/rate bounds, observed exposure, and availability reasons. It
+handles partial years, sheet-name collisions, CSV/Excel exports, and Python/CLI
+parity. `docs/user/guide/outputs.md` documents the sheet. R8 is committed; full suite
+passed (776 tests), mypy, strict MkDocs, Ruff, and `git diff --check`.
 
-Last verified before handoff: `uv run pytest -q` (771 passed),
-`uv run mypy hydropattern/`, `uv run mkdocs build --strict`, and
-`git diff --check` all passed. R7 commit is local and not pushed.
+No changes have been merged to `main` or pushed. R9 is next, pending approval.
 
 Dense-unknown exact count windows cost more than the superseded R4
 approximation. A 3,653-step, 95%-unknown record with N=30 took approximately
