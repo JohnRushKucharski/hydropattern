@@ -60,7 +60,30 @@ Expected diagnostic: `[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]`
 
 Expected component outcome: `[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]`
 
-This is a fully known example. Current evaluation treats an unmet preceding
-condition as a run break; preservation of uncertain run boundaries is a
-separate reporting change. Compare the duration diagnostic with the final
+## Unknown qualifying outcomes
+
+When preceding conditions have unknown outcomes, duration evaluates the
+possible run boundaries instead of treating unknown timesteps as definite
+breaks. A duration diagnostic is known only when every possible run gives
+the same verdict. Definite failures still break runs and remain failures.
+
+For `duration >= 3`, consider preceding outcomes
+`[0, 1, 1, unknown, 1, 0]`. If the unknown timestep does not qualify, it
+separates runs of lengths 2 and 1, both too short. If it qualifies, it joins
+the surrounding timesteps into a run of length 4, which passes. Thus the
+verdict can differ for the four timesteps around the unknown:
+
+| Position | Preceding outcome | Duration diagnostic |
+|---:|---:|---:|
+| 1 | 0 | 0 |
+| 2 | 1 | unknown |
+| 3 | 1 | unknown |
+| 4 | unknown | unknown |
+| 5 | 1 | unknown |
+| 6 | 0 | 0 |
+
+Expected diagnostic: `[0, unknown, unknown, unknown, unknown, 0]`
+
+The first and last outcomes stay failed because their preceding conditions
+definitely fail. Compare the duration diagnostic with the final
 [component outcome](../../concepts/evaluation-order.md#combining-conditions).

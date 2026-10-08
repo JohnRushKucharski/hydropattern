@@ -50,7 +50,6 @@ Expected diagnostic: `[0, 1, 1, 1, 0]`
 Expected component outcome: `[0, 1, 1, 1, 0]`
 
 For how this characteristic combines with duration or frequency, see
-[evaluation order](../../concepts/evaluation-order.md). The current
-calculation does not yet preserve unavailable moving-average results as
-unknown outcomes; do not treat this example as documentation of that planned
-reporting behavior.
+[evaluation order](../../concepts/evaluation-order.md). When a moving-average
+value is unavailable during startup, its comparison outcome is unknown. This
+fully known example does not illustrate those startup outcomes.

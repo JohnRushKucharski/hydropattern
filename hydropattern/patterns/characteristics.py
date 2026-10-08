@@ -180,6 +180,61 @@ def magnitude_fx(f: Callable[[float], bool],
 #endregion
 
 #region duration
+def _duration_run_length_bounds(
+    eligible: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    '''Return shortest and longest possible qualifying run at each timestep.'''
+    length = len(eligible)
+    indices = np.arange(length)
+    known_zero = eligible == 0
+    segment_start = np.maximum.accumulate(
+        np.where(known_zero, indices + 1, 0)
+    )
+    segment_end = np.minimum.accumulate(
+        np.where(known_zero, indices - 1, length - 1)[::-1]
+    )[::-1]
+    preceding_ones = np.zeros(length, dtype=int)
+    following_ones = np.zeros(length, dtype=int)
+    for index in range(1, length):
+        if eligible[index - 1] == 1:
+            preceding_ones[index] = preceding_ones[index - 1] + 1
+    for index in range(length - 2, -1, -1):
+        if eligible[index + 1] == 1:
+            following_ones[index] = following_ones[index + 1] + 1
+
+    minimum = preceding_ones + following_ones + 1
+    maximum = segment_end - segment_start + 1
+    maximum[known_zero] = 0
+    return minimum, maximum
+
+
+def _possible_duration_runs(
+    eligible: np.ndarray,
+    run_lengths: np.ndarray,
+) -> np.ndarray:
+    '''Mark timesteps contained in a possible run of any supplied length.'''
+    length = len(eligible)
+    coverage = np.zeros(length + 1, dtype=int)
+    zero_counts = np.concatenate(([0], np.cumsum(eligible == 0)))
+    all_starts = np.arange(length)
+    for run_length in run_lengths:
+        if run_length > length:
+            continue
+        starts = all_starts[:length - run_length + 1]
+        ends = starts + run_length - 1
+        valid = zero_counts[ends + 1] == zero_counts[starts]
+        # A neighboring known success must belong to the same maximal run.
+        valid &= (starts == 0) | (eligible[np.maximum(starts - 1, 0)] != 1)
+        valid &= (ends == length - 1) | (
+            eligible[np.minimum(ends + 1, length - 1)] != 1
+        )
+        starts = starts[valid]
+        ends = ends[valid]
+        coverage[starts] += 1
+        coverage[ends + 1] -= 1
+    return np.cumsum(coverage[:-1]) > 0
+
+
 def duration_fx(f: Callable[[float], bool],
                 order: int) -> CharacteristicFx:
     '''
@@ -201,15 +256,134 @@ def duration_fx(f: Callable[[float], bool],
         validate_order(order, output, CharacteristicType.DURATION)
         assert output is not None # for mypy: checked by validate_order
 
-        # from 0th to [order - 1]; eligible wherever preceding
-        # characteristics are all 1 (find_runs treats anything else, incl.
-        # NaN, as a run-breaker -- same as the prior hand-rolled loop, which
-        # only ever compared against 1).
-        precedents = (output[:, :order - 1] == 1).all(axis=1).astype(float)
-        result = np.zeros(len(df))
-        for start, end in find_runs(precedents):
-            if f(end - start + 1):
-                result[start:end + 1] = 1
+        precedents = output[:, :order - 1]
+        eligible = np.full(len(df), 1.0)
+        known_failure = np.any(
+            (precedents != 1) & ~np.isnan(precedents), axis=1
+        )
+        unknown = np.any(np.isnan(precedents), axis=1) & ~known_failure
+        eligible[known_failure] = 0
+        eligible[unknown] = np.nan
+
+        length = len(eligible)
+        if not np.isnan(eligible).any():
+            result = np.zeros(length)
+            for start, end in find_runs(eligible):
+                if f(end - start + 1):
+                    result[start:end + 1] = 1
+            return result
+
+        matches = np.fromiter(
+            (bool(f(run_length)) for run_length in range(1, length + 1)),
+            dtype=bool,
+            count=length,
+        )
+        true_runs = find_runs(matches.astype(float))
+        increasing = np.all(matches[:-1] <= matches[1:])
+        decreasing = np.all(matches[:-1] >= matches[1:])
+        if increasing or decreasing:
+            minimum_length, maximum_length = _duration_run_length_bounds(eligible)
+            possible_minimum = matches[minimum_length - 1]
+            possible_maximum = np.zeros(length, dtype=bool)
+            known_zero = eligible == 0
+            possible_maximum[~known_zero] = matches[
+                maximum_length[~known_zero] - 1
+            ]
+            same_verdict = possible_minimum == possible_maximum
+            known_success = eligible == 1
+            unknown_eligible = np.isnan(eligible)
+            result = np.zeros(length)
+            result[
+                known_success & same_verdict & possible_minimum
+            ] = 1
+            result[
+                (known_success & ~same_verdict)
+                | (
+                    unknown_eligible
+                    & (possible_minimum | possible_maximum)
+                )
+            ] = np.nan
+            return result
+
+        if len(true_runs) == 1:
+            minimum_length, maximum_length = _duration_run_length_bounds(eligible)
+            possible_minimum = matches[minimum_length - 1]
+            possible_maximum = np.zeros(length, dtype=bool)
+            known_zero = eligible == 0
+            possible_maximum[~known_zero] = matches[
+                maximum_length[~known_zero] - 1
+            ]
+            can_succeed = possible_minimum | possible_maximum
+            scan_lengths = np.arange(true_runs[0][0] + 1, true_runs[0][1] + 2)
+            can_succeed |= _possible_duration_runs(eligible, scan_lengths)
+            known_success = eligible == 1
+            unknown_eligible = np.isnan(eligible)
+            can_fail = ~possible_minimum | ~possible_maximum
+            result = np.zeros(length)
+            result[known_success & can_succeed & ~can_fail] = 1
+            result[
+                (known_success & can_succeed & can_fail)
+                | (unknown_eligible & can_succeed)
+            ] = np.nan
+            return result
+
+        if (
+            len(true_runs) == 2
+            and true_runs[1][0] - true_runs[0][1] == 2
+        ):
+            minimum_length, maximum_length = _duration_run_length_bounds(eligible)
+            possible_minimum = matches[minimum_length - 1]
+            possible_maximum = np.zeros(length, dtype=bool)
+            known_zero = eligible == 0
+            possible_maximum[~known_zero] = matches[
+                maximum_length[~known_zero] - 1
+            ]
+            rejected_length = true_runs[0][1] + 2
+            can_fail = ~possible_minimum | ~possible_maximum
+            can_fail |= _possible_duration_runs(
+                eligible, np.array([rejected_length])
+            )
+            can_succeed = possible_minimum | possible_maximum
+            known_success = eligible == 1
+            unknown_eligible = np.isnan(eligible)
+            result = np.zeros(length)
+            result[known_success & can_succeed & ~can_fail] = 1
+            result[
+                (known_success & can_succeed & can_fail)
+                | (unknown_eligible & can_succeed)
+            ] = np.nan
+            return result
+
+        run_starts = np.arange(length)
+        zero_counts = np.concatenate(
+            ([0], np.cumsum(eligible == 0))
+        )
+        possible_success = np.zeros(length + 1, dtype=int)
+        possible_failure = np.zeros(length + 1, dtype=int)
+        for run_length in range(1, length + 1):
+            starts = run_starts[:length - run_length + 1]
+            ends = starts + run_length - 1
+            valid = zero_counts[ends + 1] == zero_counts[starts]
+            valid &= (starts == 0) | (eligible[np.maximum(starts - 1, 0)] != 1)
+            valid &= (ends == length - 1) | (
+                eligible[np.minimum(ends + 1, length - 1)] != 1
+            )
+            starts = starts[valid]
+            ends = ends[valid]
+            target = possible_success if matches[run_length - 1] else possible_failure
+            target[starts] += 1
+            target[ends + 1] -= 1
+
+        can_succeed = np.cumsum(possible_success[:-1]) > 0
+        can_fail_as_run = np.cumsum(possible_failure[:-1]) > 0
+        known_success = eligible == 1
+        unknown_eligible = np.isnan(eligible)
+        result = np.zeros(length)
+        result[known_success & can_succeed & ~can_fail_as_run] = 1
+        result[
+            (known_success & can_succeed & can_fail_as_run)
+            | (unknown_eligible & can_succeed)
+        ] = np.nan
         return result
     return closure
 #endregion

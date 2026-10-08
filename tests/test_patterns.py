@@ -267,6 +267,110 @@ class TestPatterns(unittest.TestCase):
         # duration_fx(gt(x, 1)~f(x>1), order=3) -> fx
         fx = duration_fx(comparison_fx('>', 1, None, None), order)
         self.assertTrue(np.all(fx(df, o) == np.array([1, 1, 1, 1, 1, 0])))
+
+    def test_duration_fx_preserves_uncertain_run_boundaries(self):
+        outcomes = np.array([0, 1, 1, np.nan, 1, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(
+            result, np.array([0, np.nan, np.nan, np.nan, np.nan, 0])
+        )
+
+    def test_duration_fx_unknown_run_cannot_make_settled_failure_uncertain(self):
+        outcomes = np.array([1, np.nan, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_array_equal(result, np.zeros(len(outcomes)))
+
+    def test_duration_fx_all_unknown_run_keeps_possible_success_unknown(self):
+        outcomes = np.full(4, np.nan)
+        fx = duration_fx(comparison_fx('>=', 2), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.full(len(outcomes), np.nan))
+
+    def test_duration_fx_unknown_run_at_record_boundary(self):
+        outcomes = np.array([np.nan, 1, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 2), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.array([np.nan, np.nan, 0]))
+
+    def test_duration_fx_combines_preceding_unknowns_and_failures(self):
+        outcomes = np.array([
+            [0, np.nan],
+            [np.nan, 1],
+            [np.nan, np.nan],
+            [1, 0],
+        ], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 2), order=3)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes)
+
+        np.testing.assert_equal(result, np.array([0, np.nan, np.nan, 0]))
+
+    def test_duration_fx_unknowns_preserve_inclusive_bounds_uncertainty(self):
+        outcomes = np.array([1, np.nan, 1], dtype=float)
+        fx = duration_fx(comparison_fx('<=', 2, '<=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.full(len(outcomes), np.nan))
+
+    def test_duration_fx_matches_all_binary_completions(self):
+        predicates = (
+            comparison_fx('>=', 3),
+            comparison_fx('<=', 2, '<=', 3),
+            comparison_fx('=', 2),
+            comparison_fx('!=', 2),
+            lambda run_length: run_length in (1, 4),
+        )
+        for length in range(1, 5):
+            for encoded in range(3 ** length):
+                values = []
+                remainder = encoded
+                for _ in range(length):
+                    values.append((0, 1, np.nan)[remainder % 3])
+                    remainder //= 3
+                outcomes = np.asarray(values, dtype=float)
+                for predicate in predicates:
+                    with self.subTest(outcomes=outcomes, predicate=predicate):
+                        fx = duration_fx(predicate, order=2)
+                        actual = fx(
+                            df.iloc[:length], outcomes.reshape(-1, 1)
+                        )
+                        possible = [[] for _ in range(length)]
+                        unknown_indices = np.flatnonzero(np.isnan(outcomes))
+                        for completion in range(2 ** len(unknown_indices)):
+                            resolved = outcomes.copy()
+                            for bit, index in enumerate(unknown_indices):
+                                resolved[index] = (completion >> bit) & 1
+                            expected = np.zeros(length)
+                            start = 0
+                            while start < length:
+                                if resolved[start] != 1:
+                                    start += 1
+                                    continue
+                                end = start
+                                while end + 1 < length and resolved[end + 1] == 1:
+                                    end += 1
+                                if predicate(end - start + 1):
+                                    expected[start:end + 1] = 1
+                                start = end + 1
+                            for index, value in enumerate(expected):
+                                possible[index].append(value)
+                        oracle = np.asarray([
+                            values[0] if all(value == values[0] for value in values)
+                            else np.nan
+                            for values in possible
+                        ])
+                        np.testing.assert_equal(actual, oracle)
     #endregion
 
     #region: rate_of_change_fx tests

@@ -37,6 +37,15 @@ The duration assessment uses the later January 3 observation to classify
 January 2. It is a retrospective assessment, not a forecast available on
 January 2.
 
+If a preceding outcome is unknown, duration considers both possibilities:
+the timestep may break a run or extend it. The diagnostic stays unknown when
+possible run lengths disagree on whether the duration condition passes. For
+example, with `duration >= 3`, preceding outcomes
+`[0, 1, 1, unknown, 1, 0]` produce
+`[0, unknown, unknown, unknown, unknown, 0]`: the unknown can split
+length-2 and length-1 runs, or join a length-4 run. Definite failures still
+settle the result where they occur.
+
 ## Combining conditions
 
 For a success-pattern component, all configured conditions must be met for

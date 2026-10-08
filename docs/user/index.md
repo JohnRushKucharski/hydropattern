@@ -34,9 +34,10 @@ the example's summary. You do not need to write Python.
 - [Upgrade guidance](migration.md) identifies completed breaking changes.
 - The [Python API](api/index.md) is available for programmatic evaluation.
 
-Reporting and unknown-outcome improvements are not yet implemented; later
-pages will describe each change only after it exists in the application. The
-glossary introduces terms without promising those future capabilities.
+Some reporting and unknown-outcome changes are implemented; others remain
+planned. Each page describes behavior that exists, while summary denominators
+and explicit coverage remain pending. Glossary terms do not promise every
+planned capability.
 
 ## Scientific context
 

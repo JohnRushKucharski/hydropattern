@@ -44,8 +44,9 @@ ecological benefit. A failure-pattern configuration describes conditions to
 avoid, so its final known success means non-failure.
 
 **Unknown outcome** means available information cannot determine success or
-failure. It is neither one. Current evaluation does not yet preserve unknowns
-in every calculation; improved propagation and reporting are later work.
+failure. It is neither one. Unavailable independent comparisons and duration
+run-boundary uncertainty preserve unknowns. Unknown-aware frequency and annual
+evaluation, plus reporting summaries and explicit coverage, remain planned.
 
 **Known-outcome coverage** is the fraction of recorded timesteps whose outcome
 is known, for the column under discussion. Coverage differs from how many known
