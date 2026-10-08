@@ -515,6 +515,24 @@ implicit prerequisite or expand MVP while correcting unrelated issues.
   3,653-step evaluation with a 30-step window took 15.1 ms overlapping and
   31.9 ms exclusive in the R0 environment.
 
+- **R4 correction during R5:** the original implementation treated overlapping
+  counts and exclusive schedules independently, losing shared-trial correlations.
+  Its short oracle compared only the first output for longer windows and missed
+  `[1, unknown]`, `= 1`, N=2: the correct output is `[unknown, 1]`.
+  Restored full-output checks and expanded the oracle to every ternary input
+  of lengths 1–4, all six operators, inclusive bounds, every window length,
+  and both overlap modes. Production uses reduced decision graphs rather than
+  enumerating assignments; schedules discard consumed variables while
+  retaining future constraints, with earliest trials ordered first. Monotone
+  overlapping predicates retain their
+  count-bound fast path. The earlier timing figures describe the superseded
+  approximation, not the corrected exclusive evaluator.
+  For a seeded 95%-unknown, 3,653-step record and N=30, corrected `>= 2`
+  took approximately 15 ms overlapping / 1.1 s exclusive; `= 2` took 9.3 s /
+  1.5 s. Exact bounded/equality overlap is materially slower on dense unknown
+  records; no source assignments are enumerated and fully known behavior retains
+  its fast path.
+
 R5 is next in sequence; wait for user approval before starting. Do not start
 R6–R10 ahead of their dependencies or implement optional R11 without further
 authorization.

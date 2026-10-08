@@ -132,6 +132,13 @@ for every possible count, `>= 3` is unknown, and `>= 4` fails. A shortened
 window at the record end uses only the available timesteps in the same
 possible-count assessment.
 
+Windows share the same unknown trials; their possible successes are not
+independent. For `[1, unknown]`, `= 1`, and a two-timestep window, both
+overlapping and exclusive rules produce `[unknown, 1]`. If the unknown is
+zero, the first window covers both timesteps; if it is one, the shortened
+final window covers the second timestep instead. That shared coverage is
+definite even though neither candidate window has a definite verdict.
+
 ## Nested frequency: intra-annual and interannual patterns
 
 Nested frequency first assesses a pattern within each complete water year

@@ -1,6 +1,7 @@
 '''Tests for the patterns module.'''
 # test coverage backlog: is_order_1, frequency_fx, evaluate_patterns
 # pylint: disable=too-many-public-methods
+import itertools
 import unittest
 
 import numpy as np
@@ -837,61 +838,90 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
 
     def test_unknown_frequency_matches_short_binary_completion_oracle(self):
         operators = ('<', '<=', '>', '>=', '=', '!=')
-        for source_values in (
-            (1, np.nan),
-            (np.nan, 1, 0),
-            (1, np.nan, 0, 1),
-            (np.nan, 1, 1, np.nan),
-        ):
+        sources = itertools.chain.from_iterable(
+            itertools.product((0, 1, np.nan), repeat=length)
+            for length in range(1, 5)
+        )
+        for source_values in sources:
             source = np.asarray(source_values, dtype=float)
             frame = pd.DataFrame({'x': range(len(source))})
             unknown_indices = np.flatnonzero(np.isnan(source))
-            for window in range(1, min(3, len(source)) + 1):
-                for operator in operators:
-                    for count in range(window + 1):
-                        predicate = comparison_fx(operator, count)
-                        for exclusive in (False, True):
-                            with self.subTest(
-                                source=source_values, window=window,
-                                operator=operator, count=count,
-                                exclusive=exclusive,
-                            ):
-                                actual = frequency_fx(
-                                    predicate, order=2, big_n=window,
-                                    exclusive_windows=exclusive,
-                                )(frame, source.reshape(-1, 1))
-                                completions = []
-                                for bits in range(2 ** len(unknown_indices)):
-                                    resolved = source.copy()
-                                    for bit, index in enumerate(unknown_indices):
-                                        resolved[index] = (bits >> bit) & 1
-                                    expected = np.zeros(len(source))
-                                    claimed_until = -1
-                                    for start in range(len(source)):
-                                        if exclusive and start <= claimed_until:
-                                            continue
-                                        if (
-                                            not predicate(0)
-                                            and resolved[start] != 1
-                                        ):
-                                            continue
-                                        end = min(start + window, len(source))
-                                        if predicate(int(resolved[start:end].sum())):
-                                            expected[start:end] = 1
-                                            if exclusive:
-                                                claimed_until = end - 1
-                                    completions.append(expected)
-                                oracle = np.asarray([
-                                    values[0]
-                                    if np.all(values == values[0])
-                                    else np.nan
-                                    for values in np.asarray(completions).T
-                                ])
-                                # At position zero, only first window can cover.
-                                if window == 1:
-                                    np.testing.assert_equal(actual, oracle)
-                                else:
-                                    np.testing.assert_equal(actual[0], oracle[0])
+            for window in range(1, len(source) + 1):
+                predicates = [
+                    (operator, count, comparison_fx(operator, count))
+                    for operator in operators
+                    for count in range(window + 1)
+                ] + [
+                    ('between', (low, high), comparison_fx('<=', low, '<=', high))
+                    for low in range(window)
+                    for high in range(low + 1, window + 1)
+                ]
+                for operator, count, predicate in predicates:
+                    for exclusive in (False, True):
+                        with self.subTest(
+                            source=source_values, window=window,
+                            operator=operator, count=count,
+                            exclusive=exclusive,
+                        ):
+                            actual = frequency_fx(
+                                predicate, order=2, big_n=window,
+                                exclusive_windows=exclusive,
+                            )(frame, source.reshape(-1, 1))
+                            completions = []
+                            for bits in range(2 ** len(unknown_indices)):
+                                resolved = source.copy()
+                                for bit, index in enumerate(unknown_indices):
+                                    resolved[index] = (bits >> bit) & 1
+                                expected = np.zeros(len(source))
+                                claimed_until = -1
+                                for start in range(len(source)):
+                                    if exclusive and start <= claimed_until:
+                                        continue
+                                    if not predicate(0) and resolved[start] != 1:
+                                        continue
+                                    end = min(start + window, len(source))
+                                    if predicate(int(resolved[start:end].sum())):
+                                        expected[start:end] = 1
+                                        if exclusive:
+                                            claimed_until = end - 1
+                                completions.append(expected)
+                            oracle = np.asarray([
+                                values[0]
+                                if np.all(values == values[0])
+                                else np.nan
+                                for values in np.asarray(completions).T
+                            ])
+                            np.testing.assert_equal(actual, oracle)
+
+    def test_correlated_equality_windows_settle_shared_coverage(self):
+        for exclusive in (False, True):
+            fx = frequency_fx(
+                comparison_fx('=', 1), order=2, big_n=2,
+                exclusive_windows=exclusive,
+            )
+            actual = fx(
+                pd.DataFrame({'x': range(2)}), np.array([[1], [np.nan]])
+            )
+            np.testing.assert_equal(actual, [np.nan, 1])
+
+    def test_exclusive_count_correlation_settles_failed_final_trial(self):
+        fx = frequency_fx(
+            comparison_fx('>=', 2), order=2, big_n=2, exclusive_windows=True,
+        )
+        actual = fx(
+            pd.DataFrame({'x': range(3)}), np.array([[1], [np.nan], [1]])
+        )
+        np.testing.assert_equal(actual, [np.nan, np.nan, 0])
+
+    def test_long_unknown_record_preserves_uncertainty_without_recursion(self):
+        source = np.full((1500, 1), np.nan)
+        frame = pd.DataFrame({'x': range(len(source))})
+        for exclusive in (False, True):
+            fx = frequency_fx(
+                comparison_fx('=', 2), order=2, big_n=3,
+                exclusive_windows=exclusive,
+            )
+            np.testing.assert_equal(fx(frame, source), source[:, 0])
 
     def test_probability_form_not_yet_implemented(self):
         f = comparison_fx('>', 0.5)

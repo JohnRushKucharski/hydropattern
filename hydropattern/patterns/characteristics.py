@@ -25,6 +25,7 @@ from hydropattern.patterns.water_year import (
     or_reduce_per_water_year,
     water_year_probability_ratio,
 )
+from hydropattern.patterns.window_uncertainty import correlated_forward_windows
 
 
 #region comparision functions
@@ -396,12 +397,18 @@ def _forward_frequency_window(eligible: np.ndarray, f: Callable[[float], bool],
     result = np.zeros(length)
     if length == 0:
         return result
-
     count_matches = np.fromiter(
         (bool(f(count)) for count in range(min(big_n, length) + 1)),
         dtype=bool,
         count=min(big_n, length) + 1,
     )
+    monotone = (
+        np.all(count_matches[:-1] <= count_matches[1:])
+        or np.all(count_matches[:-1] >= count_matches[1:])
+    )
+    # Only monotone overlapping coverage is settled by independent count bounds.
+    if np.isnan(eligible).any() and (not monotone or exclusive_windows):
+        return correlated_forward_windows(eligible, f, big_n, exclusive_windows)
     matching_counts = np.concatenate(
         ([0], np.cumsum(count_matches, dtype=int))
     )
