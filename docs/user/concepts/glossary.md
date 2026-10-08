@@ -45,8 +45,9 @@ avoid, so its final known success means non-failure.
 
 **Unknown outcome** means available information cannot determine success or
 failure. It is neither one. Unavailable independent comparisons and duration
-run-boundary uncertainty preserve unknowns. Unknown-aware frequency and annual
-evaluation, plus reporting summaries and explicit coverage, remain planned.
+run-boundary uncertainty preserve unknowns. Un-nested frequency preserves
+unknown counts and uncertain anchors. Annual evaluation, summary rules, and
+explicit coverage remain planned.
 
 **Known-outcome coverage** is the fraction of recorded timesteps whose outcome
 is known, for the column under discussion. Coverage differs from how many known

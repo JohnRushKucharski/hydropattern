@@ -36,8 +36,8 @@ the example's summary. You do not need to write Python.
 
 Some reporting and unknown-outcome changes are implemented; others remain
 planned. Each page describes behavior that exists, while summary denominators
-and explicit coverage remain pending. Glossary terms do not promise every
-planned capability.
+and explicit coverage, plus nested annual uncertainty, remain pending.
+Glossary terms do not promise every planned capability.
 
 ## Scientific context
 

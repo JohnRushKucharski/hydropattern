@@ -88,6 +88,50 @@ Expected diagnostic: `[0, 0, 0, 0, 1]`
 
 Expected component outcome: `[0, 0, 0, 0, 1]`
 
+## Unknown qualifying outcomes
+
+An unknown preceding outcome may be either a qualifying timestep or a
+non-qualifying timestep. Frequency assesses every count allowed by those
+possibilities. For a definite anchor, a window succeeds only when its count
+condition passes for every possible count; it fails when none pass; otherwise
+its verdict is unknown. If the anchor itself is unknown, a passing count is
+only a possible successful window. An unknown timestep is a possible anchor
+unless the condition accepts zero, in which case every timestep is an anchor
+as usual.
+
+With overlapping windows, definite successful coverage takes priority over
+uncertain coverage from another window. For a three-timestep window and
+`frequency = [">=", 1, 3]`:
+
+| Preceding outcomes | Frequency diagnostic |
+|---|---|
+| `[unknown, 0, 0, 0]` | `[unknown, unknown, unknown, 0]` |
+| `[unknown, 1, 0, 0]` | `[unknown, 1, 1, 1]` |
+
+In the first case, the only possible qualifying anchor is the unknown first
+timestep. If it qualifies, its window succeeds; otherwise no window succeeds.
+In the second, the known qualifying timestep at position 2 always starts a
+successful window covering positions 2–4, so it settles those outcomes even
+though the overlapping first window is uncertain.
+
+Exclusive windows preserve uncertainty about which anchors are suppressed.
+For `[unknown, 1, 0, 0]` with the same condition, if the first timestep
+qualifies, its window claims positions 1–3; otherwise the known second
+timestep starts a window claiming positions 2–4. Both schedules agree on the
+middle outcomes:
+
+| Possible schedule | Frequency diagnostic |
+|---|---|
+| First timestep qualifies | `[1, 1, 1, 0]` |
+| First timestep does not qualify | `[0, 1, 1, 1]` |
+| Combined diagnostic | `[unknown, 1, 1, unknown]` |
+
+Unknown counts can still produce definite results. In a three-timestep
+window with two known qualifying timesteps and one unknown, `>= 2` succeeds
+for every possible count, `>= 3` is unknown, and `>= 4` fails. A shortened
+window at the record end uses only the available timesteps in the same
+possible-count assessment.
+
 ## Nested frequency: intra-annual and interannual patterns
 
 Nested frequency first assesses a pattern within each complete water year

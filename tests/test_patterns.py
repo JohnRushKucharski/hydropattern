@@ -727,6 +727,172 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
         # t0 [0,1]=2 True; t1 [1,2]=1 True; t3 [3,4]=2 True; t4 [4,4]=1 True
         np.testing.assert_array_equal(result, np.array([1, 1, 1, 1, 1]))
 
+    def test_unknown_overlapping_windows_union_successful_coverage(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3)
+        frame = pd.DataFrame({'x': range(4)})
+
+        first = fx(frame, np.array([[np.nan], [0], [0], [0]]))
+        second = fx(frame, np.array([[np.nan], [1], [0], [0]]))
+
+        np.testing.assert_equal(first, np.array([np.nan, np.nan, np.nan, 0]))
+        np.testing.assert_array_equal(second, np.array([np.nan, 1, 1, 1]))
+
+    def test_unknown_exclusive_anchor_preserves_possible_schedules(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3, exclusive_windows=True)
+        source = np.array([[np.nan], [1], [1], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1, np.nan]))
+
+    def test_exclusive_unknown_anchor_matches_both_agreed_schedules(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3, exclusive_windows=True)
+        source = np.array([[np.nan], [1], [0], [0]])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1, np.nan]))
+
+    def test_frequency_count_uses_all_possible_unknown_counts(self):
+        frame = pd.DataFrame({'x': range(3)})
+        source = np.array([[1], [1], [np.nan]])
+
+        definite = frequency_fx(comparison_fx('>=', 2), order=2, big_n=3)(
+            frame, source
+        )
+        uncertain = frequency_fx(comparison_fx('>=', 3), order=2, big_n=3)(
+            frame, source
+        )
+        failed = frequency_fx(comparison_fx('>=', 4), order=2, big_n=3)(
+            frame, source
+        )
+
+        np.testing.assert_array_equal(definite, np.ones(3))
+        np.testing.assert_equal(uncertain, np.full(3, np.nan))
+        np.testing.assert_array_equal(failed, np.zeros(3))
+
+    def test_frequency_unknown_count_at_truncated_record_end(self):
+        fx = frequency_fx(comparison_fx('>=', 2), order=2, big_n=3)
+        source = np.array([[0], [1], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_equal(result, np.array([0, np.nan, np.nan]))
+
+    def test_all_count_operators_preserve_unknown_count_verdict(self):
+        operators = ('<', '<=', '>', '>=', '=', '!=')
+        frame = pd.DataFrame({'x': range(1)})
+        source = np.array([[np.nan]])
+
+        for operator in operators:
+            for count in range(2):
+                with self.subTest(operator=operator, count=count):
+                    fx = frequency_fx(
+                        comparison_fx(operator, count), order=2, big_n=1
+                    )
+                    result = fx(frame, source)
+                    possible = {
+                        comparison_fx(operator, count)(value)
+                        for value in (0, 1)
+                    }
+                    expected = (
+                        float(possible.pop())
+                        if len(possible) == 1 else np.nan
+                    )
+                    np.testing.assert_equal(result, np.array([expected]))
+
+    def test_zero_admitting_count_anchors_unknown_timesteps(self):
+        fx = frequency_fx(comparison_fx('=', 0), order=2, big_n=2)
+        source = np.array([[np.nan], [0], [0]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1]))
+
+    def test_between_frequency_uses_inclusive_possible_count_bounds(self):
+        fx = frequency_fx(
+            comparison_fx('<=', 1, '<=', 2), order=2, big_n=3
+        )
+        source = np.array([[1], [0], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_array_equal(result, np.ones(3))
+
+    def test_frequency_combines_multiple_preceding_outcomes_three_valued(self):
+        fx = frequency_fx(comparison_fx('>=', 1), order=3, big_n=1)
+        source = np.array([
+            [np.nan, 1],
+            [1, np.nan],
+            [np.nan, 0],
+            [0, np.nan],
+        ])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, np.nan, 0, 0]))
+
+    def test_unknown_frequency_matches_short_binary_completion_oracle(self):
+        operators = ('<', '<=', '>', '>=', '=', '!=')
+        for source_values in (
+            (1, np.nan),
+            (np.nan, 1, 0),
+            (1, np.nan, 0, 1),
+            (np.nan, 1, 1, np.nan),
+        ):
+            source = np.asarray(source_values, dtype=float)
+            frame = pd.DataFrame({'x': range(len(source))})
+            unknown_indices = np.flatnonzero(np.isnan(source))
+            for window in range(1, min(3, len(source)) + 1):
+                for operator in operators:
+                    for count in range(window + 1):
+                        predicate = comparison_fx(operator, count)
+                        for exclusive in (False, True):
+                            with self.subTest(
+                                source=source_values, window=window,
+                                operator=operator, count=count,
+                                exclusive=exclusive,
+                            ):
+                                actual = frequency_fx(
+                                    predicate, order=2, big_n=window,
+                                    exclusive_windows=exclusive,
+                                )(frame, source.reshape(-1, 1))
+                                completions = []
+                                for bits in range(2 ** len(unknown_indices)):
+                                    resolved = source.copy()
+                                    for bit, index in enumerate(unknown_indices):
+                                        resolved[index] = (bits >> bit) & 1
+                                    expected = np.zeros(len(source))
+                                    claimed_until = -1
+                                    for start in range(len(source)):
+                                        if exclusive and start <= claimed_until:
+                                            continue
+                                        if (
+                                            not predicate(0)
+                                            and resolved[start] != 1
+                                        ):
+                                            continue
+                                        end = min(start + window, len(source))
+                                        if predicate(int(resolved[start:end].sum())):
+                                            expected[start:end] = 1
+                                            if exclusive:
+                                                claimed_until = end - 1
+                                    completions.append(expected)
+                                oracle = np.asarray([
+                                    values[0]
+                                    if np.all(values == values[0])
+                                    else np.nan
+                                    for values in np.asarray(completions).T
+                                ])
+                                # At position zero, only first window can cover.
+                                if window == 1:
+                                    np.testing.assert_equal(actual, oracle)
+                                else:
+                                    np.testing.assert_equal(actual[0], oracle[0])
+
     def test_probability_form_not_yet_implemented(self):
         f = comparison_fx('>', 0.5)
         fx = frequency_fx(f, order=2, big_n=None, exclusive_windows=True)

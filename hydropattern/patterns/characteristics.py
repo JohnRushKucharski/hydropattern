@@ -391,19 +391,90 @@ def duration_fx(f: Callable[[float], bool],
 #region frequency
 def _forward_frequency_window(eligible: np.ndarray, f: Callable[[float], bool],
                              big_n: int, exclusive_windows: bool) -> np.ndarray:
-    result = np.zeros(len(eligible))
-    zero_admitting = f(0)
-    span_end = -1
-    for t in range(len(eligible)):
-        if not zero_admitting and eligible[t] != 1:
+    '''Evaluate forward count windows while preserving unknown trials.'''
+    length = len(eligible)
+    result = np.zeros(length)
+    if length == 0:
+        return result
+
+    count_matches = np.fromiter(
+        (bool(f(count)) for count in range(min(big_n, length) + 1)),
+        dtype=bool,
+        count=min(big_n, length) + 1,
+    )
+    matching_counts = np.concatenate(
+        ([0], np.cumsum(count_matches, dtype=int))
+    )
+    zero_admitting = count_matches[0]
+    known_ones = np.concatenate(([0], np.cumsum(eligible == 1)))
+    unknowns = np.concatenate(([0], np.cumsum(np.isnan(eligible))))
+    possible_success = np.zeros(length, dtype=bool)
+    definite_success = np.zeros(length, dtype=bool)
+    successful_anchor_possible = np.zeros(length, dtype=bool)
+    definite_anchor = np.zeros(length, dtype=bool)
+    possible_fail = np.zeros(length, dtype=bool)
+
+    for start in range(length):
+        end = min(start + big_n, length)
+        ones = int(known_ones[end] - known_ones[start])
+        unknown_count = int(unknowns[end] - unknowns[start])
+        anchor_unknown = not zero_admitting and np.isnan(eligible[start])
+        if not zero_admitting and eligible[start] == 0:
             continue
-        if exclusive_windows and t <= span_end:
+
+        minimum = ones + int(anchor_unknown)
+        maximum = ones + unknown_count
+        matching_count = (
+            matching_counts[maximum + 1] - matching_counts[minimum]
+        )
+        possible_count = maximum - minimum + 1
+        can_pass = matching_count > 0
+        can_fail = matching_count < possible_count
+        if not can_pass:
             continue
-        end = min(t + big_n - 1, len(eligible) - 1)
-        if f(int(eligible[t:end + 1].sum())):
-            result[t:end + 1] = 1
-            if exclusive_windows:
-                span_end = end
+
+        successful_anchor_possible[start] = True
+        definite_anchor[start] = zero_admitting or eligible[start] == 1
+        possible_fail[start] = can_fail
+        possible_success[start:end] = True
+        if definite_anchor[start] and not can_fail:
+            definite_success[start:end] = True
+
+    if not exclusive_windows:
+        result[definite_success] = 1
+        result[possible_success & ~definite_success] = np.nan
+        return result
+
+    schedules = {-1}
+    for timestep in range(length):
+        next_schedules: set[int] = set()
+        has_covered_schedule = False
+        has_uncovered_schedule = False
+        for claimed_until in schedules:
+            if claimed_until >= timestep:
+                next_schedules.add(claimed_until)
+                has_covered_schedule = True
+                continue
+
+            anchor_possible = successful_anchor_possible[timestep]
+            anchor_definite = definite_anchor[timestep]
+            if not anchor_possible or not anchor_definite:
+                next_schedules.add(-1)
+                has_uncovered_schedule = True
+            if anchor_possible:
+                end = min(timestep + big_n - 1, length - 1)
+                next_schedules.add(end)
+                has_covered_schedule = True
+                if possible_fail[timestep]:
+                    next_schedules.add(-1)
+                    has_uncovered_schedule = True
+
+        result[timestep] = (
+            1 if has_covered_schedule and not has_uncovered_schedule
+            else np.nan if has_covered_schedule
+            else 0
+        )
+        schedules = next_schedules
     return result
 
 
@@ -454,7 +525,13 @@ def frequency_fx(f: Callable[[float], bool], order: int,
             )
 
         precedents = output[:, :order-1]
-        eligible = (precedents == 1).all(axis=1).astype(int)
+        known_failure = np.any(
+            (precedents != 1) & ~np.isnan(precedents), axis=1
+        )
+        unknown = np.any(np.isnan(precedents), axis=1) & ~known_failure
+        eligible = np.ones(len(df))
+        eligible[known_failure] = 0
+        eligible[unknown] = np.nan
         return _forward_frequency_window(eligible, f, big_n, exclusive_windows)
     return closure
 
