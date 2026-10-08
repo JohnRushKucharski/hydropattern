@@ -24,6 +24,28 @@ For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference/characteristics/frequency.md) and the
 [pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s3/docs/developer/adr/0003-pattern-correctness-contract.md).
 
+## Next release: unknown annual frequency
+
+Nested annual conditions now retain unknown preceding outcomes instead of
+treating them as failures. An annual fraction uses all observed timesteps in
+a complete water year: one success, one failure, and ten unknown monthly
+trials permit fractions from `1/12` through `11/12`. The `>= 0.5` verdict is
+unknown, not a known-only fraction of `1/2`.
+
+Intra-annual count diagnostics reduce to an annual success if any timestep is
+definitely successful, an annual failure if every timestep is definitely
+zero, and otherwise an unknown. Interannual windows retain these unknown
+annual trials and uncertain anchors, including exclusive scheduling.
+Partial years remain unknown and are excluded from interannual counting.
+Recompute affected nested-frequency results; see the
+[worked annual examples](reference/characteristics/frequency.md#unknown-annual-outcomes).
+
+For direct Python calls, `water_year_probability_ratio` returns `NaN` for a
+complete year containing any unknown trials, because there is no unique scalar
+fraction. Nested condition evaluation still returns a known verdict when all
+attainable fractions agree. Annual condition denominators differ from the
+known-outcome summary denominators scheduled for a later reporting slice.
+
 ## Next release: ordered characteristic tables
 
 This change applies to the next release; its version number has not yet been

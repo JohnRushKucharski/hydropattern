@@ -1,11 +1,11 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** agreed design; R0 baseline and R1–R4 complete; R5–R10 not started.
+**Status:** agreed design; R0 baseline and R1–R5 complete; R6–R10 not started.
 Documentation sequence S3–S5 is complete; S4 is integrated into local
 `main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
-R0 evidence was captured while working on `docs-reporting-r0`. R1–R4 are
+R0 evidence was captured while working on `docs-reporting-r0`. R1–R5 are
 committed on `reporting-metrics`, based on `b05b326`. No changes have been
-merged to `main` or pushed. Continue with R5 only after user approval.
+merged to `main` or pushed. Continue with R6 only after user approval.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -311,7 +311,7 @@ implements; keep the strict documentation build passing.
 | R2. Canonical water years and exposure | R0 | Wire configured boundaries across library/scenario/reporting surfaces. Test January/October/February boundaries, ending-year labels, daily/monthly calendars, monthly mid/end/start dates, optional leap day, partial-year denominators, and full-year exposure of exactly 1. Keep observed summaries available with undetermined completeness for unsupported cadence; reject unsupported time-based requests. No duplicate leap-day boundary or silent January fallback. |
 | R3. Duration uncertainty | R1 | Verify possible run boundaries for thresholds and inclusive bounds; cover known runs on each side of unknowns, all-unknown runs, and record boundaries. Use the agreed length-2/length-1 versus length-4 fixture. Preserve whole-run behavior and settled failures, not only unknown propagation. **Complete and committed on `reporting-metrics`.** |
 | R4. Forward frequency uncertainty | R1, R3 | Test possible counts, unknown anchors, zero-admitting predicates, all six operators, inclusive between bounds, overlap union, exclusive scheduling, and record-end truncation. Reproduce both agreed overlap examples and exclusive `[unknown, 1, 1, unknown]` result. Compare short inputs against a binary-completion oracle; production implementation must not enumerate every unknown assignment. **Complete and committed on `reporting-metrics`.** |
-| R5. Nested annual uncertainty | R2, R4 | Test whole-year possible fractions, 12-month examples, definite annual thresholds, count/between annual reduction, unknown annual anchors, exclusive interannual schedules, annual broadcasting, and partial-year exclusion. Remove unknown-to-zero conversion. Preserve existing fully known nested examples. |
+| R5. Nested annual uncertainty | R2, R4 | Test whole-year possible fractions, 12-month examples, definite annual thresholds, count/between annual reduction, unknown annual anchors, exclusive interannual schedules, annual broadcasting, and partial-year exclusion. Remove unknown-to-zero conversion. Preserve existing fully known nested examples. **Complete on `reporting-metrics`.** |
 | R6. Summary fractions and mode removal | R2, R5 | Use per-column known denominators; test 50% example, zero-success versus all-unknown, empty groups, unequal annual coverage, and whole-record aggregation. Make `Result.frequency_table()` and formatter summaries agree on boundaries, counts, and percentages. Reject `return_period` with guidance; remove its enum and all consumers without retaining an alias. |
 | R7. Event bounds and rates | R2, R5 | Add named count/rate bounds and scalar ambiguity errors. Test `[1, unknown, 1]` → 1–2, all-unknown patterns, definite zero/counts, conservative bounds from final arrays, record-start runs, cross-year attribution, partial-year exposure, unsupported cadence, and positive-exposure validation. Small exhaustive tests establish correct MVP bounds without claiming source-dependency exactness. |
 | R8. Reporting details | R6, R7 | Preserve existing metric sheets/raw files; add successful/known/total counts, coverage, completeness, component event bounds, exposure, and availability reasons. Test scenario/column alignment, partial-year rows, sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency. |
@@ -470,7 +470,7 @@ matrices; add reporting details and companion coverage data without replacing
 them. Preserve CLI explicit-override precedence and the `--run-toml-options`
 conflict rule while extending plot options.
 
-R1–R4 were implemented after R0. Do not implement optional R11 as an
+R1–R5 were implemented after R0. Do not implement optional R11 as an
 implicit prerequisite or expand MVP while correcting unrelated issues.
 
 ## Implementation progress (2026-10-08)
@@ -533,7 +533,22 @@ implicit prerequisite or expand MVP while correcting unrelated issues.
   records; no source assignments are enumerated and fully known behavior retains
   its fast path.
 
-R5 is next in sequence; wait for user approval before starting. Do not start
+- **R5 complete:** shared three-valued conjunction retains unknown trials
+  unless another preceding condition settles failure. Annual fractions assess
+  every attainable qualifying count over all observed yearly timesteps;
+  agreement yields a known verdict, disagreement yields NaN. Scalar annual
+  ratios remain undefined when any trial is unknown. Annual count/between
+  diagnostics reduce to 1 on any definite success, 0 only on all definite
+  zeros, otherwise unknown. Unknown yearly trials reach the correlated
+  interannual engine without conversion to zero; complete-year outcomes
+  broadcast and partial years remain excluded. Monthly examples, six-operator
+  fraction oracles, nested equality/zero/between conditions, exclusive
+  schedules, component dispatch, and fully known regressions are covered.
+  Updated frequency reference, migration notes, glossary, and index.
+- Validation: `uv run pytest -q` passed (760 tests), `uv run mypy hydropattern/`,
+  `uv run mkdocs build --strict`, and `git diff --check` passed.
+
+R6 is next in sequence; wait for user approval before starting. Do not start
 R6–R10 ahead of their dependencies or implement optional R11 without further
 authorization.
 

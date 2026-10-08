@@ -148,8 +148,8 @@ use timesteps; interannual count windows use water years. Each count pattern
 can set `exclusive_windows` independently.
 
 An intra-annual fraction condition compares the fraction of qualifying
-timesteps in each complete water year with a threshold when outcomes are
-fully known. It is evaluated once for that water year, then the verdict is
+timesteps among **all observed timesteps** in each complete water year with
+a threshold. It is evaluated once for that water year, then the verdict is
 repeated across its timesteps. This annual fraction form is not a frequency
 window, so its `exclusive_windows` setting has no effect. An intra-annual
 count pattern instead evaluates timestep windows within each complete water
@@ -209,5 +209,46 @@ Expected component outcome: `[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 The first interannual window contains one qualifying water year and marks the
 first two years. The third year qualifies under the intra-annual condition
 and is marked by its own shortened final window. These examples use fully
-known outcomes; uncertain annual outcomes and annual reporting details are
-documented only with their implementation.
+known outcomes.
+
+### Unknown annual outcomes
+
+Unknown trials remain in the annual fraction denominator. If a complete
+12-month water year contains one qualifying month, one failed month, and ten
+unknown months, its possible fractions are `1/12`, `2/12`, through `11/12`,
+not `1/2`. The annual verdict is known only when the condition agrees for
+every attainable fraction, including equality and inequality comparisons.
+
+For an intra-annual condition of `>= 0.5`:
+
+| Monthly qualifying outcomes | Possible fractions | Intra-annual verdict |
+|---|---|---|
+| One success, one failure, ten unknowns | `1/12` through `11/12` | unknown |
+| Seven successes, five unknowns | `7/12` through `12/12` | 1 |
+| Seven failures, five unknowns | `0/12` through `5/12` | 0 |
+| Twelve unknowns | `0/12` through `12/12` | unknown |
+
+The verdict is broadcast across every timestep of that complete water year.
+These fractions assess the annual **condition**; they are not summary
+fractions calculated over known outcomes.
+
+Intra-annual count and between patterns use the same unknown-aware timestep
+windows as un-nested frequency, resetting at water-year boundaries. For
+interannual counting, a year qualifies if any intra-annual diagnostic is
+definitely successful. It fails only if every diagnostic is definitely zero;
+zeros mixed with unknowns yield an unknown annual verdict.
+
+An unknown annual verdict remains a possible qualifying anchor; it is not
+converted to failure. Interannual windows preserve shared-trial correlations
+and possible exclusive schedules just like timestep windows. For annual
+verdicts `[unknown, 1, 0, 0]` with `>= 1` in three-water-year windows:
+
+| Window rule | Interannual verdicts |
+|---|---|
+| Overlapping | `[unknown, 1, 1, 1]` |
+| Exclusive | `[unknown, 1, 1, unknown]` |
+
+Each interannual verdict broadcasts over its entire complete water year.
+Partial years remain unknown and are excluded from the interannual trial
+sequence; they neither anchor nor occupy a trial in a window. This exclusion
+does not affect un-nested frequency, which can cross water-year boundaries.

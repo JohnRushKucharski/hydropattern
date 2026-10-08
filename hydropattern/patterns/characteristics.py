@@ -23,9 +23,18 @@ from hydropattern.patterns.core import (
 from hydropattern.patterns.water_year import (
     identify_full_water_years,
     or_reduce_per_water_year,
-    water_year_probability_ratio,
 )
 from hydropattern.patterns.window_uncertainty import correlated_forward_windows
+
+
+def _qualifying_timesteps(precedents: np.ndarray) -> np.ndarray:
+    '''Combine preceding outcomes: failure settles, otherwise unknown remains.'''
+    failure = np.any((precedents != 1) & ~np.isnan(precedents), axis=1)
+    unknown = np.any(np.isnan(precedents), axis=1) & ~failure
+    eligible = np.ones(len(precedents))
+    eligible[failure] = 0
+    eligible[unknown] = np.nan
+    return eligible
 
 
 #region comparision functions
@@ -257,14 +266,7 @@ def duration_fx(f: Callable[[float], bool],
         validate_order(order, output, CharacteristicType.DURATION)
         assert output is not None # for mypy: checked by validate_order
 
-        precedents = output[:, :order - 1]
-        eligible = np.full(len(df), 1.0)
-        known_failure = np.any(
-            (precedents != 1) & ~np.isnan(precedents), axis=1
-        )
-        unknown = np.any(np.isnan(precedents), axis=1) & ~known_failure
-        eligible[known_failure] = 0
-        eligible[unknown] = np.nan
+        eligible = _qualifying_timesteps(output[:, :order - 1])
 
         length = len(eligible)
         if not np.isnan(eligible).any():
@@ -531,14 +533,7 @@ def frequency_fx(f: Callable[[float], bool], order: int,
                 '(see notes/frequencyEnhancement-resolved.md).'
             )
 
-        precedents = output[:, :order-1]
-        known_failure = np.any(
-            (precedents != 1) & ~np.isnan(precedents), axis=1
-        )
-        unknown = np.any(np.isnan(precedents), axis=1) & ~known_failure
-        eligible = np.ones(len(df))
-        eligible[known_failure] = 0
-        eligible[unknown] = np.nan
+        eligible = _qualifying_timesteps(output[:, :order - 1])
         return _forward_frequency_window(eligible, f, big_n, exclusive_windows)
     return closure
 
@@ -558,10 +553,18 @@ def _intra_annual_diagnostic(
     diag = np.full(len(eligible), np.nan)
     full_years = identify_full_water_years(dowy, timestamps)
     if big_n is None:
-        ratios = water_year_probability_ratio(eligible, dowy, timestamps=timestamps)
         for start, end in full_years:
-            if not np.isnan(ratios[end]):
-                diag[start:end + 1] = 1 if f(ratios[end]) else 0
+            year = eligible[start:end + 1]
+            known_count = int(np.count_nonzero(year == 1))
+            unknown_count = int(np.count_nonzero(np.isnan(year)))
+            possible_verdicts = [
+                bool(f(count / len(year)))
+                for count in range(known_count, known_count + unknown_count + 1)
+            ]
+            if all(possible_verdicts):
+                diag[start:end + 1] = 1
+            elif not any(possible_verdicts):
+                diag[start:end + 1] = 0
         return diag
 
     for start, end in full_years:
@@ -603,8 +606,7 @@ def nested_frequency_intra_annual_fx(f: Callable[[float], bool], order: int,
 
         dowy = np.asarray(df.iloc[:, -1].values, dtype=float)
         timestamps = df.index if isinstance(df.index, pd.DatetimeIndex) else None
-        precedents = output[:, :order-1]
-        eligible = (precedents == 1).all(axis=1).astype(int)
+        eligible = _qualifying_timesteps(output[:, :order - 1])
 
         return _intra_annual_diagnostic(
             eligible, dowy, timestamps, f, big_n, exclusive_windows
@@ -663,8 +665,7 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
         full_years = identify_full_water_years(dowy, timestamps)
         compact_verdicts = np.array([year_verdicts[end] for _, end in full_years])
         compact_diag = _forward_frequency_window(
-            np.nan_to_num(compact_verdicts, nan=0).astype(int),
-            f, big_n, exclusive_windows
+            compact_verdicts, f, big_n, exclusive_windows
         )
 
         result = np.full(len(intra_annual), np.nan)

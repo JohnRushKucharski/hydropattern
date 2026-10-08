@@ -256,7 +256,7 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
                                  timestamps: pd.DatetimeIndex | None = None) -> np.ndarray:
     '''
     Computes, for each full water year (see identify_full_water_years), the
-    ratio of eligible timesteps to valid timesteps in a (0/1) trial array.
+    ratio of qualifying timesteps to all observed timesteps in a (0/1) array.
     This is the statistic behind a nested frequency pattern's intra-annual
     `[operator, probability]` base form.
 
@@ -266,9 +266,10 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
 
     Parameters
     ----------
-        eligible (np.ndarray): 0/1 trial outcomes (e.g. AND of preceding
-            characteristic columns); NaN entries are excluded from numerator
-            and denominator.
+        eligible (np.ndarray): 0/1/NaN trial outcomes (e.g. AND of preceding
+            characteristic columns). An unknown trial makes the scalar annual
+            ratio undefined (NaN); nested frequency evaluates all possible
+            fractions instead.
         dowy (np.ndarray): day-of-water-year values (1-365), same length as
             `eligible`.
         exclusive_windows (bool): has no effect because a single annual
@@ -286,11 +287,8 @@ def water_year_probability_ratio(eligible: np.ndarray, dowy: np.ndarray,
     result = np.full(len(eligible), np.nan)
     for start, end in identify_full_water_years(dowy, timestamps):
         year = eligible[start:end + 1]
-        valid = ~np.isnan(year)
-        valid_count = int(valid.sum())
-        if valid_count:
-            successes = int(np.count_nonzero(year[valid] == 1))
-            result[end] = successes / valid_count
+        if not np.isnan(year).any():
+            result[end] = np.count_nonzero(year == 1) / len(year)
     return result
 
 def windowed_count_per_water_year(eligible: np.ndarray, dowy: np.ndarray,
@@ -339,8 +337,8 @@ def or_reduce_per_water_year(
     partial years).
 
     Verdict rule: `1` if any `1` is present among the year's non-NaN cells;
-    `0` if only `0`s are present; `NaN` only if every cell in the year is NaN
-    (insufficient history all year).
+    `0` if every cell is `0`; `NaN` when there is no definite success and
+    at least one unknown outcome.
 
     Parameters
     ----------
@@ -360,8 +358,8 @@ def or_reduce_per_water_year(
     result = np.full(len(diag), np.nan)
     for start, end in identify_full_water_years(dowy, timestamps):
         year = diag[start:end + 1]
-        non_nan = year[~np.isnan(year)]
-        if len(non_nan) == 0:
-            continue  # remains NaN: entire year is insufficient-history
-        result[end] = 1.0 if np.any(non_nan == 1) else 0.0
+        if np.any(year == 1):
+            result[end] = 1
+        elif np.all(year == 0):
+            result[end] = 0
     return result

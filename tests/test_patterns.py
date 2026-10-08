@@ -954,7 +954,7 @@ class TestOrReducePerWaterYear(unittest.TestCase):
         diag = np.array([np.nan, np.nan, 1, 0, 0, 0, np.nan, np.nan, 0, 0, 0, 0])
         result = or_reduce_per_water_year(diag, dowy)
         self.assertEqual(result[5], 1.0)
-        self.assertEqual(result[11], 0.0)
+        self.assertTrue(np.isnan(result[11]))
 
     def test_all_nan_year_stays_nan(self):
         dowy = np.array([1, 2, 3])
