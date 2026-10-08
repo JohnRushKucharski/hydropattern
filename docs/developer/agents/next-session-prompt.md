@@ -10,7 +10,9 @@ Before any implementation:
    and `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
 2. Confirm current branch, clean status, and commit history. `main`,
    `docs-reporting-s5`, and `docs-reporting-r0` intentionally remain at
-   `b05b326`; previous documentation branches remain unchanged.
+   `b05b326`; previous documentation branches remain unchanged. Local `main`
+   is already ten commits ahead of `origin/main` from earlier approved work;
+   do not push it.
 3. Review R1/R2 completion notes in the reporting plan and run focused tests if
    state differs from this handoff.
 4. Report understanding and identify R3 as next. Wait for user approval before
