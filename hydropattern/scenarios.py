@@ -146,11 +146,13 @@ def evaluate_scenarios(timeseries: Timeseries, components: list[Component]) -> S
     '''
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {
-        name: evaluate_components(df, components) for name, df in scenarios.items()
+        name: evaluate_components(
+            df, components, first_day_of_water_year=timeseries.first_day_of_water_year
+        )
+        for name, df in scenarios.items()
     }
     return ScenarioResults(scenario_results, timeseries.first_day_of_water_year,
                           timeseries.file_path)
 
 
 __all__ = ['ScenarioResults', 'evaluate_scenarios', 'split_scenarios']
-

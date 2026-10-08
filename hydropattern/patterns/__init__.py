@@ -44,6 +44,8 @@ from hydropattern.patterns.water_year import (
     identify_full_water_years,
     or_reduce_per_water_year,
     record_length_years,
+    water_year_label,
+    water_year_exposure,
     water_year_probability_ratio,
     windowed_count_per_water_year,
 )

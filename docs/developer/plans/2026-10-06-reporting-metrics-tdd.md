@@ -1,10 +1,12 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** agreed design; implementation not started.
+**Status:** agreed design; R0 baseline and R1/R2 complete; R3–R10 not started.
 Documentation sequence S3–S5 is complete; S4 is integrated into local
-`main`, while S5 is committed on `docs-reporting-s5`, not integrated or
-pushed. S6 / R0 baseline is next, subject to explicit user approval.
-Do not repeat documentation slices or start R1–R10 before R0.
+`main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
+R0 evidence was captured while working on `docs-reporting-r0`. R1/R2 are
+committed on `docs-reporting-r1-r2`, based on `b05b326`; no changes have been
+merged to `main` or pushed. Continue with R3 only after reviewing this
+progress record and the sequence plan.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -317,8 +319,183 @@ implements; keep the strict documentation build passing.
 | R9. Coverage-aware response surfaces | R6, R8 | Add fractional `minimum_coverage` default 0.9 to TOML, CLI override/conflict resolution, and Python surfaces. Test exact 90%, below/above cutoff, zero cutoff, all-unknown, invalid/nonfinite/bool values, portion/percentage equivalence, protected gaps, `fillin` conflict, grid coverage data, explicit no-surface failure, custom labels/maps, and consistent default coloring. Preserve valid exported data on plotting failure. Verify actual rendered masks for interpolation on/off rather than testing only input arrays. |
 | R10. Documentation and release readiness | R1–R9 | Complete dedicated unknown-outcome section and characteristic/reporting/plotting/API examples. Add executable fixtures for every agreed worked example. Explain breaking changes, optional leap-day trade-off, MVP bounds, coverage cutoff, reciprocal removal, and changed colors. Coordinate with the user-documentation redesign and next matching release; keep unreleased notice accurate. |
 
-R1 and R2 may proceed independently after R0. Do not implement optional R11
-as an implicit prerequisite or expand MVP while correcting unrelated issues.
+## R0 baseline record (2026-10-08)
+
+Baseline was captured on branch `docs-reporting-r0` from S5 commit `b05b326`.
+No scientific or application code changed during R0. The recorded environment
+was Python 3.12.4, NumPy 2.5.1, pandas 2.3.3, Matplotlib 3.11.1,
+climate-canvas 0.1.0, and SciPy 1.18.0.
+
+### Current API and output shapes
+
+- `evaluate_component()` returns a `Result` whose `df` contains the selected
+  flow column, `dowy`, one diagnostic column per characteristic, and one final
+  component-outcome column. Its time index is retained as a `DatetimeIndex`
+  when supplied.
+- `ScenarioResults.summary()` returns a DataFrame with scenario names as
+  columns and `total` plus water-year labels as rows; without a component name,
+  it returns a component-name-to-DataFrame mapping. `to_excel()` and `to_csv()`
+  return the output directory and retain the raw timestep layouts.
+- `Result.frequency_table()` returns one row by default, with `T`, each
+  characteristic and its percentage, and the component and its percentage.
+  With `by_water_years=True`, it adds groups based on calendar-year labels
+  from `identify_water_years()`, not the configured water-year boundary.
+- `Result.event_count()` returns an integer and treats each unknown outcome as
+  a run break: `[1, unknown, 1]` currently returns 2. `Result.event_rate()`
+  returns a float using `record_length_years()`, which counts complete,
+  cadence-verified water years and rejects records without supported complete
+  years. These scalar APIs cannot express uncertainty.
+- `MetricMode` and `[output.metric].mode` currently accept `portion`,
+  `percentage`, and `return_period`. Plot configuration contains `enabled`
+  and `climate-canvas` options, including `fillin`; CLI exposes overrides for
+  plotting, interpolation, display, threshold, color map/ticks, and filling.
+  `--run-toml-options` rejects explicit output overrides. No
+  `minimum_coverage` option exists in configuration, CLI, or Python APIs.
+- Plotting requires scenario names in
+  `_<precipitation_delta>_<temperature_delta>` form with at least two distinct
+  values on each axis. The grid CSV represents missing scenario combinations
+  with NaN; current summaries convert all-unknown outcomes to zero, so
+  undefined outcome summaries do not reach the renderer. Output currently
+  consists of raw result files, per-component summary workbooks, and—when
+  plotting succeeds—grid CSV and PNG files. No reporting-details sheet or
+  companion coverage file exists.
+
+### Implementation and documentation consumers
+
+- `hydropattern/patterns/core.py` owns component combination, `Result` output
+  columns, `frequency_table()`, `event_count()`, and `event_rate()`.
+  `patterns/characteristics.py` prepares duration/frequency inputs and
+  comparison results; `patterns/water_year.py` supplies completeness,
+  annual-reduction, and exposure helpers.
+- `hydropattern/formatters.py` owns summary denominators, workbook/CSV output,
+  response-surface summary values, color-map direction, and renderer calls.
+  `hydropattern/scenarios.py` exposes in-memory summaries, export methods, and
+  plotting to library callers.
+- `hydropattern/parsing/specs.py` defines metric and plot option models;
+  `hydropattern/parsing/options.py` parses TOML modes and plot settings.
+  `hydropattern/cli.py` defines plot overrides and their precedence/conflict
+  behavior. `hydropattern/scenario_grid.py` validates coordinates and creates
+  grids with NaN for absent combinations.
+- Existing user-facing consumers are `docs/user/guide/outputs.md`,
+  `docs/user/guide/plotting.md`, `docs/user/reference/configuration.md`,
+  `docs/user/reference/cli.md`, `docs/user/migration.md`,
+  `docs/user/concepts/glossary.md`, and `docs/user/api/index.md`. Characteristic
+  uncertainty explanations belong on the affected reference pages; the
+  sequence plan maps R1–R10 to their specific user pages. No dedicated
+  unknown-outcome page exists yet.
+
+### Current summary and event behavior
+
+Observed probes confirm that `compute_portion_series()` and
+`Result.frequency_table()` divide successes by all recorded rows, including
+unknowns. `[1, 0, unknown, unknown]` therefore yields 25% rather than the
+agreed 50%; an all-unknown column yields zero rather than an undefined summary.
+Each characteristic and component column computes its own success count but
+uses the same all-row denominator. The known-outcome denominator change is
+therefore a reporting behavior change, not a currently implemented policy.
+
+`evaluate_component()` rejects missing values in input data. Unavailable
+calculations created internally, such as moving-average startup values and
+restricted rate denominators, pass through ordinary comparisons and become
+binary outcomes; `!=` can mark an unavailable NaN calculation as success.
+Duration and frequency eligibility preparation also converts unknown
+predecessors into non-qualifying binary inputs.
+
+`Result.identify_water_years()` labels rows by calendar year. Formatter
+summaries instead accept `first_day_of_wy` and calculate ending-year labels.
+`Result` does not retain configured water-year-boundary metadata. Current
+event-rate exposure comes from `record_length_years()`, using only complete
+cadence-supported water years; the R7 whole-record exposure policy must replace
+this convention.
+
+### Renderer feasibility
+
+The installed renderer was exercised with 2-by-2 partial, all-missing,
+constant, single-point, diagonal-two-point, and three-point grids, with
+interpolation on/off and filling on/off where applicable. The hydropattern
+scenario-grid guard separately requires two distinct coordinates per axis.
+
+- A partial grid with multiple known values renders. A completely missing
+  grid raises `ValueError: vmin, vcenter, vmax must increase monotonically`
+  and writes no plot.
+- The renderer's default `TwoSlopeNorm` rejects a constant finite grid.
+  hydropattern's `_degenerate_range_norm()` supplies a `Normalize` escape
+  hatch; through that wrapper, both constant grids and a single finite point
+  render. A single finite point is only one colored cell, not a two-dimensional
+  response region; successful function return alone is not a sufficient
+  success criterion for R9.
+- Sparse grids with two or three distinct known points render as sparse cells.
+  Delaunay filling requires at least three non-collinear points. For a 3-by-3
+  grid with one unknown center and eight known surrounding values, interpolation
+  without `fillin` leaves 48 of 169 resampled cells finite and the center
+  unknown; interpolation with `fillin=True` makes all 169 cells finite and
+  fills the center with 0.5. The renderer has no protected-gap mask, confirming
+  that R9 must reject `fillin=True` when scenarios are withheld.
+- R9 must distinguish renderer acceptance from a meaningful nonblank
+  response region, validate masks on actual rendered output, and explicitly
+  report all-missing or otherwise unrenderable surfaces while retaining
+  summaries and grid/coverage exports. Do not infer success from a PNG path
+  alone.
+
+### Performance baseline
+
+Seven-run median timings were measured after imports on this Windows
+environment. Each `evaluate_component()` workload used a varied-flow fixture
+from `default_rng(41)`, with magnitude `> 2.5`, duration `[2, 30]`, and
+un-nested frequency `>= 2` over a maximum 30-timestep window. The daily
+10-calendar-year series had 3,653 rows; the monthly series had 120 rows.
+Results were 12.727 ms daily and 2.401 ms monthly.
+
+For dense-unknown baseline inputs, direct duration and frequency characteristic
+functions received diagnostic arrays with 3,476 of 3,653 daily entries and
+116 of 120 monthly entries unknown (generated with a 95% target probability).
+Together they took 4.547 ms daily and 0.154 ms monthly. Neither output
+contained NaN: current eligibility preparation turns unknown predecessors
+into non-qualifying binary inputs. These timings establish a reference only;
+they do not measure the uncertainty-preserving algorithms planned for R1–R5
+or set a performance target.
+
+### Behavior-change inventory
+
+R1–R9 will change unknown propagation through comparisons, duration/frequency,
+and annual evaluation; summary denominators and all-unknown handling; event
+count/rate bounds and exposure; optional-leap-day/completeness handling;
+removal of `return_period`; response-surface coverage eligibility, protected
+gaps, and default coloring; and additive reporting details. Do not describe
+these as implemented before their slices land.
+
+Preserve fully known evaluation behavior and existing published arrays except
+where the agreed calendar, reporting, exposure, mode-removal, or color changes
+explicitly apply. Keep raw timestep CSV/Excel layouts and existing metric
+matrices; add reporting details and companion coverage data without replacing
+them. Preserve CLI explicit-override precedence and the `--run-toml-options`
+conflict rule while extending plot options.
+
+R1 and R2 were implemented after R0. Do not implement optional R11 as an
+implicit prerequisite or expand MVP while correcting unrelated issues.
+
+## Implementation progress (2026-10-08)
+
+- **R1 complete:** unavailable order-1 comparison inputs remain NaN, including
+  moving-average startup and restricted rate denominators. Updated comparisons
+  for `!=`, retained known verdict behavior, and updated existing expectations.
+  Existing component-truth/failure-inversion/terminal-frequency tests pass.
+- **R2 complete:** canonical ending-year labels now share one validated helper;
+  `Result` stores/uses configured boundary metadata and scenario evaluation
+  propagates it. Direct `Result` callers must supply a boundary; timestamp+DOWY
+  callers may establish one unambiguously. February 28/29 no longer create two
+  water years. Daily completeness permits omitted February 29 only. Added
+  cadence-validated daily/monthly observed-exposure helper with the agreed
+  365/366/12 denominators; `Result.event_rate()` remains on old complete-year
+  exposure until R7.
+- Focused reporting/pattern tests passed; full suite passed (705 tests),
+  `mypy hydropattern/` passed, and strict MkDocs build passed.
+- User-facing updates clarify unavailable independent comparisons and
+  configured water-year labels/exposure. Full uncertainty and migration
+  documentation remains assigned to R10.
+
+R3 is next in sequence. Do not start R4–R10 ahead of their dependencies or
+implement optional R11 without further authorization.
 
 ## Validation and completion
 

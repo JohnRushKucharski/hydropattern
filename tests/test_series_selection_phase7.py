@@ -117,7 +117,7 @@ def test_selected_flow_drives_rate_of_change():
 
     result = evaluate_component(_dataframe(), component, data_column=1)
 
-    np.testing.assert_array_equal(result.df['rate_of_change_gt2.0'], [0, 0, 1])
+    np.testing.assert_array_equal(result.df['rate_of_change_gt2.0'], [np.nan, 0, 1])
 
 
 @pytest.mark.parametrize('data_column', [-1, 2, 3, True, 1.0])

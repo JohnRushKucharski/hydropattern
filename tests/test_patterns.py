@@ -25,6 +25,7 @@ from hydropattern.patterns import (
     rate_of_change_fx,
     sliding_window_count,
     timing_fx,
+    water_year_label,
     water_year_probability_ratio,
     windowed_count_per_water_year,
 )
@@ -45,6 +46,33 @@ df = pd.DataFrame({'col1': [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
 
 class TestPatterns(unittest.TestCase):
     '''Tests for the patterns module.'''
+    def test_water_year_label_uses_ending_year_convention(self):
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-09-30'), 274), 2020
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-10-01'), 274), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-01-01'), 1), 2020
+        )
+
+    def test_water_year_label_normalizes_february_boundary(self):
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-02-28'), 59), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-02-29'), 59), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-03-01'), 60), 2021
+        )
+
+    def test_water_year_label_rejects_invalid_boundary(self):
+        for boundary in (0, 366, True, 1.5):
+            with self.subTest(boundary=boundary), self.assertRaises(ValueError):
+                water_year_label(pd.Timestamp('2020-01-01'), boundary)
+
     #region: comparison_fx tests
     #region: single symbol
     def test_comparison_fx_lt(self):
@@ -250,15 +278,15 @@ class TestPatterns(unittest.TestCase):
         fx = rate_of_change_fx(comparison_fx('>', 1, None, None))
         df_ = pd.DataFrame({'col1': [0, 1, 2, 1] ,'col2': [1.0, 2.0, 3.0, 4.0]})
         # rate of change is [nan, 1/0, 2/1, 1/2] -> [nan, nan, 2.0, 0.5]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0]))
 
         # LT decreasing rate of change
         fx = rate_of_change_fx(comparison_fx('<', 1, None, None))
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 0, 1]))
 
         # BETWEEN decreasign rate of change
         fx = rate_of_change_fx(comparison_fx('<', 0.25, '<', 0.75))
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 0, 1]))
 
     def test_rate_of_change_fx_with_ma_periods(self):
         '''Test rate_of_change_fx with moving average periods.'''
@@ -268,7 +296,7 @@ class TestPatterns(unittest.TestCase):
         # moving average (2): [nan, 2.0, 4.0, 6.0, 5.0]
         # rate of change: [nan, nan, 4.0/2.0, 6.0/4.0, 5.0/6.0] = [nan, nan, 2.0, 1.5, 0.833...]
         # comparison > 1.5: [0, 0, 1, 0, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0, 0]))
 
     def test_rate_of_change_fx_with_look_back(self):
         '''Test rate_of_change_fx with non-default look_back period.'''
@@ -278,7 +306,7 @@ class TestPatterns(unittest.TestCase):
         # rate of change look_back=2: [nan, nan, 4.0/1.0, 10.0/2.0, 12.0/4.0, 15.0/10.0]
         #                            = [nan, nan, 4.0, 5.0, 3.0, 1.5]
         # comparison > 2.0: [0, 0, 1, 1, 1, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 1, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 1, 1, 0]))
 
     def test_rate_of_change_fx_with_minimum(self):
         '''Test rate_of_change_fx with non-default minimum threshold.'''
@@ -288,7 +316,7 @@ class TestPatterns(unittest.TestCase):
         # Values <= 1.0 become nan: [nan, 2.0, 4.0, 6.0]
         # rate of change: [nan, nan, 4.0/2.0, 6.0/4.0] = [nan, nan, 2.0, 1.5]
         # comparison > 1.5: [0, 0, 1, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0]))
 
     def test_rate_of_change_fx_with_ma_and_lookback(self):
         '''Test rate_of_change_fx with both ma_periods and look_back non-default.'''
@@ -299,7 +327,9 @@ class TestPatterns(unittest.TestCase):
         # rate of change look_back=2: [nan, nan, nan, 7.0/3.0, 9.0/5.0, 11.0/7.0]
         #                            = [nan, nan, nan, 2.333..., 1.8, 1.571...]
         # comparison > 2.0: [0, 0, 0, 1, 0, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1, 0, 0])))
+        np.testing.assert_array_equal(
+            fx(df_), np.array([np.nan, np.nan, np.nan, 1, 0, 0])
+        )
 
     def test_rate_of_change_fx_order2(self):
         '''Test rate_of_change_fx with order=2 (second characteristic in sequence).'''
@@ -314,7 +344,7 @@ class TestPatterns(unittest.TestCase):
         o = np.ones(shape=(len(df_), order-1))
         result = fx(df_, o)
         # With order check, only rows where output[:, 0:order-1] are all 1s
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
+        np.testing.assert_array_equal(result, np.array([np.nan, 1, 1, 0, 0, 0]))
 
     def test_rate_of_change_fx_order3_ignores_precedents(self):
         '''rate_of_change is an independent diagnostic (see docs/developer/plans/2026-10-01-
@@ -332,9 +362,44 @@ class TestPatterns(unittest.TestCase):
         o = np.zeros(shape=(len(df_), order-1))
         o[1:4, :] = 1  # rows 1, 2, 3 pass previous characteristics
         result = fx(df_, o)
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 1, 1])))
+        np.testing.assert_array_equal(result, np.array([np.nan, 1, 1, 0, 1, 1]))
     #endregion
     #endregion
+
+class TestUnknownPreservingComparisons(unittest.TestCase):
+    def test_moving_average_startup_remains_unknown_for_not_equal(self):
+        component = Component(
+            name='component',
+            characteristics=[
+                Characteristic(
+                    'magnitude',
+                    magnitude_fx(comparison_fx('!=', 2.5), ma_periods=3),
+                    CharacteristicType.MAGNITUDE,
+                ),
+            ],
+            is_success_pattern=True,
+        )
+        data = pd.DataFrame(
+            {'flow': [1.0, 2.0, 3.0, 4.0, 5.0], 'dowy': [1, 2, 3, 4, 5]},
+            index=pd.date_range('2020-01-01', periods=5, name='time'),
+        )
+
+        result = evaluate_component(data, component)
+
+        np.testing.assert_array_equal(
+            result.df['component'].to_numpy(),
+            np.array([np.nan, np.nan, 1.0, 1.0, 1.0]),
+        )
+
+    def test_restricted_rate_denominators_remain_unknown_for_not_equal(self):
+        fx = rate_of_change_fx(comparison_fx('!=', 1.0), minimum=0.0)
+        data = pd.DataFrame({'flow': [1.0, 0.0, -1.0, 2.0]})
+
+        result = fx(data)
+
+        np.testing.assert_array_equal(
+            result, np.array([np.nan, 1.0, np.nan, np.nan])
+        )
 
 class TestMarkWindows(unittest.TestCase):
     '''Tests for the mark_windows frequency window-marking engine.'''

@@ -120,7 +120,48 @@ class TestEvaluateScenarios(unittest.TestCase):
         result = evaluate_scenarios(ts, components)
 
         self.assertEqual(result.first_day_of_water_year, 274)
+        self.assertEqual(
+            result.scenario_results['value'][0].first_day_of_water_year, 274
+        )
 
+    def test_result_water_year_labels_use_configured_boundary(self):
+        dates = pd.to_datetime(['2020-09-30', '2020-10-01', '2020-10-02'])
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        ts = Timeseries.from_dataframe(data, first_dowy=274)
+        evaluated = evaluate_scenarios(ts, _above_threshold_component())
+        result = evaluated.scenario_results['value'][0]
+
+        labels = result.identify_water_years()['water_year'].tolist()
+
+        self.assertEqual(labels, [2020, 2021, 2021])
+
+    def test_result_water_year_labels_require_boundary_for_direct_callers(self):
+        dates = pd.date_range('2020-09-30', periods=3, freq='D')
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        result = evaluate_scenarios(
+            Timeseries.from_dataframe(data), _above_threshold_component()
+        ).scenario_results['value'][0]
+        result.first_day_of_water_year = None
+
+        with self.assertRaisesRegex(ValueError, 'first_day_of_water_year is required'):
+            result.identify_water_years()
+
+        labels = result.identify_water_years(first_day_of_water_year=274)
+        self.assertEqual(labels['water_year'].tolist(), [2020, 2021, 2021])
+
+    def test_result_rejects_conflicting_water_year_boundary(self):
+        dates = pd.date_range('2020-09-30', periods=3, freq='D')
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        result = evaluate_scenarios(
+            Timeseries.from_dataframe(data, first_dowy=274),
+            _above_threshold_component(),
+        ).scenario_results['value'][0]
+
+        with self.assertRaisesRegex(ValueError, 'conflicts with Result'):
+            result.identify_water_years(first_day_of_water_year=1)
 
 class TestByComponent(unittest.TestCase):
     '''Tests for ScenarioResults.by_component.'''

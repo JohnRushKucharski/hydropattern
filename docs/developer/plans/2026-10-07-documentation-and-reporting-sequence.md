@@ -6,9 +6,13 @@ available because current source-install and download links reference it.
 S4's unaffected D4 portion is complete on `docs-reporting-s4` and integrated
 into local `main`, without pushing. Do not repeat S1a–S4. S1a (`b2d612e`), S1b
 (`f5c93b7`), and S1c are complete; do not repeat them.
-S5's unaffected D5 portion is complete and committed on `docs-reporting-s5`,
-not integrated or pushed. S6 / R0 has not started. Obtain explicit approval
-before integrating S5 or starting S6 / R0; S5 commit approval covers neither.
+S5's unaffected D5 portion is complete and integrated into local `main` at
+`b05b326`, without pushing. S6 / R0 baseline is complete on
+`docs-reporting-r0`; evidence is recorded in the reporting plan. R1 and R2 are
+committed on `docs-reporting-r1-r2`, based on `b05b326`; R3 is next. No changes
+have been merged to `main` or pushed.
+See the [next-session handoff](../agents/next-session-prompt.md) for the pickup
+checklist.
 
 This plan defines the order in which agents pick up work from two plans:
 
@@ -45,9 +49,9 @@ early unless marked parallel.
 | S2 | D2: organize retained engineering records under `docs\developer\` (ADRs, agent guidance, plans, reviews, handoff, and scientific PDFs); update repository-wide links and file references. **Complete.** | S1a–S1c | `git mv`; stale-reference search; pytest; protected case studies unchanged |
 | S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan. **Complete (`079d381`), integrated into local `main`; not pushed.** See the [D3 completion record](user-documentation.md#d3-completion-record). | S2 | Strict build, pytest, local links/anchors, generated-site exclusions, and protected-path checks pass; documentation-editor review complete |
 | S4 | D4 (unaffected part): practical foundations, evaluation order, characteristic references, configuration/CLI/API organization, and reference entry point. **Complete on `docs-reporting-s4`; integrated into local `main`, not pushed.** See the [S4 completion record](user-documentation.md#d4-s4-completion-record). | S3 | Executable fixture per worked example, written before prose; all user-site TOML blocks parsed; terminology/link/navigation checks, strict site build, and documentation-editor review pass |
-| S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios. **Complete and committed on `docs-reporting-s5`; not integrated or pushed.** See the [S5 completion record](user-documentation.md#d5-s5-completion-record). | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
-| S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages | S3 | Per reporting plan |
-| S7 | R1–R9 in reporting-plan order (R1 and R2 may run in parallel); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
+| S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios. **Complete and integrated into local `main` at `b05b326`; not pushed.** See the [S5 completion record](user-documentation.md#d5-s5-completion-record). | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
+| S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages. **Complete on `docs-reporting-r0`; evidence recorded in the reporting plan.** | S3 | Per reporting plan |
+| S7 | R1–R9 in reporting-plan order (R1/R2 complete; R3 next); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
 | S8 | R10 with remaining D4/D5: unknown-outcome section, deferred reference topics, response-surface pack, migration guide | S7 | Fixture for every agreed worked example; strict build |
 | S9 | D6 cleanup: per-file review and explicit permission before any deletion | S2 (not blocking) | User approval |
 | S10 | D7 publish: enable GitHub Pages deploy triggered by a version-bump commit tagged `v*`; developer authoring and release checklist | S8 | First tagged deploy succeeds; unreleased notice kept until the package release exists on PyPI |
@@ -55,8 +59,9 @@ early unless marked parallel.
 R11 is optional and is not part of this sequence.
 
 S5 example-pack curation is complete in its separately approved scope; the
-first-run pack remains unchanged. S6 reporting baseline was not included in
-S4 or S5. Pick it up only with its own agreed scope.
+first-run pack remains unchanged. S6 reporting baseline was completed
+separately on `docs-reporting-r0`. R1/R2 are committed on
+`docs-reporting-r1-r2`; continue with R3 after approval.
 
 ## Deferred topics (not written in S4/S5)
 

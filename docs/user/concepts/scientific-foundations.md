@@ -36,3 +36,23 @@ See [evaluation order and interpretation](evaluation-order.md) for how
 characteristic outcomes combine, and the
 [characteristic reference](../reference.md#characteristic-reference) for
 configuration and evaluation details.
+
+## Water-year labels
+
+Water-year labels use the ending-year convention: with an October 1 boundary,
+October 1, 2020 belongs to water year 2021. `Timeseries` carries its configured
+boundary into scenario results. Direct `Result` callers can pass
+`first_day_of_water_year` to `identify_water_years()`; the method rejects
+missing or conflicting boundary metadata rather than assuming January 1.
+
+Boundary day uses a normalized 365-day calendar. February 28 and February 29
+share a seasonal day label, but both observations stay in the same water year;
+calendar timestamps, not duplicate normalized day labels, establish the year
+boundary. Daily completeness accepts a missing February 29, but not other
+missing daily observations.
+
+Exposure is based on observed calendar intervals, not known/unknown outcome
+counts. Each daily water year has denominator 366 only when its recorded
+observations include February 29; otherwise denominator is 365, including
+partial years. Monthly exposure is the number of observed months divided by
+12. Unsupported cadence or gaps prevent time-based exposure calculations.

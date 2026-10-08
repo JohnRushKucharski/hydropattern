@@ -2,8 +2,10 @@
 
 Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
 is complete on `docs-reporting-s4` and integrated into local `main`, without
-pushing. The unaffected D5 portion is complete on `docs-reporting-s5`,
-committed but not integrated or pushed.
+pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
+integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
+is recorded on `docs-reporting-r0`; R1/R2 implementation is committed on
+`docs-reporting-r1-r2`; R3–R10 remain pending.
 Reporting-related D4/D5 work and D6–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
@@ -471,8 +473,8 @@ pytest tests, strict MkDocs build, Ruff for the new test file, and
 directories are unchanged; no files were deleted. S5 work is committed
 on its own branch with user approval, without integration or pushing.
 
-S6 / R0 is the next sequence slice and has not started. Reporting-related
-D4/D5 content, the response-surface pack, and R0–R10 remain deferred to their
-agreed slices. GitHub Pages deployment is still disabled.
-The next session must obtain explicit approval before integrating S5 into
-local `main` or starting S6 / R0. Committing S5 does not authorize either.
+At the time of the S5 handoff, S6 / R0 was next and had not started. It has
+since been completed on `docs-reporting-r0`; see the baseline record in the
+reporting plan. R1/R2 are committed on `docs-reporting-r1-r2`.
+Reporting-related D4/D5 content, the response-surface pack, and R3–R10 remain
+deferred to their agreed slices. GitHub Pages deployment is still disabled.

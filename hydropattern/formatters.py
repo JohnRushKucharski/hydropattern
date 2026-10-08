@@ -13,7 +13,7 @@ from climate_canvas.plots_utilities import plot_response_surface  # type: ignore
 from matplotlib.colors import Normalize
 
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
-from hydropattern.patterns import Component, Result
+from hydropattern.patterns import Component, Result, water_year_label
 from hydropattern.scenario_grid import build_grid, require_scenario_grid
 
 
@@ -23,10 +23,7 @@ def _water_year_label(date: pd.Timestamp, first_day_of_wy: int) -> int:
     WY starting Jan 1 -> label = calendar year.
     WY starting Oct 1 (doy 274): Oct 1 1970 -> WY 1971; Jan 1 1971 -> WY 1971.
     '''
-    if first_day_of_wy == 1:
-        return date.year
-    doy = date.dayofyear - 1 if date.is_leap_year and date.dayofyear > 59 else date.dayofyear
-    return date.year + 1 if doy >= first_day_of_wy else date.year
+    return water_year_label(date, first_day_of_wy)
 
 
 def _group_by_water_year(

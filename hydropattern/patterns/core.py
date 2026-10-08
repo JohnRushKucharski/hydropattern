@@ -137,8 +137,11 @@ def moving_average(data: np.ndarray,
     return ma
 
 def eval_order_1_characteristic(f: Callable[[float], bool], data: np.ndarray) -> np.ndarray:
-    '''Evaluates eligble order 1 characteristic, returning array of [0, 1] values.'''
-    return np.array([1 if f(value) else 0 for value in data], dtype=int)
+    '''Evaluate an independent characteristic, preserving unavailable values as NaN.'''
+    return np.array([
+        np.nan if np.isnan(value) else int(f(value))
+        for value in data
+    ], dtype=float)
 
 def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
                                 output: np.ndarray, order: int) -> np.ndarray:
@@ -365,10 +368,16 @@ class Result:
     df: pd.DataFrame
     component: Component
     dv_name: str = ''
+    first_day_of_water_year: int | None = None
 
     def __post_init__(self):
         if not self.dv_name:
             self.dv_name = self.df.columns[0]
+        if self.first_day_of_water_year is not None:
+            from hydropattern.patterns.water_year import validate_water_year_boundary
+            self.first_day_of_water_year = validate_water_year_boundary(
+                self.first_day_of_water_year
+            )
 
     def event_count(self) -> int:
         '''Counts distinct qualifying events (maximal runs of success) for
@@ -395,15 +404,36 @@ class Result:
             record_length_years(self.df['dowy'].to_numpy(), timestamps),
         )
 
-    def identify_water_years(self):
+    def identify_water_years(
+        self, first_day_of_water_year: int | None = None
+    ) -> pd.DataFrame:
         '''Identifies water years in the timeseries.'''
-        # yr = np.nan
-        data = self.df['dowy']
-        wy = np.full(len(data), np.nan)
-        for i in range(len(data)):
-            # if data.iat[i] == 1:
-            #     yr = data.index[i].year
-            wy[i] = data.index[i].year
+        if not isinstance(self.df.index, pd.DatetimeIndex):
+            raise ValueError('DatetimeIndex is required to identify water years.')
+        if (
+            first_day_of_water_year is not None
+            and self.first_day_of_water_year is not None
+            and first_day_of_water_year != self.first_day_of_water_year
+        ):
+            raise ValueError(
+                'first_day_of_water_year conflicts with Result boundary metadata.'
+            )
+        boundary = first_day_of_water_year
+        if boundary is None:
+            boundary = self.first_day_of_water_year
+        if boundary is None:
+            raise ValueError(
+                'first_day_of_water_year is required to identify water years.'
+            )
+        from hydropattern.patterns.water_year import (
+            validate_water_year_boundary,
+            water_year_label,
+        )
+        boundary = validate_water_year_boundary(boundary)
+        wy = [
+            water_year_label(timestamp, boundary)
+            for timestamp in self.df.index
+        ]
         df = self.df.copy()
         df['water_year'] = wy
         return df
@@ -476,7 +506,10 @@ class Result:
         plt.show()
 
 def evaluate_component(
-    df: pd.DataFrame, component: Component, data_column: int = 0
+    df: pd.DataFrame,
+    component: Component,
+    data_column: int = 0,
+    first_day_of_water_year: int | None = None,
 ) -> Result:
     '''Evaluates a single component on a single timeseries.
 
@@ -550,14 +583,22 @@ def evaluate_component(
     )
     if isinstance(df.index, pd.DatetimeIndex):
         df.index.name = 'time'
-    return Result(df, component, str(selected_name))
+    return Result(df, component, str(selected_name), first_day_of_water_year)
 
 def evaluate_components(
-    df: pd.DataFrame, components: list[Component], data_column: int = 0
+    df: pd.DataFrame,
+    components: list[Component],
+    data_column: int = 0,
+    first_day_of_water_year: int | None = None,
 ) -> list[Result]:
     ''''Evaluates a list of components on a single timeseries.'''
     return [
-        evaluate_component(df, component, data_column=data_column)
+        evaluate_component(
+            df,
+            component,
+            data_column=data_column,
+            first_day_of_water_year=first_day_of_water_year,
+        )
         for component in components
     ]
 

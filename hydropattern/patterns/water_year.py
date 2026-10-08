@@ -10,29 +10,62 @@ import pandas as pd
 
 from hydropattern.patterns.core import sliding_window_count
 
+
+def validate_water_year_boundary(first_day_of_water_year: int) -> int:
+    '''Validate and return a one-based non-leap-year water-year start day.'''
+    if (
+        isinstance(first_day_of_water_year, bool)
+        or not isinstance(first_day_of_water_year, (int, np.integer))
+        or not 1 <= first_day_of_water_year <= 365
+    ):
+        raise ValueError('first_day_of_water_year must be an integer between 1 and 365.')
+    return int(first_day_of_water_year)
+
+
+def water_year_label(timestamp: pd.Timestamp, first_day_of_water_year: int) -> int:
+    '''Return ending-year water-year label for a timestamp and boundary day.'''
+    boundary = validate_water_year_boundary(first_day_of_water_year)
+    if boundary == 1:
+        return timestamp.year
+    day_of_year = timestamp.dayofyear
+    if timestamp.is_leap_year and day_of_year > 59:
+        day_of_year -= 1
+    return timestamp.year + (day_of_year >= boundary)
+
+
 def identify_full_water_years(
     dowy: np.ndarray,
     timestamps: pd.DatetimeIndex | None = None,
+    first_day_of_water_year: int | None = None,
 ) -> list[tuple[int, int]]:
     '''
     Identifies (start_idx, end_idx) index pairs (both inclusive) for each
     water year in a day-of-water-year array.
 
-    A water year starts where DOWY resets (or equals 1). If timestamps are
-    provided, only complete daily or monthly water years are returned, and
-    unsupported or gapped observation schedules raise ValueError. Without
-    timestamps, retain legacy boundary-only behavior.
+    With timestamps, calendar labels and the configured boundary determine
+    year segments; only complete daily or monthly segments are returned.
+    Without timestamps, retain legacy DOWY-boundary behavior.
 
     Parameters
     ----------
         dowy (np.ndarray): day-of-water-year values (1-365).
         timestamps (pd.DatetimeIndex | None): observation dates aligned to
             `dowy`; enables cadence-aware water-year completeness.
+        first_day_of_water_year (int | None): normalized boundary day. When
+            omitted, infer it from the aligned timestamps and DOWY values.
 
     Returns
     -------
         list[tuple[int, int]]: (start_idx, end_idx) pairs, in series order.
     '''
+    values = np.asarray(dowy)
+    if (
+        values.ndim != 1
+        or np.any(~np.isfinite(values))
+        or np.any(values != np.floor(values))
+        or np.any((values < 1) | (values > 365))
+    ):
+        raise ValueError('dowy must contain integer values between 1 and 365.')
     dates = None
     cadence = None
     if timestamps is not None:
@@ -42,11 +75,26 @@ def identify_full_water_years(
         if dates.hasnans or not dates.is_monotonic_increasing or dates.has_duplicates:
             raise ValueError('timestamps must be valid, unique, and increasing.')
         cadence = _water_year_cadence(dates)
+        inferred_boundary = _infer_first_day_of_water_year(values, dates)
+        boundary = first_day_of_water_year
+        if boundary is None:
+            boundary = inferred_boundary
+        elif validate_water_year_boundary(boundary) != inferred_boundary:
+            raise ValueError(
+                'first_day_of_water_year conflicts with timestamps and dowy.'
+            )
+        water_year_label(dates[0], boundary)
+        labels = np.array([water_year_label(date, boundary) for date in dates])
 
-    starts = [
-        i for i, day in enumerate(dowy)
-        if day == 1 or (i > 0 and day < dowy[i - 1])
-    ]
+    if timestamps is None:
+        starts = [
+            i for i, day in enumerate(dowy)
+            if day == 1 or (i > 0 and day < dowy[i - 1])
+        ]
+    else:
+        starts = [0] + [
+            i for i in range(1, len(labels)) if labels[i] != labels[i - 1]
+        ]
     if not starts:
         return []
     years = [
@@ -63,11 +111,43 @@ def identify_full_water_years(
     ]
 
 
+def water_year_exposure(
+    timestamps: pd.DatetimeIndex,
+    first_day_of_water_year: int,
+) -> float:
+    '''Return observed exposure in water years across supported daily/monthly dates.
+
+    Daily water years use 366 days only when February 29 is present; otherwise
+    they use 365. Monthly exposure is the number of observations divided by 12.
+    '''
+    dates = pd.DatetimeIndex(timestamps)
+    if dates.hasnans or not dates.is_monotonic_increasing or dates.has_duplicates:
+        raise ValueError('timestamps must be valid, unique, and increasing.')
+    cadence = _water_year_cadence(dates)
+    boundary = validate_water_year_boundary(first_day_of_water_year)
+    labels = np.array([water_year_label(date, boundary) for date in dates])
+    exposure = 0.0
+    for label in np.unique(labels):
+        year_dates = dates[labels == label]
+        if cadence == 'daily':
+            denominator = 366 if ((year_dates.month == 2) & (year_dates.day == 29)).any() else 365
+        else:
+            denominator = 12
+        exposure += len(year_dates) / denominator
+    return exposure
+
+
 def _water_year_cadence(dates: pd.DatetimeIndex) -> str:
     if len(dates) < 2:
         raise ValueError('Cannot determine water-year cadence from fewer than two timestamps.')
     day_numbers = np.array([date.date().toordinal() for date in dates])
-    if np.all(np.diff(day_numbers) == 1):
+    differences = np.diff(day_numbers)
+    leap_day_omission = np.array([
+        left.month == 2 and left.day == 28 and left.is_leap_year
+        and right.month == 3 and right.day == 1
+        for left, right in zip(dates[:-1], dates[1:])
+    ])
+    if np.all((differences == 1) | ((differences == 2) & leap_day_omission)):
         return 'daily'
     month_numbers = dates.year * 12 + dates.month
     regular_month_day = (
@@ -99,6 +179,13 @@ def _is_complete_water_year(
     next_boundary = start_date + pd.DateOffset(years=1)
     if cadence == 'daily':
         expected = pd.date_range(start_date, next_boundary, freq='D', inclusive='left')
+        observed = dates[start:end + 1]
+        if not observed.isin(expected).all():
+            return False
+        missing = expected.difference(observed)
+        if any(not (date.month == 2 and date.day == 29) for date in missing):
+            return False
+        return True
     elif cadence == 'month_start':
         expected = pd.date_range(
             start_date, next_boundary, freq=pd.offsets.MonthBegin(), inclusive='left'
@@ -114,6 +201,22 @@ def _is_complete_water_year(
 
     observed = dates[start:end + 1]
     return observed.equals(expected)
+
+
+def _infer_first_day_of_water_year(
+    dowy: np.ndarray, dates: pd.DatetimeIndex
+) -> int:
+    normalized_days = np.array([
+        date.dayofyear - int(date.is_leap_year and date.dayofyear > 59)
+        for date in dates
+    ])
+    candidates = (normalized_days - np.asarray(dowy, dtype=int)) % 365 + 1
+    unique_candidates = np.unique(candidates)
+    if len(unique_candidates) != 1:
+        raise ValueError(
+            'Cannot establish one water-year boundary from timestamps and dowy.'
+        )
+    return int(unique_candidates[0])
 
 def record_length_years(
     dowy: np.ndarray,

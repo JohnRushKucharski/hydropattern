@@ -21,7 +21,7 @@ def test_rate_of_change_minimum_applies_to_denominator_not_current_flow():
     df = pd.DataFrame({'flow': [4.0, 1.0]})
     fx = rate_of_change_fx(comparison_fx('<', 0.5), minimum=1.0)
 
-    assert np.array_equal(fx(df), [0, 1])
+    np.testing.assert_array_equal(fx(df), [np.nan, 1])
 
 
 def test_rate_of_change_minimum_is_forwarded_from_component_configuration():
@@ -36,10 +36,8 @@ def test_rate_of_change_minimum_is_forwarded_from_component_configuration():
     )
     component = build_components(request)[0]
 
-    assert component.characteristics[0].fx(pd.DataFrame({'flow': [4.0, 1.0]}), None).tolist() == [
-        0,
-        1,
-    ]
+    result = component.characteristics[0].fx(pd.DataFrame({'flow': [4.0, 1.0]}), None)
+    np.testing.assert_array_equal(result, [np.nan, 1])
 
 
 def test_rate_of_change_rejects_zero_and_negative_denominators():
@@ -49,14 +47,14 @@ def test_rate_of_change_rejects_zero_and_negative_denominators():
     with np.errstate(divide='raise', invalid='raise'):
         result = fx(df)
 
-    assert result.tolist() == [0, 0, 1, 0]
+    np.testing.assert_array_equal(result, [np.nan, np.nan, 1, np.nan])
 
 
 def test_rate_of_change_minimum_applies_to_smoothed_denominator_only():
     df = pd.DataFrame({'flow': [2.0, 4.0, 1.0, 1.0]})
     fx = rate_of_change_fx(comparison_fx('<', 1.0), ma_periods=2, minimum=2.0)
 
-    assert fx(df).tolist() == [0, 0, 1, 1]
+    np.testing.assert_array_equal(fx(df), [np.nan, np.nan, 1, 1])
 
 
 def test_rate_of_change_minimum_rejects_boolean_as_non_numeric_configuration():

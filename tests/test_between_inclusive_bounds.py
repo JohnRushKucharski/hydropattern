@@ -67,7 +67,7 @@ class TestRateOfChangeParserBetweenIsInclusive(unittest.TestCase):
         df = pd.DataFrame({'flow': [1.0, 1.0, 2.0, 3.0, 1.5]})
         # z = [nan, 1.0, 2.0, 1.5, 0.5]
         result = char.fx(df)
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 1, 0])))
+        np.testing.assert_array_equal(result, [np.nan, 1, 1, 1, 0])
 
 
 class TestDurationParserBetweenIsFixedAndInclusive(unittest.TestCase):

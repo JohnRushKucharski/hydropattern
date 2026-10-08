@@ -50,8 +50,8 @@ class ParserBuilderEquivalenceTestCase(unittest.TestCase):
     output (including NaN placement) on the same sample timeseries.
     '''
 
-    def _assert_equivalent(self, direct_characteristics, config):
-        df = _sample_timeseries()
+    def _assert_equivalent(self, direct_characteristics, config, sample=None):
+        df = _sample_timeseries() if sample is None else sample
         direct_component = Component(
             name='comp', characteristics=direct_characteristics, is_success_pattern=True,
         )
@@ -137,9 +137,12 @@ class TestNestedFrequencyEquivalence(ParserBuilderEquivalenceTestCase):
     def test_nested_frequency_direct_vs_spec_path(self):
         # Nested frequency expands into intra-annual and interannual characteristics.
         nested_direct = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
+        sample = _sample_timeseries()
+        sample.index = pd.RangeIndex(len(sample))
         self._assert_equivalent(
             direct_characteristics=[magnitude_parser(['>', 5.0], order=1), *nested_direct],
             config={'comp': {'magnitude': ['>', 5.0], 'frequency': [['>', 0.5], ['>', 1, 2]]}},
+            sample=sample,
         )
 
 

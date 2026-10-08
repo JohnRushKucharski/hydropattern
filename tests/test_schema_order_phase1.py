@@ -315,9 +315,9 @@ def test_rate_of_change_after_failing_characteristic_reports_own_truth():
     output = np.zeros((3, 1))  # precedent column: all 0 (failed)
     fx = rate_of_change_fx(comparison_fx('>', 1.0), order=2)
     result = fx(df, output)
-    # look_back=1: ratios are [nan, 4.0, 4.0] -> comparison [0,1,1]; own truth,
+    # look_back=1: ratios are [nan, 4.0, 4.0] -> comparison [nan,1,1]; own truth,
     # not gated to 0 by the failing precedent column.
-    assert result.tolist() == [0, 1, 1]
+    np.testing.assert_array_equal(result, [np.nan, 1, 1])
 
 
 def test_duration_still_gated_on_preceding_conjunction():

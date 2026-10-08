@@ -63,6 +63,7 @@ columns help explain how a classification was reached; use the component
 column when interpreting the configured pattern as a whole. See
 [result files](../guide/outputs.md) for the output layout.
 
-This page uses a fully known example. hydropattern does not yet preserve
-unknown outcomes consistently through every calculation or reporting
-summary; guidance for the reporting changes will be added with those changes.
+Unavailable numeric calculations, such as a rate comparison without a
+previous flow value, remain unknown rather than becoming a failed comparison.
+Missing input flow values are still rejected. Other calculations and
+reporting summaries may have separate unknown-value rules.
