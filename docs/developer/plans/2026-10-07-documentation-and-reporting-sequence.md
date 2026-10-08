@@ -3,8 +3,8 @@
 **Status:** S1a–S3 complete and integrated into local `main` (not pushed).
 S3 commit `079d381` was fast-forwarded from `docs-reporting-s3`; keep that branch
 available because current source-install and download links reference it.
-**Next pickup:** review S4 scope, then create `docs-reporting-s4` from local
-`main` when implementation is approved. Do not repeat S1a–S3. S1a (`b2d612e`), S1b
+S4's unaffected D4 portion is complete on `docs-reporting-s4` and integrated
+into local `main`, without pushing. Do not repeat S1a–S4. S1a (`b2d612e`), S1b
 (`f5c93b7`), and S1c are complete; do not repeat them.
 
 This plan defines the order in which agents pick up work from two plans:
@@ -41,7 +41,7 @@ early unless marked parallel.
 | S1c | D1: keep shared fields neutral; use `interannual_*` and `has_interannual_pattern` for the interannual part, and `is_terminal` for the characteristic marker. Preserve overall helper/result-column names and evaluation behavior. See the [migration guide](../../user/migration.md) for API mappings. **Complete.** | S1b | TDD; targeted pytest + mypy; migration note; no aliases |
 | S2 | D2: organize retained engineering records under `docs\developer\` (ADRs, agent guidance, plans, reviews, handoff, and scientific PDFs); update repository-wide links and file references. **Complete.** | S1a–S1c | `git mv`; stale-reference search; pytest; protected case studies unchanged |
 | S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan. **Complete (`079d381`), integrated into local `main`; not pushed.** See the [D3 completion record](user-documentation.md#d3-completion-record). | S2 | Strict build, pytest, local links/anchors, generated-site exclusions, and protected-path checks pass; documentation-editor review complete |
-| S4 | D4 (unaffected part): concepts and reference pages whose behavior R-slices do not change; see "Deferred topics" | S3 | Executable fixture per worked example, written before prose; TOML-block parse test |
+| S4 | D4 (unaffected part): practical foundations, evaluation order, characteristic references, configuration/CLI/API organization, and reference entry point. **Complete on `docs-reporting-s4`; integrated into local `main`, not pushed.** See the [S4 completion record](user-documentation.md#d4-s4-completion-record). | S3 | Executable fixture per worked example, written before prose; all user-site TOML blocks parsed; terminology/link/navigation checks, strict site build, and documentation-editor review pass |
 | S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
 | S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages | S3 | Per reporting plan |
 | S7 | R1–R9 in reporting-plan order (R1 and R2 may run in parallel); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
@@ -50,6 +50,10 @@ early unless marked parallel.
 | S10 | D7 publish: enable GitHub Pages deploy triggered by a version-bump commit tagged `v*`; developer authoring and release checklist | S8 | First tagged deploy succeeds; unreleased notice kept until the package release exists on PyPI |
 
 R11 is optional and is not part of this sequence.
+
+S5 example-pack curation and S6 reporting baseline were not started as part of
+S4. Pick them up only with their own agreed scope; the first-run pack remains
+complete.
 
 ## Deferred topics (not written in S4/S5)
 

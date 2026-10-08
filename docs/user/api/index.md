@@ -37,12 +37,18 @@ print(result.df["frequency_ge1in5(union)"].tolist())
 
 Frequency counts qualifying timesteps, not distinct component events. Its
 successful windows mark timesteps even where the preceding magnitude
-condition is not met. See the [frequency reference](../reference.md#frequency).
+condition is not met. See the
+[frequency reference](../reference/characteristics/frequency.md).
 
 `evaluate_component(..., data_column=0)` selects one zero-based data-column
 position. The final `dowy` column cannot be selected. The result retains the
 selected scenario's name; see
-[result-column details](../reference.md#python-evaluation-and-result-columns).
+[result-column details](../concepts/evaluation-order.md#read-the-result-columns).
+The result dataframe preserves the input index (a datetime index is named
+`time`) and contains, in order, the selected flow column, `dowy`, each
+characteristic diagnostic, and the final component column. Input validation
+errors, invalid column positions, and duplicate output column names are
+reported as errors rather than silently selecting a different column.
 
 ## Read structured errors
 
@@ -62,5 +68,6 @@ except HydropatternError as exc:
     print(exc.envelope.source)   # parser
 ```
 
-The [reference](../reference.md#parser-error-codes) lists existing error codes.
+The [CLI reference](../reference/cli.md#parser-and-plot-error-codes) lists
+existing error codes.
 Review [migration guidance](../migration.md) before updating Python calls.

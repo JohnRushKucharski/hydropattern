@@ -21,7 +21,7 @@ with historical outputs.
 | Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. The next release removes `return_period`; replace it with `portion` or `percentage`. |
 
 For frequency evaluation rules, worked examples, and Python API details, see
-the [frequency reference](reference.md#frequency) and the
+the [frequency reference](reference/characteristics/frequency.md) and the
 [pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s3/docs/developer/adr/0003-pattern-correctness-contract.md).
 
 ## Next release: ordered characteristic tables

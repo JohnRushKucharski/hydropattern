@@ -15,9 +15,23 @@ nav:
       - Interpreting first results: getting-started/results.md
   - User guide:
       - Command-line usage: guide/cli.md
+      - Preparing data: guide/preparing-data.md
+      - Output files: guide/outputs.md
+      - Response-surface plots: guide/plotting.md
   - Scientific concepts:
+      - Scientific foundations: concepts/scientific-foundations.md
+      - Evaluation order: concepts/evaluation-order.md
       - Glossary: concepts/glossary.md
-  - Reference: reference.md
+  - Reference:
+      - Overview: reference.md
+      - Configuration: reference/configuration.md
+      - Characteristics:
+          - Timing: reference/characteristics/timing.md
+          - Magnitude: reference/characteristics/magnitude.md
+          - Rate of change: reference/characteristics/rate-of-change.md
+          - Duration: reference/characteristics/duration.md
+          - Frequency: reference/characteristics/frequency.md
+      - CLI options and errors: reference/cli.md
   - Upgrade guidance: migration.md
   - Python API: api/index.md
 validation:

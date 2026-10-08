@@ -18,8 +18,13 @@ the example's summary. You do not need to write Python.
 
 ## Find an explanation
 
+- [Scientific foundations](concepts/scientific-foundations.md) introduce the
+  flow-regime dimensions, and [evaluation order](concepts/evaluation-order.md)
+  explains how characteristic outcomes form a component outcome.
 - The [glossary](concepts/glossary.md) defines components, characteristics,
   qualifying timesteps, frequency windows, and scenarios.
+- [Preparing data](guide/preparing-data.md), [output files](guide/outputs.md),
+  and [plotting](guide/plotting.md) cover common analysis tasks.
 - [Command-line usage](guide/cli.md) explains commands, working folders, and
   output choices.
 - The [reference](reference.md) lists configuration fields and existing
@@ -27,10 +32,9 @@ the example's summary. You do not need to write Python.
 - [Upgrade guidance](migration.md) identifies completed breaking changes.
 - The [Python API](api/index.md) is available for programmatic evaluation.
 
-The existing combined reference is being reorganized. Reporting and
-unknown-outcome improvements are not yet implemented; later pages will describe
-each change only after it exists in the application. The glossary introduces
-terms without promising those future capabilities.
+Reporting and unknown-outcome improvements are not yet implemented; later
+pages will describe each change only after it exists in the application. The
+glossary introduces terms without promising those future capabilities.
 
 ## Scientific context
 

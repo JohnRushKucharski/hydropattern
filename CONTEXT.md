@@ -5,6 +5,11 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 
 ## Language
 
+This file is the source of truth for domain terminology. Some entries capture
+agreed terminology for future reporting behavior; their presence does not
+mean that behavior is implemented. Check the documentation and reporting
+plans for each work item's implementation status before describing it to users.
+
 **Scenario**:
 One data column in a `[timeseries]` input, representing one hydrologic trace/run to
 evaluate independently against all configured components.

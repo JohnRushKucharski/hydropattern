@@ -94,7 +94,8 @@ not component events.
 anchors inside a qualifying window. Without it, the results of qualifying
 overlapping windows are combined. Each part of nested frequency sets it
 independently.
-See the [frequency reference](../reference.md#frequency) for exact existing rules.
+See the [frequency reference](../reference/characteristics/frequency.md) for
+exact existing rules.
 
 **Un-nested frequency** assesses a single frequency condition across the
 record's timesteps; its windows can cross water-year boundaries.

@@ -49,8 +49,8 @@ Use `--run-toml-options` to use only the file's output settings. Combining that
 flag with any explicit output-related flag raises `CLI_CONFLICTING_OPTIONS`:
 remove the extra flags or use the default `--override-toml-options` behavior.
 
-The [output reference](../reference.md#output-options) lists exact fields,
-defaults, and flags. [Response-surface plotting](../reference.md#response-surface-plots-plot)
+The [output reference](../reference/configuration.md#output-settings) lists
+exact fields, defaults, and flags. [Response-surface plotting](plotting.md)
 requires a scenario grid, not an arbitrary collection of scenarios.
 
 ## Existing frequency example
@@ -65,5 +65,5 @@ uv run --no-default-groups hydropattern run examples/frequency.toml --no-excel
 
 For the smaller downloadable example that does not require a checkout, use the
 [first evaluation](../getting-started/first-run.md). See the
-[frequency reference](../reference.md#frequency) for the existing frequency
-rules and worked results.
+[frequency reference](../reference/characteristics/frequency.md) for
+established frequency rules and worked results.

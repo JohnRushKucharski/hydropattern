@@ -1,8 +1,10 @@
 # User documentation redesign
 
-Status: D1–D3 complete (S1a–S3 in the sequence); D4–D7 remain pending.
+Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
+is complete on `docs-reporting-s4` and integrated into local `main`, without
+pushing. Reporting-related D4 work and D5–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
-`docs-reporting-s3`; nothing has been pushed. S4 is next.
+`docs-reporting-s3`; nothing has been pushed.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
@@ -402,3 +404,25 @@ that branch available while those links use it, and update installation and
 download references together when integrating subsequent work or preparing
 the matching release. GitHub Pages deployment is not enabled; S10 will add it
 after R10. No cleanup deletions or scientific changes were made in D3.
+
+## D4 (S4) completion record
+
+The unaffected scientific and reference content is now organized as separate
+user pages. The site adds practical scientific foundations, evaluation order
+and interpretation, data preparation, output and plotting guides, detailed
+configuration and CLI references, and one reference page for each
+characteristic. `reference.md` remains a useful entry point and retains
+deliberate legacy anchors for previously published links.
+
+Worked examples are backed by executable evaluator fixtures in
+`tests/test_s4_documentation.py`; fixtures were written before their prose.
+The tests parse every fenced TOML block under `docs/user`, check the published
+diagnostic and final component arrays, and retain the existing API and
+first-run checks. A separate documentation-editor pass reviewed the S4 draft
+and its edits were inspected.
+
+Focused documentation tests, the strict MkDocs build, changed-test Ruff
+checks, and the full pytest suite passed (678 tests). S4 is committed on
+`docs-reporting-s4` and fast-forwarded into local `main` with user approval;
+nothing has been pushed. S5 example-pack work and R0–R10 reporting
+implementation were not started as part of S4.
