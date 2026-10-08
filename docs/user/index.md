@@ -20,7 +20,9 @@ the example's summary. You do not need to write Python.
 
 - [Scientific foundations](concepts/scientific-foundations.md) introduce the
   flow-regime dimensions, and [evaluation order](concepts/evaluation-order.md)
-  explains how characteristic outcomes form a component outcome.
+  explains how characteristic outcomes form a component outcome. See
+  [unknown outcomes](concepts/unknown-outcomes.md) for uncertainty,
+  denominators, event bounds, and plot eligibility.
 - The [glossary](concepts/glossary.md) defines components, characteristics,
   qualifying timesteps, frequency windows, and scenarios.
 - [Preparing data](guide/preparing-data.md), [output files](guide/outputs.md),
@@ -30,14 +32,9 @@ the example's summary. You do not need to write Python.
 - The [reference](reference.md) lists configuration fields and existing
   characteristic rules.
 - [Runnable examples](examples/index.md) cover seasonal thresholds, duration,
-  frequency windows, and multiple scenarios with expected results.
+  frequency windows, multiple scenarios, and response-surface coverage.
 - [Upgrade guidance](migration.md) identifies completed breaking changes.
 - The [Python API](api/index.md) is available for programmatic evaluation.
-
-Some reporting and unknown-outcome changes are implemented; others remain
-planned. Each page describes behavior that exists, while summary denominators
-and explicit coverage remain pending.
-Glossary terms do not promise every planned capability.
 
 ## Scientific context
 

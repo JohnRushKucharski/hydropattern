@@ -30,6 +30,9 @@ With a moving average, both the current value and earlier value are taken
 from that averaged series. The ratio has no flow unit. The earlier value is
 used as the denominator only when it is strictly greater than `min`.
 This setting does not replace small denominators with the threshold.
+Startup rows and restricted denominators have no ratio and remain unknown,
+including for `!=`. See
+[unknown outcomes](../../concepts/unknown-outcomes.md#where-unknown-outcomes-come-from).
 
 ## Worked example
 

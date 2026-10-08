@@ -46,7 +46,9 @@ it is not an average of water-year portions. Characteristic and component
 columns can have different known-outcome coverage, so each is summarized
 separately. Water-year rows use the configured water-year boundary. The
 [glossary](../concepts/glossary.md#outcomes) distinguishes unknown outcomes
-from failures.
+from failures. See the full
+[unknown-outcome explanation](../concepts/unknown-outcomes.md#summaries-event-counts-and-coverage)
+for how uncertainty affects summaries and plots.
 
 The `reporting_details` sheet has one row per scenario, outcome column, and
 interval (`total` or one water year). It reports successful, known, and total
@@ -81,6 +83,26 @@ sheet. For example, a flow observation can meet a magnitude condition but
 fail a later duration condition. See
 [evaluation order](../concepts/evaluation-order.md).
 
+## Water-year rows and completeness
+
+Water-year rows use the configured boundary and ending-year labels. With an
+October 1 boundary and observations from January 2020 through December 2021,
+reports include WY2020 (partial), WY2021 (complete), and WY2022 (partial).
+Whole-record summaries include observations from all three, including both
+partial years. A nested annual verdict remains unknown in partial years;
+other conditions can still have known outcomes there.
+
+For daily records, an otherwise complete water year can omit February 29.
+Exposure uses 366 days when a recorded February 29 is present, otherwise 365,
+including a partial year whose span does not reach February 29. Monthly
+exposure is the number of recorded monthly intervals divided by 12. Calendar
+completeness and known-outcome coverage describe different properties.
+Unsupported cadence or non-leap-day gaps leave observed counts and summaries
+available but make annual completeness undetermined; event rates and nested
+annual evaluation are unavailable rather than guessed. See
+[preparing data](preparing-data.md#daily-calendars-and-leap-day) for accepted
+calendars and corrective guidance.
+
 ## Counting component events
 
 A component event is a maximal uninterrupted run of final component success.
@@ -108,11 +130,14 @@ Event rates divide event counts by observed exposure across the whole record,
 including partial water years. Eighteen monthly observations with three
 events have 1.5 water years of exposure and a rate of 2 events per water year.
 Each event is attributed to the water year containing its first successful
-observed timestep; a continuous success run crossing a water-year boundary
-counts once, in its starting water year. Annual bounds are calculated from
-whole-record runs before grouping, so annual bounds need not add up to
-whole-record bounds. Rates require supported daily or monthly timestamps;
-unsupported cadence raises an error rather than guessing exposure.
+observed timestep. For example, a continuous September 29-October 3 success
+run with an October boundary counts once in the prior water year, not again
+in the next. A run already successful at the start of the observed record
+counts as one observed event; this does not claim its physical onset occurred
+at the record boundary. Annual bounds are calculated from whole-record runs
+before grouping, so annual bounds need not add up to whole-record bounds.
+Rates require supported daily or monthly timestamps; unsupported cadence
+raises an error rather than guessing exposure.
 
 ## Response-surface files
 

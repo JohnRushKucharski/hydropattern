@@ -1,8 +1,9 @@
 # Interpreting first results
 
 This guide explains the exact, fully known results of the
-[first evaluation](first-run.md). It does not describe the planned changes
-to summaries containing unknown outcomes.
+[first evaluation](first-run.md). Other analyses can contain unknown outcomes;
+see the [unknown-outcomes guide](../concepts/unknown-outcomes.md) for their
+evaluation and reporting behavior.
 
 ## Read the timestep CSV
 
@@ -57,5 +58,6 @@ those fail the later duration assessment. Read characteristic summaries
 separately from the final component summary.
 
 This is a deliberately fully known example. Do not extrapolate its denominator
-to intervals with unknown outcomes: reporting changes are still pending.
+to intervals with unknown outcomes: summaries use known outcomes only, and
+all-unknown intervals have no defined portion.
 For broader configuration rules, continue to the [reference](../reference.md).

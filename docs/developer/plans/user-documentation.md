@@ -6,7 +6,9 @@ pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
 integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
 was captured while working on `docs-reporting-r0`. R1–R8 are committed on
 `reporting-metrics`; R9 implementation and target-page updates are committed
-there. R10 and D6–D7 remain pending.
+there. R10 is complete and committed on `reporting-metrics`; D4–D5 are now
+fully complete, including their reporting-dependent topics. D6–D7
+remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
 
@@ -70,8 +72,9 @@ Keep the authoring system close to ordinary Markdown:
   frontend, generated API documentation, or multi-version tooling.
 - Local preview: `uv run --group docs mkdocs serve`.
 - Pull requests build the site with strict validation. Deployment through
-  GitHub Pages is enabled only after reporting slice R10 and is triggered by a
-  version-bump commit tagged `v*`, not by every main-branch update.
+  GitHub Pages is enabled only after reporting slice R10 and a matching
+  package release is available on PyPI. It is triggered by a version-bump
+  commit tagged `v*`, not by every main-branch update.
 - Set the documentation source directory to `docs\user`. Developer records,
   PDFs, and protected case studies must not be copied into the site.
 
@@ -471,7 +474,9 @@ Completion checks passed: 80 focused example/documentation tests, all 692
 pytest tests, strict MkDocs build, Ruff for the new test file, and
 `git diff --check`. Scientific source and all four protected case-study
 directories are unchanged; no files were deleted. S5 work is committed
-on its own branch with user approval, without integration or pushing.
+on its own branch with user approval, initially without integration or
+pushing. It was subsequently integrated into local `main` at `b05b326`;
+the earlier non-integration statement describes the S5 handoff only.
 
 At the time of the S5 handoff, S6 / R0 was next and had not started. It has
 since been captured while working on `docs-reporting-r0`; see the baseline
@@ -485,6 +490,53 @@ R7 updated output and API guidance plus migration notes for conservative event
 bounds, scalar ambiguity errors, annual attribution, and whole-record observed
 exposure. R8 added reporting-details guidance to the output page. R9 updated
 plotting, configuration, CLI, API, and migration guidance; implementation and
-these page changes are committed on `reporting-metrics`. The response-surface
-example pack, unknown-outcome section, remaining examples, and release
-readiness are deferred to R10. GitHub Pages deployment is still disabled.
+these page changes are committed on `reporting-metrics`. R10's
+response-surface example pack, unknown-outcome section, cross-linked
+uncertainty examples, and migration guidance are complete and committed on
+`reporting-metrics`; see the R10 completion record below. D6 cleanup and D7 publication
+remain pending. GitHub Pages deployment is still disabled.
+
+## R10 documentation and release-readiness completion record
+
+Added `docs\user\concepts\unknown-outcomes.md` and linked it from the concept
+index, glossary, evaluation guidance, affected characteristic references,
+configuration, output and plotting guides, migration guidance, and Python API.
+It documents unknown representations and sources, three-valued combination,
+duration/frequency uncertainty, annual fractions, partial water years,
+optional leap-day handling and unsupported schedules, known-outcome summaries,
+conservative event bounds, coverage cutoffs, protected plot gaps, and color
+interpretation.
+
+Added the runnable `examples\response-surface` pack and its user-site entry.
+Its CLI acceptance fixture exercises four scenario outcomes, 90% eligibility,
+the withheld-scenario coverage CSV, retained summary portion, exported grid,
+and rendered PNG. `tests\test_r10_documentation.py` also checks worked
+duration, frequency, annual-fraction, and `[1, unknown, 1]` summary/event
+examples against the evaluator and reporting API. The migration guide records
+unknown propagation, the annual denominator change, leap-day trade-off, and
+current reporting behavior. The unreleased notice remains; deployment and
+publication remain disabled.
+
+Validation results are recorded in the reporting-plan completion record.
+R10 is committed on `reporting-metrics` in
+`docs: complete R10 and prepare documentation handoff`; reporting changes
+have not been merged to `main` or pushed.
+
+## Next-session scope (2026-10-09)
+
+D1–D5 are complete; do not restart schema, reference, example, or reporting
+work. Next is S9 / D6 review: inspect the six named generated-output
+candidates above, check fixture and documentation dependencies, and present
+per-file evidence before requesting deletion permission. Review historical
+developer records individually; preserve unique content and provenance.
+No cleanup deletion has been authorized or performed. Cleanup remains
+non-blocking if permission is withheld.
+
+S10 / D7 is pending: developer authoring/release instructions, matching-version
+installation/download refs, deployment configuration, and the first successful
+tagged deploy. `.github\workflows\docs.yml` currently performs strict PR builds
+only. Keep deployment disabled and the unreleased notice accurate until the
+matching package release exists on PyPI; verify release status at pickup
+rather than assuming the design-time v0.2.0 observation is still current.
+Merge, push, release, and publication require separate user authorization.
+Optional R11 is not required and must not be started without approval.

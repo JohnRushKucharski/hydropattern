@@ -12,7 +12,8 @@ both success-pattern and failure-pattern components; colors describe the
 configured component outcome, not ecological benefit. Axis/colorbar labels
 name the selected summary scale. A plot title also reports the coverage
 cutoff and number of scenarios withheld, even when you set a custom title or
-axis labels.
+axis labels. For the difference between a summary and its coverage, see
+[unknown outcomes](../concepts/unknown-outcomes.md#response-surface-eligibility-and-color).
 
 By default, a scenario needs at least 90% known-outcome coverage to appear in
 the plot. Coverage is known component outcomes divided by recorded component
@@ -83,3 +84,6 @@ table also accepts title and axis-label settings. See the
 An invalid set of scenario names raises `PLOT_INVALID_SCENARIO_GRID`; it does
 not produce a plot with guessed axes. Output summaries remain available
 independently of plotting.
+
+The runnable [response-surface example](../examples/index.md#response-surface-coverage)
+shows the inclusive 90% cutoff and companion coverage data.

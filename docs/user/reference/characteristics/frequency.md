@@ -6,6 +6,8 @@ within each complete water year, then an interannual pattern across
 qualifying water years. A qualifying window can mark observations where the
 preceding conditions are not met. Frequency counts qualifying timesteps or
 water years, not component events.
+Unknown counts and anchors are described in
+[unknown outcomes](../../concepts/unknown-outcomes.md#frequency-possible-counts-and-windows).
 
 ## Un-nested frequency
 

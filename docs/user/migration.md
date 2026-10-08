@@ -1,8 +1,8 @@
 # Migration notes: pattern-correctness changes
 
 **Unreleased:** completed changes below are present in current source, not
-PyPI v0.2.0. See [installation](getting-started/installation.md). R10
-documentation work remains pending.
+PyPI v0.2.0. See [installation](getting-started/installation.md). Review
+these changes before comparing results with earlier releases.
 
 These behavior changes affect configurations and results produced by versions
 before the pattern-correctness update. Review them before comparing new results
@@ -17,10 +17,19 @@ with historical outputs.
 | Failure patterns | A false success-pattern setting did not consistently complement the combined failure condition. | `success_pattern = false` reports the logical complement of the combined failure condition (non-failure). Unknown outcomes remain unknown where the logic cannot determine a result. |
 | Timing | Timing could be interpreted relative to water-year day. | Timing thresholds use calendar day-of-year, including for non-January water-year starts. The existing convention maps February 28 and 29 to the same timing position. |
 | Annual calculations | A day-of-water-year reset could make an incomplete trailing year appear complete. | Recompute and review affected historical annual results. |
+| Unknown outcomes | Unavailable moving-average and rate calculations could become binary comparisons; uncertain duration/frequency inputs could be treated as non-qualifying. | Unavailable calculations and uncertain duration/frequency verdicts now remain unknown when evidence cannot settle them. Missing input values remain rejected. Review affected characteristic and component outcomes. |
+| Annual probability denominator | Annual fractions could use only known qualifying trials. | Intra-annual probability now assesses all observed timesteps in each complete water year. Unknowns leave possible fractions; the verdict is known only when every possible fraction agrees. This differs deliberately from descriptive summaries, which exclude unknowns. Recompute nested-frequency results. |
+| Daily leap day | Daily completeness required every date in the Gregorian water year. | An otherwise complete daily water year may omit February 29; other missing days remain invalid. A missing real February 29 is indistinguishable from deliberate synthetic omission and is accepted. Exposure denominator is 366 only when that year's recorded rows contain February 29, otherwise 365, including partial years that do not reach it. |
 | Result dataframe | Results could carry all input data columns and use a generic `dv` name. | Each result contains only the evaluated data column under its original name, then DOWY, characteristic outputs, and the component output. Datetime indexes are named `time`; other indexes are preserved. |
 | Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. `return_period` has been removed; use `portion` or `percentage` for outcome summaries. |
 | Response-surface coverage | Every defined summary could appear regardless of known-outcome coverage. | Plots now require 90% known-outcome coverage by default. Set `[output.plot].minimum_coverage` or `--minimum-coverage` to a finite fraction from 0 to 1. Exactly-at-cutoff scenarios remain eligible; all-unknown summaries remain undefined even at zero cutoff. |
 | Response-surface colors | Failure-pattern plots reversed the default color map. | Default coloring now uses red for lower final component-outcome fractions for both pattern types. Explicit color maps remain unchanged; colors describe configured outcomes, not ecological benefit. |
+
+For the complete explanation of unknown representations, denominator changes,
+leap-day assumptions, and worked examples, see
+[unknown outcomes](concepts/unknown-outcomes.md). Keep it beside the
+[output](guide/outputs.md), [data preparation](guide/preparing-data.md), and
+[plotting](guide/plotting.md) guidance when updating analysis instructions.
 
 For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference/characteristics/frequency.md) and the
@@ -38,7 +47,8 @@ portions. Recompute historical summaries before comparing results.
 
 `return_period` is rejected in `[output.metric].mode`; replace it with
 `portion` or `percentage`. Neither mode estimates physical event likelihood
-or timing. No compatibility alias is provided.
+or timing. Do not treat a reciprocal portion as a measure of event spacing;
+portions do not assert independent events. No compatibility alias is provided.
 
 ## Next release: event-count bounds and exposure
 

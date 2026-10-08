@@ -50,3 +50,27 @@ For seasonal comparisons, use the timing characteristic's calendar-day
 convention. For duration and frequency, identify whether a timestep means a
 day, month, or another sampling interval in your data; their configured
 lengths are counts of observations, not automatically calendar lengths.
+
+## Daily calendars and leap day
+
+For daily records, hydropattern accepts an otherwise complete water year
+whether or not February 29 is present. A missing February 29 is treated as an
+optional omission, whether it was removed from a synthetic calendar or was a
+missing real observation; the software cannot tell these apart. Other missing
+days are not accepted. Do not use omitted leap days as a general gap-filling
+rule.
+
+Daily completeness and exposure use a denominator of 366 when the water year's
+recorded dates contain February 29 and 365 when they do not. A partial year
+that ends before February 29 uses 365, even when a leap day would occur later.
+February 28 and 29 share a normalized day-of-water-year label, but remain
+separate recorded observations. Do not infer the exposure denominator from
+those labels.
+
+Unsupported cadence, duplicate dates, other missing dates, or insufficient
+timestamp information make annual completeness undetermined. Observed-outcome
+counts and fractions are still available, but nested annual evaluation and
+time-based event rates cannot be calculated reliably. Use supported complete
+daily or monthly timestamps for those analyses; see
+[unknown outcomes](../concepts/unknown-outcomes.md#daily-completeness-and-optional-february-29)
+and [water-year reporting](outputs.md#water-year-rows-and-completeness).

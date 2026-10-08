@@ -119,4 +119,5 @@ both modes summarize configured outcomes only. See
 for denominator and unknown-outcome details.
 
 For plotting behavior, coverage exports, and color interpretation, see the
-[plotting guide](../guide/plotting.md).
+[plotting guide](../guide/plotting.md) and
+[unknown-outcomes explanation](../concepts/unknown-outcomes.md).

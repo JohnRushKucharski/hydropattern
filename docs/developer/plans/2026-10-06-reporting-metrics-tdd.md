@@ -1,12 +1,14 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** agreed design; R0 baseline and R1–R9 complete and committed on
-`reporting-metrics`; R10 not started.
+**Status:** required MVP R0–R10 complete and committed on
+`reporting-metrics`. Optional R11 has not started and requires separate approval.
 Documentation sequence S3–S5 is complete; S4 is integrated into local
 `main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
-R0 evidence was captured while working on `docs-reporting-r0`. R1–R9 are
-committed on `reporting-metrics`, based on `b05b326`. No changes have been
-merged to `main` or pushed. Wait for user approval before R10.
+R0 evidence was captured while working on `docs-reporting-r0`. R1–R10 are
+committed on `reporting-metrics`, based on `b05b326`. Reporting-branch changes
+have not been merged to `main` or pushed. Next work belongs to sequence S9
+(reviewed cleanup) and S10 (release-gated publishing), not another required
+reporting slice.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -242,10 +244,11 @@ Explain the conflict between `fillin` and protected gaps with corrective
 instructions. Explain consistent red-for-lower-final-outcome default coloring
 for both pattern types, without implying ecological benefit.
 
-Do not imply that current evaluation already preserves all these unknowns:
-moving-average and rate comparisons currently turn unavailable calculations
-into binary outcomes. Short forward windows are not automatically unknown;
-the existing record-end truncation policy remains distinct.
+At design time, moving-average and rate comparisons turned unavailable
+calculations into binary outcomes. R1–R5 have since implemented the agreed
+unknown-preserving behavior; document it as current unreleased behavior,
+not as still pending. Short forward windows are not automatically unknown;
+the record-end truncation policy remains distinct.
 
 ## Engineering constraints
 
@@ -317,9 +320,12 @@ implements; keep the strict documentation build passing.
 | R7. Event bounds and rates | R2, R5 | Add named count/rate bounds and scalar ambiguity errors. Test `[1, unknown, 1]` → 1–2, all-unknown patterns, definite zero/counts, conservative bounds from final arrays, record-start runs, cross-year attribution, partial-year exposure, unsupported cadence, and positive-exposure validation. Small exhaustive tests establish correct MVP bounds without claiming source-dependency exactness. **Complete and committed on `reporting-metrics`.** |
 | R8. Reporting details | R6, R7 | Preserve existing metric sheets/raw files; add successful/known/total counts, coverage, completeness, component event bounds, exposure, and availability reasons. Test scenario/column alignment, partial-year rows, sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency. **Complete and committed on `reporting-metrics`.** |
 | R9. Coverage-aware response surfaces | R6, R8 | Add fractional `minimum_coverage` default 0.9 to TOML, CLI override/conflict resolution, and Python surfaces. Test exact 90%, below/above cutoff, zero cutoff, all-unknown, invalid/nonfinite/bool values, portion/percentage equivalence, protected gaps, `fillin` conflict, grid coverage data, explicit no-surface failure, custom labels/maps, and consistent default coloring. Preserve valid exported data on plotting failure. Verify actual rendered masks for interpolation on/off rather than testing only input arrays. **Complete and committed on `reporting-metrics`.** |
-| R10. Documentation and release readiness | R1–R9 | Complete dedicated unknown-outcome section and characteristic/reporting/plotting/API examples. Add executable fixtures for every agreed worked example. Explain breaking changes, optional leap-day trade-off, MVP bounds, coverage cutoff, reciprocal removal, and changed colors. Coordinate with the user-documentation redesign and next matching release; keep unreleased notice accurate. |
+| R10. Documentation and release readiness | R1–R9 | Complete dedicated unknown-outcome section and characteristic/reporting/plotting/API examples. Add executable fixtures for worked examples. Explain breaking changes, optional leap-day trade-off, MVP bounds, coverage cutoff, reciprocal removal, and changed colors. Coordinate with the user-documentation redesign and next matching release; keep unreleased notice accurate. **Complete and committed on `reporting-metrics`; see completion record below.** |
 
 ## R0 baseline record (2026-10-08)
+
+This section records pre-implementation behavior, not the current codebase.
+Keep it as historical evidence; completion records below describe the changes.
 
 Baseline was captured on branch `docs-reporting-r0` from S5 commit `b05b326`.
 No scientific or application code changed during R0. The recorded environment
@@ -549,9 +555,8 @@ implicit prerequisite or expand MVP while correcting unrelated issues.
 - Validation: `uv run pytest -q` passed (760 tests), `uv run mypy hydropattern/`,
   `uv run mkdocs build --strict`, and `git diff --check` passed.
 
-R1–R9 are complete and committed. R10 is next and requires user approval.
-Do not start R10 ahead of its dependencies or implement optional R11 without
-further authorization.
+R0–R10 are complete and committed on `reporting-metrics`.
+Do not implement optional R11 without further authorization.
 
 ## Validation and completion
 
@@ -576,7 +581,10 @@ further authorization.
 - MVP is complete when R0–R10 are implemented and documented, required checks
   pass, and no agreed behavior remains silently unsupported. R11 is optional.
 
-## Code evidence
+## Design-time code evidence (before R1–R10)
+
+The observations below supported the original plan and are historical.
+Use completion records and current code for present behavior.
 
 - `hydropattern/patterns/core.py`: comparison evaluation converts calculations
   into binary outcomes; component combination already preserves three-valued
@@ -659,7 +667,7 @@ passed (776 tests), `uv run mypy hydropattern/`, strict MkDocs build, Ruff on
 changed Python files, and `git diff --check` passed. R8 is committed on
 `reporting-metrics`; no merge or push occurred.
 
-R9 is complete and committed; R10 awaits user approval.
+R9 is complete and committed.
 
 ### R9 completion record (2026-10-08)
 
@@ -688,6 +696,36 @@ Python API, and migration pages were updated. R9 is committed on
 Validation: full `uv run pytest -q` passed (791 tests), `uv run mypy
 hydropattern/`, strict MkDocs build, Ruff on changed Python files, and
 `git diff --check` passed.
+
+### R10 completion record (2026-10-09)
+
+Added the dedicated user-facing unknown-outcomes section, linked from the
+concept index and affected characteristics, configuration, evaluation order,
+outputs, plotting, migration, glossary, and Python API. It explains missing
+input rejection versus unavailable calculations, three-valued component
+combination, duration uncertainty, frequency counts/anchors/schedules,
+annual fractions, partial water years, optional leap-day assumptions,
+unsupported schedules, known-outcome summary denominators, conservative event
+bounds, and response-surface eligibility and colors.
+
+Added `examples/response-surface` with four scenario outcomes, one below the
+default coverage cutoff. Its CLI acceptance fixture verifies the published
+outcome arrays, 90% cutoff inclusion, withheld-scenario reason, retained
+summary portion, exported grid, and actual PNG. `tests/test_r10_documentation.py`
+also compares the documented duration, frequency, annual-fraction, and
+`[1, unknown, 1]` summary/event examples with evaluator and reporting results.
+Updated migration guidance for unknown propagation, annual denominator,
+leap-day policy, and release behavior. The unreleased notice remains accurate;
+GitHub Pages deployment remains disabled.
+
+Validation: full `uv run pytest -q` passed (801 tests), `uv run mypy
+hydropattern/`, strict MkDocs build, Ruff on the R10 acceptance test, and
+`git diff --check` passed. R10 is committed on `reporting-metrics` in
+`docs: complete R10 and prepare documentation handoff`; reporting changes
+have not been merged to `main` or pushed. Optional R11 was not started.
+This completes the required reporting MVP, not package release or site
+publication. Continue with S9 review and release-gated S10 under the
+sequence plan; neither is authorization to implement R11.
 
 ## Reporting-versus-event-count example
 

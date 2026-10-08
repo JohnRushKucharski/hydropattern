@@ -3,6 +3,8 @@
 A magnitude characteristic compares each flow observation with a threshold
 or inclusive range. It is useful for identifying observations above, below,
 or between specified flow levels.
+Moving-average startup values can be unknown until the averaging interval is
+available; see [unknown outcomes](../../concepts/unknown-outcomes.md#where-unknown-outcomes-come-from).
 
 ## Configuration
 

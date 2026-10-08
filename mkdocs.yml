@@ -21,6 +21,7 @@ nav:
   - Scientific concepts:
       - Scientific foundations: concepts/scientific-foundations.md
       - Evaluation order: concepts/evaluation-order.md
+      - Unknown outcomes: concepts/unknown-outcomes.md
       - Glossary: concepts/glossary.md
   - Reference:
       - Overview: reference.md

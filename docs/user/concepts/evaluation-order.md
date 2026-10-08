@@ -75,4 +75,6 @@ column when interpreting the configured pattern as a whole. See
 Unavailable numeric calculations, such as a rate comparison without a
 previous flow value, remain unknown rather than becoming a failed comparison.
 Missing input flow values are still rejected. Other calculations and
-reporting summaries may have separate unknown-value rules.
+reporting summaries have separate unknown-value rules. See
+[unknown outcomes](unknown-outcomes.md) for their propagation, denominators,
+and reporting behavior.

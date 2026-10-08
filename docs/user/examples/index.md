@@ -3,8 +3,8 @@
 **Unreleased:** use the [current-source application](../getting-started/installation.md),
 not PyPI v0.2.0. These small packs use ordered characteristic tables with
 `parameters`. Their arbitrary flow units, seasons, and thresholds illustrate
-software behavior, not universal ecological criteria. All outcomes in these
-focused packs are fully known.
+software behavior, not universal ecological criteria. The response-surface
+pack also demonstrates unavailable calculations and coverage-based eligibility.
 
 Each pack has one authoritative CSV/TOML pair under `examples` in the source
 repository, plus instructions and expected results. The site links to those
@@ -19,8 +19,9 @@ files rather than keeping a second copy.
 3. Execute the command in the table below. The named output folder contains
    raw CSV files and component summary workbooks.
 
-New-pack links use `docs-reporting-s5` and become available only after that
-branch is pushed. Until then, copy the pair from your local checkout.
+S5 pack links use `docs-reporting-s5`; the response-surface pack uses
+`reporting-metrics`. Those links become available when their branches are
+pushed. Until then, copy files from your local checkout.
 The already completed first-run pack retains its `docs-reporting-s3` links,
 which are also unavailable until that branch is pushed. These packs use
 existing evaluator behavior; S5 adds no new scientific algorithms.
@@ -43,6 +44,7 @@ results, choose `--output-dir` or add `--no-overwrite`.
 | Duration | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/duration/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/duration/duration.toml) | `hydropattern run duration.toml --no-excel` | `duration_output` |
 | Frequency | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/frequency/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/frequency/frequency.toml) | `hydropattern run frequency.toml --no-excel` | `frequency_output` |
 | Multiple scenarios | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/multiple-scenarios/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/multiple-scenarios/multiple-scenarios.toml) | `hydropattern run multiple-scenarios.toml --no-excel` | `multiple-scenarios_output` |
+| Response-surface coverage | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/reporting-metrics/examples/response-surface/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/reporting-metrics/examples/response-surface/response-surface.toml) | `hydropattern run response-surface.toml --plot --no-excel` | `response-surface_output` |
 
 ## Expected results
 
@@ -89,6 +91,27 @@ columns. Their names are not scenario-grid coordinates, so no plot is
 requested. See [preparing data](../guide/preparing-data.md) and
 [output files](../guide/outputs.md).
 
+## Response-surface coverage
+
+The response-surface pack has four scenario columns on a 2-by-2 grid. A
+rate-of-change condition produces an unknown at startup for every scenario;
+one scenario also has a zero denominator. The default 90% cutoff includes
+the three scenarios with 9/10 known outcomes and withholds `_1_1`, which has
+8/10. The three eligible coordinates are non-collinear and render a surface.
+
+| Scenario | Expected component outcome | Known-outcome portion | Coverage | Plot status |
+|---|---|---:|---:|---|
+| `_0_0` | `[unknown, 1, 0, 1, 0, 1, 0, 1, 0, 1]` | 5/9 | 90% | included |
+| `_0_1` | `[unknown, 1, 1, 1, 1, 1, 1, 1, 1, 1]` | 1 | 90% | included |
+| `_1_0` | `[unknown, 0, 1, 0, 1, 0, 1, 0, 1, 0]` | 4/9 | 90% | included |
+| `_1_1` | `[unknown, 1, 0, unknown, 1, 0, 1, 0, 1, 0]` | 1/2 | 80% | withheld |
+
+Exactly 90% meets the inclusive cutoff. Withholding affects only the plot:
+raw outcome files and summary workbook still report all four scenarios. The
+coverage CSV records `_1_1` as `below_minimum_coverage`; its summary remains
+defined. See [response-surface plotting](../guide/plotting.md) and
+[unknown outcomes](../concepts/unknown-outcomes.md).
+
 Each source folder's README lists the exact output filenames, characteristic
 summaries, and local-checkout command. Browse the
 [S5 example folders](https://github.com/JohnRushKucharski/hydropattern/tree/docs-reporting-s5/examples)
@@ -106,5 +129,5 @@ download pair. In a local checkout, open a terminal in the repository root:
 uv run hydropattern run examples\detailed.toml --no-excel
 ```
 
-The response-surface example pack and unknown-outcome examples remain
-deferred to the final documentation and release-readiness step.
+The [unknown-outcomes section](../concepts/unknown-outcomes.md) provides
+worked duration, frequency, annual, reporting, and plotting examples.

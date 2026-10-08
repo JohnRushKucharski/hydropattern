@@ -2,8 +2,8 @@
 
 These terms distinguish observations, characteristic assessments, and final
 component classifications. They follow the project's domain terminology.
-Some terms are needed to discuss planned reporting improvements; their
-definition here does not mean those improvements are implemented.
+See [unknown outcomes](unknown-outcomes.md) for the full explanation of
+uncertainty and its effect on evaluation and reporting.
 
 ## Observations and configuration
 
@@ -52,9 +52,9 @@ exclude unknowns from each outcome column's denominator; an all-unknown group
 has no defined summary.
 
 **Known-outcome coverage** is the fraction of recorded timesteps whose outcome
-is known, for the column under discussion. Coverage differs from how many known
-outcomes are successful and from whether the water year is complete.
-Explicit coverage reporting is planned, not implemented in this step.
+is known, for the column under discussion. Coverage differs from how many
+known outcomes are successful and from whether the water year is complete.
+Coverage is available in reporting details and companion plot-coverage data.
 
 **Summary metric** summarizes the final component outcomes for one scenario.
 **Characteristic summary** summarizes a characteristic's diagnostic column

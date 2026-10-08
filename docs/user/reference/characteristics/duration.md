@@ -4,6 +4,8 @@ A duration characteristic asks whether a consecutive qualifying run is
 shorter than, longer than, equal to, or within configured timestep-count
 bounds. It is useful when a condition must persist for a specified number of
 observations.
+Unknown preceding outcomes can leave run boundaries uncertain; see the
+[unknown-outcome explanation](../../concepts/unknown-outcomes.md#duration-uncertain-run-boundaries).
 
 Duration uses **timesteps**, not calendar days or months. A run of seven
 monthly observations is seven timesteps; its calendar span depends on the
