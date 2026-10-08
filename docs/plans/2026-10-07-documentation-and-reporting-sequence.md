@@ -1,8 +1,8 @@
 # Documentation and reporting work sequence
 
-**Status:** agreed ordering; S1a and S1b complete on branch `docs-reporting-s1a`.
-**Next pickup:** start S1c from `f5c93b7` on branch `docs-reporting-s1a`.
-S1a (`b2d612e`) and S1b (`f5c93b7`) are complete; do not repeat either step.
+**Status:** S1a–S1c complete on branch `docs-reporting-s1a`.
+**Next pickup:** start S2 after S1c is committed. S1a (`b2d612e`), S1b
+(`f5c93b7`), and S1c are complete; do not repeat them.
 
 This plan defines the order in which agents pick up work from two plans:
 
@@ -35,7 +35,7 @@ early unless marked parallel.
 | S0 | Plan amendments (D0): update both plans and `CONTEXT.md` with agreed terms and this sequence | None | Editorial; user review |
 | S1a | D1: ordered tables accept `parameters`, reject `metrics` | S0 | TDD; pytest + mypy; migration note; complete (`b2d612e`) |
 | S1b | D1: rename `exclusive_event_window` → `exclusive_windows` everywhere (spec fields, function arguments, docstrings, tests, docs); interannual spec field `interannual_exclusive_windows`; rename `mark_events` to `mark_windows`; no aliases | S0 | TDD; targeted pytest + mypy; migration note; complete (`f5c93b7`) |
-| S1c | **Next:** D1: rename only remaining `base_`/`nested_` code identifiers to `intra_annual_`/`interannual_`, or neutral names where un-nested frequency shares a field; include spec fields, `is_nested`, builders, parser helpers, and column markers if user-visible. Do not repeat the S1b `exclusive_windows` rename. | S1b | TDD; pytest + mypy; migration note for public API; preserve evaluation behavior; no compatibility aliases |
+| S1c | D1: keep shared fields neutral; use `interannual_*` and `has_interannual_pattern` for the interannual part, and `is_terminal` for the characteristic marker. Preserve overall helper/result-column names and evaluation behavior. See the [migration guide](../user/migration.md) for API mappings. **Complete.** | S1b | TDD; targeted pytest + mypy; migration note; no aliases |
 | S2 | D2: move developer records and PDFs to `docs\developer\`; merge `docs\plans\` into `docs\developer\plans\`; fix all links (AGENTS.md, `docs\agents\domain.md`, ADRs, plans incl. this one, code comments, test docstrings, `.github\copilot-instructions.md`) | S1a–S1c | `git mv`; search finds no stale paths; pytest; protected case studies unchanged |
 | S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan | S2 | `mkdocs build --strict`; site excludes developer records/PDFs/case studies |
 | S4 | D4 (unaffected part): concepts and reference pages whose behavior R-slices do not change; see "Deferred topics" | S3 | Executable fixture per worked example, written before prose; TOML-block parse test |

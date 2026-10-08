@@ -16,7 +16,7 @@ def _evaluate(
     *,
     success_pattern: bool = True,
     terminal_type: CharacteristicType = CharacteristicType.MAGNITUDE,
-    terminal_nested: bool = False,
+    mark_terminal: bool = False,
 ) -> np.ndarray:
     data = pd.DataFrame(
         {'flow': np.arange(len(values)), 'dowy': np.arange(1, len(values) + 1)},
@@ -31,7 +31,7 @@ def _evaluate(
                 name=f'char_{index}',
                 fx=lambda _df, _output, column=column: column,
                 type=char_type,
-                is_nested=terminal_nested and is_terminal,
+                is_terminal=mark_terminal and is_terminal,
             )
         )
     component = Component(
@@ -72,7 +72,7 @@ def test_nested_frequency_terminal_is_inverted_without_collapsing_unknown():
         [[1], [0], [np.nan]],
         success_pattern=False,
         terminal_type=CharacteristicType.FREQUENCY,
-        terminal_nested=True,
+        mark_terminal=True,
     )
 
     np.testing.assert_equal(result, [0, 1, np.nan])

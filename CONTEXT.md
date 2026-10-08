@@ -232,9 +232,11 @@ _Avoid_: base pattern, inner pattern, first pattern.
 The second part of a nested frequency, evaluated across water years on
 the intra-annual pattern's qualifying water years.
 _Avoid_: nested pattern, outer pattern, second pattern.
-Code identifiers using `base_`/`nested_` are scheduled for renaming to
-`intra_annual_`/`interannual_` (or neutral equivalents where un-nested
-frequency shares the field).
+Code uses neutral names for fields shared with un-nested frequency and
+`interannual_` names only for fields specific to the interannual part of a
+nested frequency.
+`CharacteristicSpec` uses `has_interannual_pattern` and `interannual_*` fields;
+the generic characteristic marker is `is_terminal`.
 
 ## Example dialogue
 

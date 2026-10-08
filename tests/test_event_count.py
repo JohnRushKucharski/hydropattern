@@ -88,7 +88,7 @@ class TestResultEventCountNonNested(unittest.TestCase):
 class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
     '''Proves month-grain run-counting on a nested frequency's broadcast
     terminal column always agrees with year-grain counting -- the empirical
-    basis for NOT special-casing is_nested in Result.event_count().
+    basis for not special-casing terminal characteristics in Result.event_count().
     '''
 
     def test_broadcast_column_run_count_matches_qualifying_year_runs(self):
@@ -119,7 +119,7 @@ class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
         # Same qualifying-year pattern as above, wired through evaluate_component
         # via a nested-terminal stub characteristic (mirrors
         # TestEvaluateComponentNestedFrequencyDispatch in test_patterns.py),
-        # to confirm Result.event_count() needs no is_nested branching.
+        # to confirm Result.event_count() needs no terminal-marker branching.
         nested_broadcast = np.array([
             1, 1, 1, 1,   # year1 (broadcast verdict: 1)
             0, 0, 0, 0,   # year2 (broadcast verdict: 0)

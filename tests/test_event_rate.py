@@ -18,7 +18,7 @@ this mirrors, not re-litigates, the convention already established for
 frequency characteristics.
 
 Result.event_rate() = event_count() / record_length_years(self.df['dowy']),
-again with NO is_nested special-casing: T is a property of the record's own
+again with no terminal-marker special-casing: T is a property of the record's own
 water-year structure (already present via the dowy column validated by
 validate_timeseries), not of any one component's success-column grain
 (already established grain-agnostic in Phase 2 -- see test_event_count.py).

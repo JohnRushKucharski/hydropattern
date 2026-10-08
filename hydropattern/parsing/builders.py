@@ -83,7 +83,7 @@ def _build_characteristic(spec: CharacteristicSpec) -> patterns.Characteristic:
             metrics.extend(optional_args)
             return rate_of_change_parser(metrics, order=spec.order)
         case CharacteristicType.FREQUENCY:
-            if spec.is_nested:
+            if spec.has_interannual_pattern:
                 raise ValueError(
                     'Nested frequency specs must be built via _build_nested_frequency_characteristics, '
                     'not _build_characteristic (which only produces a single Characteristic).'
@@ -121,25 +121,25 @@ def _build_nested_frequency_characteristics(
     Characteristics via parsers.nested_frequency_parser (reuses the same
     validation/comparison-building logic the parsing-seam already ran).
     '''
-    base_metrics: list[Any] = (
+    intra_annual_metrics: list[Any] = (
         [spec.operator, *spec.values]
         if spec.operator is not None else list(spec.values)
     )
     if spec.big_n is not None:
-        base_metrics.append(spec.big_n)
+        intra_annual_metrics.append(spec.big_n)
     if spec.exclusive_windows:
-        base_metrics.append(spec.exclusive_windows)
+        intra_annual_metrics.append(spec.exclusive_windows)
 
-    nested_metrics: list[Any] = (
-        [spec.nested_operator, *spec.nested_values]
-        if spec.nested_operator is not None else list(spec.nested_values)
+    interannual_metrics: list[Any] = (
+        [spec.interannual_operator, *spec.interannual_values]
+        if spec.interannual_operator is not None else list(spec.interannual_values)
     )
-    if spec.nested_big_n is not None:
-        nested_metrics.append(spec.nested_big_n)
+    if spec.interannual_big_n is not None:
+        interannual_metrics.append(spec.interannual_big_n)
     if spec.interannual_exclusive_windows:
-        nested_metrics.append(spec.interannual_exclusive_windows)
+        interannual_metrics.append(spec.interannual_exclusive_windows)
 
-    return nested_frequency_parser([base_metrics, nested_metrics], spec.order)
+    return nested_frequency_parser([intra_annual_metrics, interannual_metrics], spec.order)
 
 
 def build_components(request: Request) -> list[patterns.Component]:
@@ -155,7 +155,7 @@ def build_components(request: Request) -> list[patterns.Component]:
         _validate_frequency_position(spec)
         characteristics: list[patterns.Characteristic] = []
         for cs in spec.characteristics:
-            if cs.is_nested:
+            if cs.has_interannual_pattern:
                 characteristics.extend(_build_nested_frequency_characteristics(cs))
             else:
                 characteristics.append(_build_characteristic(cs))

@@ -68,3 +68,24 @@ Replace the keyword argument `exclusive_event_window` with
 | `from hydropattern.patterns import mark_events`<br>`mark_events(raw, exclusive_event_window=True)` | `from hydropattern.patterns import mark_windows`<br>`mark_windows(raw, exclusive_windows=True)` |
 
 No compatibility aliases are provided. Evaluation results do not change.
+
+## Next release: nested-frequency specification names
+
+Direct Python users must update code that reads or constructs nested-frequency
+specifications. Shared fields such as `operator`, `values`, `big_n`, and
+`exclusive_windows` remain unchanged. Names specific to the interannual pattern
+now use `interannual_`; the flag identifying that a specification has this
+pattern is `has_interannual_pattern`. The generic characteristic marker is
+`is_terminal`.
+
+| Before | After |
+|---|---|
+| `spec.is_nested` | `spec.has_interannual_pattern` |
+| `spec.nested_operator` | `spec.interannual_operator` |
+| `spec.nested_values` | `spec.interannual_values` |
+| `spec.nested_big_n` | `spec.interannual_big_n` |
+| `Characteristic(..., is_nested=True)` | `Characteristic(..., is_terminal=True)` |
+| `characteristic.is_nested` | `characteristic.is_terminal` |
+
+There are no compatibility aliases. TOML syntax, frequency evaluation, and
+generated result-column names are unchanged.

@@ -5,8 +5,8 @@ Covers notes/frequencyEnhancement-resolved.md's un-nested config parsing:
   - [min_n, max_n, N, (exclusive_windows)]        -> FrequencyForm.BETWEEN      (task: freq-parse-between)
 
 Standalone [operator, probability, (exclusive_windows)] is INVALID un-nested (see
-notes/frequencyEnhancement-resolved.md): it survives only as the base pattern
-of a nested frequency spec (freq-nested-parse). validate_frequency_metrics
+notes/frequencyEnhancement-resolved.md): it survives only as the intra-annual
+pattern of a nested frequency spec (freq-nested-parse). validate_frequency_metrics
 still knows how to parse/validate the probability shape via an
 allow_probability=True escape hatch, reserved for the nested parser's reuse.
 
@@ -240,7 +240,7 @@ class TestFrequencyBuildComponentsIntegration(unittest.TestCase):
 
 
 class TestIsNestedFrequencyShape(unittest.TestCase):
-    '''Detects the nested shape [<base list>, <nested list>] vs un-nested forms.'''
+    '''Detects two-part frequency shape [<intra-annual>, <interannual>] forms.'''
 
     def test_nested_shape_detected(self):
         self.assertTrue(is_nested_frequency_shape([['>', 0.5], ['>', 1, 2]]))
@@ -265,27 +265,33 @@ class TestIsNestedFrequencyShape(unittest.TestCase):
 
 
 class TestValidateNestedFrequencyMetrics(unittest.TestCase):
-    '''validate_nested_frequency_metrics: base allows probability, nested does not.'''
+    '''validate_nested_frequency_metrics: intra-annual allows probability, interannual does not.'''
 
-    def test_probability_base_with_count_nested(self):
-        base, nested = validate_nested_frequency_metrics([['>', 0.5], ['>', 1, 2]])
-        self.assertEqual(base.form, FrequencyForm.PROBABILITY)
-        self.assertEqual(base.values, (0.5,))
-        self.assertEqual(nested.form, FrequencyForm.COUNT)
-        self.assertEqual(nested.values, (1,))
-        self.assertEqual(nested.big_n, 2)
+    def test_probability_intra_annual_with_count_interannual(self):
+        intra_annual, interannual = validate_nested_frequency_metrics(
+            [['>', 0.5], ['>', 1, 2]]
+        )
+        self.assertEqual(intra_annual.form, FrequencyForm.PROBABILITY)
+        self.assertEqual(intra_annual.values, (0.5,))
+        self.assertEqual(interannual.form, FrequencyForm.COUNT)
+        self.assertEqual(interannual.values, (1,))
+        self.assertEqual(interannual.big_n, 2)
 
-    def test_count_base_with_count_nested(self):
-        base, nested = validate_nested_frequency_metrics([['>', 1, 3], ['>', 1, 2]])
-        self.assertEqual(base.form, FrequencyForm.COUNT)
-        self.assertEqual(nested.form, FrequencyForm.COUNT)
+    def test_count_intra_annual_with_count_interannual(self):
+        intra_annual, interannual = validate_nested_frequency_metrics(
+            [['>', 1, 3], ['>', 1, 2]]
+        )
+        self.assertEqual(intra_annual.form, FrequencyForm.COUNT)
+        self.assertEqual(interannual.form, FrequencyForm.COUNT)
 
-    def test_between_base_with_between_nested(self):
-        base, nested = validate_nested_frequency_metrics([[1, 2, 3], [1, 2, 3]])
-        self.assertEqual(base.form, FrequencyForm.BETWEEN)
-        self.assertEqual(nested.form, FrequencyForm.BETWEEN)
+    def test_between_intra_annual_with_between_interannual(self):
+        intra_annual, interannual = validate_nested_frequency_metrics(
+            [[1, 2, 3], [1, 2, 3]]
+        )
+        self.assertEqual(intra_annual.form, FrequencyForm.BETWEEN)
+        self.assertEqual(interannual.form, FrequencyForm.BETWEEN)
 
-    def test_probability_nested_level_rejected(self):
+    def test_probability_interannual_pattern_rejected(self):
         with self.assertRaises(HydropatternError) as ctx:
             validate_nested_frequency_metrics([['>', 1, 2], ['>', 0.5]])
         self.assertEqual(
@@ -297,34 +303,39 @@ class TestValidateNestedFrequencyMetrics(unittest.TestCase):
             validate_nested_frequency_metrics(['>', 1, 2])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
-    def test_invalid_base_propagates_error(self):
+    def test_invalid_intra_annual_pattern_propagates_error(self):
         with self.assertRaises(HydropatternError) as ctx:
             validate_nested_frequency_metrics([['>', -0.1], ['>', 1, 2]])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
-    def test_invalid_nested_propagates_error(self):
+    def test_invalid_interannual_pattern_propagates_error(self):
         with self.assertRaises(HydropatternError) as ctx:
             validate_nested_frequency_metrics([['>', 0.5], ['>', 2, 2]])
         self.assertEqual(ctx.exception.envelope.code, str(ParserErrorCode.INVALID_VALUE))
 
 
 class TestNestedFrequencyParserNaming(unittest.TestCase):
-    '''nested_frequency_parser produces [intra_annual, interannual] Characteristics.'''
+    '''nested_frequency_parser produces intra-annual and interannual Characteristics.'''
+
+    def test_only_terminal_characteristic_has_terminal_marker(self):
+        chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
+        self.assertFalse(chars[0].is_terminal)
+        self.assertTrue(chars[1].is_terminal)
 
     def test_returns_two_characteristics(self):
         chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
         self.assertEqual(len(chars), 2)
 
-    def test_intra_annual_is_not_nested_marker(self):
+    def test_intra_annual_is_not_terminal(self):
         chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
-        self.assertFalse(chars[0].is_nested)
+        self.assertFalse(chars[0].is_terminal)
 
-    def test_interannual_is_nested_marker(self):
+    def test_interannual_is_terminal(self):
         chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
-        self.assertTrue(chars[1].is_nested)
+        self.assertTrue(chars[1].is_terminal)
 
     def test_names_use_union_and_interannual_union_markers(self):
-        # base uses its own exclusive_windows marker; nested uses interannual_ prefix
+        # Intra-annual uses its own marker; interannual uses its prefix
         # to distinguish the two columns when both share the same value label
         # (see notes/frequencyEnhancement.md's nested examples).
         chars = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
@@ -348,6 +359,18 @@ class TestNestedFrequencyParserNaming(unittest.TestCase):
 class TestNestedFrequencyBuildComponentsIntegration(unittest.TestCase):
     '''Nested frequency flows through parse_request -> build_components as 2 characteristics.'''
 
+    def test_nested_spec_uses_interannual_specific_field_names(self):
+        request = parse_request(
+            {'comp': {'frequency': [['>', 0.5], ['>=', 1, 2, True]]}}
+        )
+        spec = request.components[0].characteristics[0]
+
+        self.assertTrue(spec.has_interannual_pattern)
+        self.assertEqual(spec.interannual_operator, '>=')
+        self.assertEqual(spec.interannual_values, (1,))
+        self.assertEqual(spec.interannual_big_n, 2)
+        self.assertTrue(spec.interannual_exclusive_windows)
+
     def test_nested_spec_names_interannual_exclusivity(self):
         request = parse_request(
             {
@@ -367,8 +390,8 @@ class TestNestedFrequencyBuildComponentsIntegration(unittest.TestCase):
         )
         components = build_components(request)
         self.assertEqual(len(components[0].characteristics), 3)  # magnitude + 2 frequency cols
-        self.assertFalse(components[0].characteristics[1].is_nested)
-        self.assertTrue(components[0].characteristics[2].is_nested)
+        self.assertFalse(components[0].characteristics[1].is_terminal)
+        self.assertTrue(components[0].characteristics[2].is_terminal)
 
     def test_nested_shape_via_toml_names(self):
         request = parse_request(

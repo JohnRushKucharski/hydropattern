@@ -107,18 +107,18 @@ def _rate_of_change_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
 
 def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     if is_nested_frequency_shape(metrics):
-        base, nested = validate_nested_frequency_metrics(metrics)
+        intra_annual, interannual = validate_nested_frequency_metrics(metrics)
         return CharacteristicSpec(
             type=CharacteristicType.FREQUENCY,
-            operator=base.operator,
-            values=base.values,
-            big_n=base.big_n,
-            exclusive_windows=base.exclusive_windows,
-            is_nested=True,
-            nested_operator=nested.operator,
-            nested_values=nested.values,
-            nested_big_n=nested.big_n,
-            interannual_exclusive_windows=nested.exclusive_windows,
+            operator=intra_annual.operator,
+            values=intra_annual.values,
+            big_n=intra_annual.big_n,
+            exclusive_windows=intra_annual.exclusive_windows,
+            has_interannual_pattern=True,
+            interannual_operator=interannual.operator,
+            interannual_values=interannual.values,
+            interannual_big_n=interannual.big_n,
+            interannual_exclusive_windows=interannual.exclusive_windows,
             order=order,
         )
     parsed = validate_frequency_metrics(list(metrics))

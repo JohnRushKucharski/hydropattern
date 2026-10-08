@@ -612,7 +612,7 @@ class TestOrReducePerWaterYear(unittest.TestCase):
 class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
     '''
     nested_frequency_intra_annual_fx, reproducing notes/frequencyEnhancement-resolved.md
-    Example 3's intra_annual column (base pattern narrower than a full year).
+    Example 3's intra-annual column (its pattern is narrower than a full year).
     '''
 
     def test_example_3_intra_annual_column(self):
@@ -694,7 +694,7 @@ class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
 
     def test_nested_terminal_column_broadcasts_without_and(self):
         # magnitude column would fail AND at some timesteps, but since the
-        # last characteristic is_nested, component == the nested column value.
+        # Last characteristic is terminal, so component == that column's value.
         magnitude_values = np.array([0, 1, 0, 1])
 
         def magnitude_stub_fx(df, output):
@@ -720,7 +720,7 @@ class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
         )
         df.index.name = 'time'
         result = evaluate_component(df, component)
-        # component should equal the nested column (all 1s), NOT AND(magnitude, nested)
+        # Component should equal interannual column (all 1s), not AND(magnitude, it).
         np.testing.assert_array_equal(result.df['comp'].values, np.array([1, 1, 1, 1]))
 
     def test_nan_in_nested_column_is_not_a_success(self):

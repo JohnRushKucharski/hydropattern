@@ -275,7 +275,7 @@ def frequency_fx(f: Callable[[float], bool], order: int,
         if big_n is None:
             raise NotImplementedError(
                 'un-nested [operator, probability] frequency form is not valid; '
-                'probability form is only implemented as a nested base pattern '
+                'probability form is only implemented as the intra-annual pattern '
                 '(see notes/frequencyEnhancement-resolved.md).'
             )
 
@@ -393,7 +393,7 @@ def nested_frequency_interannual_fx(f: Callable[[float], bool], order: int,
         if big_n is None:
             raise NotImplementedError(
                 'nested [operator, probability] interannual frequency form is not valid; '
-                'probability is only valid as the intra-annual base pattern '
+                'probability is only valid as the intra-annual pattern '
                 '(see notes/frequencyEnhancement-resolved.md).'
             )
 

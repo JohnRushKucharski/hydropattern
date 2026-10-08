@@ -135,7 +135,7 @@ class TestFrequencyEquivalence(ParserBuilderEquivalenceTestCase):
 class TestNestedFrequencyEquivalence(ParserBuilderEquivalenceTestCase):
 
     def test_nested_frequency_direct_vs_spec_path(self):
-        # nested frequency (base + nested pattern) expands to two characteristics.
+        # Nested frequency expands into intra-annual and interannual characteristics.
         nested_direct = nested_frequency_parser([['>', 0.5], ['>', 1, 2]], order=2)
         self._assert_equivalent(
             direct_characteristics=[magnitude_parser(['>', 5.0], order=1), *nested_direct],

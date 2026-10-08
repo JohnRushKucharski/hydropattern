@@ -28,13 +28,10 @@ class CharacteristicType(StrEnum):
 
 type CharacteristicFx = Callable[[pd.DataFrame, None|np.ndarray], np.ndarray]
 
-# is_nested marks the terminal (interannual) column of a nested frequency
-# characteristic. evaluate_component() uses this to broadcast the interannual
-# result across each qualifying water year instead of the generic row-wise AND
-# used for every other characteristic (including un-nested frequency and the
-# nested pattern's own intra-annual column). See
-# notes/frequencyEnhancement-resolved.md.
-Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type', 'is_nested'],
+# is_terminal identifies a characteristic that completes its component's
+# evaluation. Nested frequency's interannual pattern is currently the only
+# characteristic that sets this marker.
+Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type', 'is_terminal'],
                             defaults=[False])
 
 #region utility functions
@@ -381,13 +378,13 @@ class Result:
         return count_events(self.df[self.component.name].to_numpy())
 
     def event_rate(self) -> float:
-        '''Descriptive rate of qualifying events per water year: event_count()
+        '''Descriptive rate of component events per water year: event_count()
         / record_length_years(dowy). See event_rate() and
-        record_length_years() docstrings for what this is (and is not) -- a
-        plain descriptive statistic, not a recurrence-interval/Poisson claim,
-        and not is_nested-branched (T is a property of the record's own
-        water-year structure via its dowy column, independent of any one
-        component's success-column grain).'''
+        record_length_years() docstrings for details. This is a descriptive
+        statistic; it does not imply event independence, recurrence
+        probabilities, or a Poisson process.
+        Exposure comes from the record's own water-year structure via its dowy
+        column, independent of any component's success-column grain.'''
         # Local import: hydropattern.patterns.water_year imports
         # sliding_window_count from this module, so importing it back at
         # module scope here would create a circular import.

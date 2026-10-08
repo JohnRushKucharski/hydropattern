@@ -275,13 +275,14 @@ Python arguments and the un-nested or intra-annual specification field,
 `mark_windows` for the run-marking helper. There are no compatibility aliases;
 migration guidance is in `docs\user\migration.md`.
 
-One further naming change remains for S1c, in its own TDD slice with migration
-notes and no compatibility alias:
-
-- Rename `base_`/`nested_` code identifiers (including `is_nested`) to
-  `intra_annual_`/`interannual_`, or neutral names where un-nested frequency
-  shares the field. This explicitly overrides "avoid unrelated internal/API
-  renaming" for these identifiers only. Keep evaluation behavior unchanged.
+S1c is complete in its own TDD slice with no compatibility aliases. Fields
+shared with un-nested frequency keep neutral names; fields specific to the
+interannual part use `interannual_*`. The generic characteristic marker is
+`is_terminal`. Helper names for the overall nested-frequency construct,
+result-column names, and evaluation behavior are unchanged. See the
+[migration guide](../../user/migration.md) for the Python API name changes.
+This explicitly overrides "avoid unrelated internal/API renaming" for these
+identifiers only.
 
 ## Examples and reviewed cleanup
 

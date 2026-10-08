@@ -29,13 +29,13 @@ class CharacteristicSpec:
     order: int = 1                # position in evaluation sequence
     big_n: int | None = None      # trial-window size N (frequency count/between forms only)
     exclusive_windows: bool = False       # exclusive (True) vs union (False) windowing (frequency only)
-    # Nested frequency (frequency = [<base>, [<nested>]]): when is_nested is True,
-    # operator/values/big_n/exclusive_windows above describe the BASE (intra-annual)
-    # pattern, and nested_* below describe the NESTED (interannual) pattern.
-    is_nested: bool = False
-    nested_operator: str | None = None
-    nested_values: tuple[float | int, ...] = ()
-    nested_big_n: int | None = None
+    # Nested frequency (frequency = [<intra-annual>, [<interannual>]]):
+    # the shared fields above describe the intra-annual pattern, while the
+    # interannual_* fields below describe the interannual pattern.
+    has_interannual_pattern: bool = False
+    interannual_operator: str | None = None
+    interannual_values: tuple[float | int, ...] = ()
+    interannual_big_n: int | None = None
     interannual_exclusive_windows: bool = False
 
 
@@ -161,5 +161,4 @@ __all__ = [
     'Request',
     'TimeseriesSpec',
 ]
-
 
