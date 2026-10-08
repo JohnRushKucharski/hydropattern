@@ -4,8 +4,8 @@ Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
 is complete on `docs-reporting-s4` and integrated into local `main`, without
 pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
 integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
-was captured while working on `docs-reporting-r0` and is committed with
-R1–R5 on `reporting-metrics`; R6 awaits approval and R6–R10 remain pending.
+was captured while working on `docs-reporting-r0`. R1–R6 are complete and
+committed on `reporting-metrics`; R7–R10 remain pending.
 Reporting-related D4/D5 work and D6–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
@@ -475,7 +475,12 @@ on its own branch with user approval, without integration or pushing.
 
 At the time of the S5 handoff, S6 / R0 was next and had not started. It has
 since been captured while working on `docs-reporting-r0`; see the baseline
-record committed in the reporting plan on `reporting-metrics`. R1–R5 are
-also committed on that branch.
-Remaining reporting-related D4/D5 content, the response-surface pack, and R6–R10 remain
-deferred to their agreed slices. GitHub Pages deployment is still disabled.
+record committed in the reporting plan on `reporting-metrics`. R1–R6 are
+complete and committed there. R6 updated output guidance, configuration
+reference, migration guidance, glossary, example comments, and the GUI-agent
+handoff to explain per-column known-outcome denominators, undefined all-unknown
+summaries, aggregation across the full record, and removal of `return_period`.
+
+Remaining reporting-related D4/D5 content, the response-surface pack, and
+R7–R10 remain deferred to their agreed slices. GitHub Pages deployment is
+still disabled.

@@ -33,12 +33,18 @@ component outcome. Rows include `total` for the whole recorded series and
 water-year labels for observations assigned to each water year.
 
 The default `portion` mode reports a fraction from 0 to 1; `percentage`
-reports the same quantity from 0 to 100. For a fully known outcome column,
-`portion` is the number of rows marked 1 divided by all rows in the
-summarized interval. A zero outcome count therefore gives zero. The
-first-run example contains only known outcomes; do not apply this
-denominator description to unknown-containing data. Summary behavior for
-unknown outcomes will be documented with its implementation.
+reports the same quantity from 0 to 100. Each outcome column has its own
+denominator: only known outcomes count. For example, `[1, 0, unknown,
+unknown]` has a `portion` of `0.5`, not `0.25`. An outcome column with known
+failures and no successes has a `portion` of `0`; a column with no known
+outcomes has no defined summary and is left blank.
+
+The `total` row combines successes and known outcomes across the whole record;
+it is not an average of water-year portions. Characteristic and component
+columns can have different known-outcome coverage, so each is summarized
+separately. Water-year rows use the configured water-year boundary. The
+[glossary](../concepts/glossary.md#outcomes) distinguishes unknown outcomes
+from failures.
 
 The component summary is not interchangeable with any one characteristic
 sheet. For example, a flow observation can meet a magnitude condition but

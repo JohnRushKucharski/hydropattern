@@ -47,8 +47,9 @@ avoid, so its final known success means non-failure.
 failure. It is neither one. Unavailable independent comparisons and duration
 run-boundary uncertainty preserve unknowns. Un-nested frequency preserves
 unknown counts and uncertain anchors. Nested frequency preserves possible
-annual fractions and unknown annual qualifying verdicts. Summary rules and
-explicit coverage remain planned.
+annual fractions and unknown annual qualifying verdicts. Summary portions
+exclude unknowns from each outcome column's denominator; an all-unknown group
+has no defined summary.
 
 **Known-outcome coverage** is the fraction of recorded timesteps whose outcome
 is known, for the column under discussion. Coverage differs from how many known
@@ -57,8 +58,8 @@ Explicit coverage reporting is planned, not implemented in this step.
 
 **Summary metric** summarizes the final component outcomes for one scenario.
 **Characteristic summary** summarizes a characteristic's diagnostic column
-instead. The first-result example has fully known outcomes; rules for
-summarizing unknowns will be documented with their reporting implementation.
+instead. Each column has its own known-outcome denominator. Known-outcome
+coverage and success among known outcomes describe different quantities.
 
 ## Duration and rate of change
 

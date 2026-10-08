@@ -1,21 +1,22 @@
 # Next-session handoff
 
 Continue hydropattern reporting work from branch `reporting-metrics`.
-R1–R5 are complete and committed. This branch is based on local `main` at
+R1–R6 are complete and committed. This branch is based on local `main` at
 `b05b326`. The working tree should be clean. Do not merge to `main` or push.
 
 Before further implementation:
 
-1. Read `CONTEXT.md`, `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`,
-   and `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
+1. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
+   `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
+   `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
 2. Confirm current branch, clean status, and commit history. `main`,
    `docs-reporting-s5`, and `docs-reporting-r0` intentionally remain at
    `b05b326`; previous documentation branches remain unchanged. Local `main`
    is already ten commits ahead of `origin/main` from earlier approved work;
    do not push it.
-3. Review R1–R5 completion notes, including the R4 correction, in the reporting plan.
-4. Report understanding and identify R6 as next. Wait for user approval before
-   starting R6. Do not begin R7–R10 or optional R11.
+3. Review R1–R6 completion notes, including the R4 correction, in the reporting plan.
+4. Report understanding and identify R7 as next. Wait for user approval before
+   starting R7. Do not begin R8–R10 or optional R11.
 
 R1 preserves unavailable order-1 comparison inputs as `NaN`. R2 propagates
 configured water-year boundaries to `Result`, uses shared ending-year labels,
@@ -33,11 +34,14 @@ R5 uses all observed annual timesteps as the annual condition denominator,
 evaluates every attainable fraction, reduces yearly count diagnostics with
 three-valued OR, and retains unknown annual anchors in interannual windows.
 Complete-year verdicts broadcast; partial years remain unknown and excluded.
-Summary denominators and reciprocal-mode removal are R6 work, not implemented.
+R6 excludes unknowns from each column's summary denominator, aggregates
+whole-record portions from total successes and known outcomes, aligns
+`Result.frequency_table()` water-year labels and percentages with formatter
+summaries, and rejects removed `return_period` mode with migration guidance.
 
-Last verified before handoff: `uv run pytest -q` (760 passed),
+Last verified before handoff: `uv run pytest -q` (761 passed),
 `uv run mypy hydropattern/`, `uv run mkdocs build --strict`, and
-`git diff --check` all passed. Changes are local and not pushed.
+`git diff --check` all passed. R6 commit is local and not pushed.
 
 Dense-unknown exact count windows cost more than the superseded R4
 approximation. A 3,653-step, 95%-unknown record with N=30 took approximately

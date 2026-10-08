@@ -65,7 +65,7 @@ From hydropattern `CONTEXT.md`:
 - **Scenario grid** = columns named with `_x_y` pattern.
 - **Precipitation delta** = first numeric value in scenario-grid name (x-axis).
 - **Temperature delta** = second numeric value (y-axis).
-- **Metric** = scalar per scenario used for z-axis (`portion` | `percentage` | `return_period`).
+- **Metric** = scalar per scenario used for z-axis (`portion` | `percentage`).
 
 Use these terms in GUI labels/docs/tests.
 
@@ -287,4 +287,3 @@ v1 done when:
 - TOML import/export round-trip stable
 - Windows exe produced and manually smoke-tested
 - docs sufficient for user install and run
-

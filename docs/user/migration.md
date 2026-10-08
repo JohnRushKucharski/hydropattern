@@ -18,11 +18,25 @@ with historical outputs.
 | Timing | Timing could be interpreted relative to water-year day. | Timing thresholds use calendar day-of-year, including for non-January water-year starts. The existing convention maps February 28 and 29 to the same timing position. |
 | Annual calculations | A day-of-water-year reset could make an incomplete trailing year appear complete. | Recompute and review affected historical annual results. |
 | Result dataframe | Results could carry all input data columns and use a generic `dv` name. | Each result contains only the evaluated data column under its original name, then DOWY, characteristic outputs, and the component output. Datetime indexes are named `time`; other indexes are preserved. |
-| Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. The next release removes `return_period`; replace it with `portion` or `percentage`. |
+| Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. `return_period` has been removed; use `portion` or `percentage` for outcome summaries. |
 
 For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference/characteristics/frequency.md) and the
 [pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s3/docs/developer/adr/0003-pattern-correctness-contract.md).
+
+## Summary denominator and removed mode
+
+Current unreleased source excludes unknown outcomes from summary denominators.
+For outcomes `[1, 0, unknown, unknown]`, the `portion` is `0.5`, not `0.25`.
+Each characteristic and component column uses its own known outcomes. A
+group with known outcomes but no successes has portion `0`; an all-unknown
+group has no defined summary. Whole-record summaries combine successes and
+known counts across the record, not an unweighted average of water-year
+portions. Recompute historical summaries before comparing results.
+
+`return_period` is rejected in `[output.metric].mode`; replace it with
+`portion` or `percentage`. Neither mode estimates physical event likelihood
+or timing. No compatibility alias is provided.
 
 ## Next release: unknown annual frequency
 
@@ -43,8 +57,8 @@ Recompute affected nested-frequency results; see the
 For direct Python calls, `water_year_probability_ratio` returns `NaN` for a
 complete year containing any unknown trials, because there is no unique scalar
 fraction. Nested condition evaluation still returns a known verdict when all
-attainable fractions agree. Annual condition denominators differ from the
-known-outcome summary denominators scheduled for a later reporting slice.
+attainable fractions agree. Annual condition denominators remain distinct from these known-outcome
+summary denominators.
 
 ## Next release: ordered characteristic tables
 

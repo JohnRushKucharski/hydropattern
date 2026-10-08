@@ -29,10 +29,10 @@ def _water_year_label(date: pd.Timestamp, first_day_of_wy: int) -> int:
 def _group_by_water_year(
     result: Result, column: str, first_day_of_wy: int
 ) -> pd.DataFrame:
-    '''Group result column by water year, returning n (successes) and T (count).
+    '''Group result column by water year, returning successes, known, and total counts.
 
-    Returns a DataFrame with index ['total', wy1, wy2, ...] and columns ['n', 'T'].
-    All values are floats; zero-success years have n=0.0 (not NA).
+    Returns a DataFrame with index ['total', wy1, wy2, ...] and columns
+    ['n', 'known', 'T'].
     '''
     df = result.df[[column]].copy()
     df['_wy'] = [_water_year_label(ts, first_day_of_wy) for ts in df.index]
@@ -40,12 +40,20 @@ def _group_by_water_year(
     total_n = float(df[column].sum())
     total_t = float(len(df))
     rows: dict[str | int, dict[str, float]] = {
-        'total': {'n': total_n, 'T': total_t}
+        'total': {
+            'n': total_n,
+            'known': float(df[column].notna().sum()),
+            'T': total_t,
+        }
     }
     for wy, group in df.groupby('_wy'):
         if not isinstance(wy, Integral):
             raise ValueError(f'Invalid water year label: {wy!r}.')
-        rows[int(wy)] = {'n': float(group[column].sum()), 'T': float(len(group))}
+        rows[int(wy)] = {
+            'n': float(group[column].sum()),
+            'known': float(group[column].notna().sum()),
+            'T': float(len(group)),
+        }
 
     return pd.DataFrame(rows).T
 
@@ -53,19 +61,18 @@ def _group_by_water_year(
 def compute_portion_series(
     result: Result, column: str, first_day_of_wy: int = 1
 ) -> pd.Series:
-    '''Compute portion (n/T) for one column of a Result, broken down by water year.
+    '''Compute successes divided by known outcomes for each water-year group.
 
-    Returns a Series with index = ['total', wy1, wy2, ...] and float values
-    representing the fraction of time steps where the column value is 1.
+    Returns a Series indexed by 'total' and water-year labels. A group with no
+    known outcomes is pd.NA; known groups with no successes return 0.0.
 
-    Zero successes -> 0.0. NA (T=0 for a group) -> pd.NA.
-    WY label uses ending-year convention (US standard).
+    Water-year labels use the configured ending-year convention.
     '''
     groups = _group_by_water_year(result, column, first_day_of_wy)
-    t = groups['T']
+    known = groups['known']
     n = groups['n']
-    portion = (n / t).astype('Float64')
-    return portion.mask(t <= 0, pd.NA)
+    portion = (n / known).astype('Float64')
+    return portion.mask(known <= 0, pd.NA)
 
 
 def compute_metric_series(
@@ -77,11 +84,8 @@ def compute_metric_series(
     '''Compute the configured summary metric for one column of a Result.
 
     Always starts from the underlying portion series (see compute_portion_series)
-    and applies the metric mode transform. NA/zero policy:
-        - PORTION:        unchanged; zero-success -> 0.0, NA (no timesteps) -> pd.NA.
-        - PERCENTAGE:      portion * 100; same NA/zero policy as portion.
-        - RETURN_PERIOD:   1 / portion; zero-success (undefined, i.e. infinite) and
-                           NA portions both -> pd.NA (never inf).
+    and applies the metric mode transform. Zero-success summaries are zero;
+    groups with no known outcomes are undefined.
     '''
     portion = compute_portion_series(result, column, first_day_of_wy)
     match mode:
@@ -89,9 +93,6 @@ def compute_metric_series(
             return portion
         case MetricMode.PERCENTAGE:
             return portion * 100
-        case MetricMode.RETURN_PERIOD:
-            return_period = (1 / portion).astype('Float64')
-            return return_period.mask(portion <= 0, pd.NA)
     raise ValueError(f'Unsupported metric mode: {mode!r}.')
 
 
@@ -143,7 +144,7 @@ def write_results(
         overwrite:        When True (default), existing files are replaced.
             When False, a numeric suffix (__1, __2, …) is appended.
         first_day_of_wy: First day of water year (1–365). Used for summary WY grouping.
-        metric_mode:     Summary metric mode (portion/percentage/return_period).
+        metric_mode:     Summary metric mode (portion/percentage).
 
     Returns the directory (or file parent) that received output files.
     """
@@ -307,21 +308,16 @@ def _next_available_path(path: Path) -> Path:
         suffix += 1
 
 
-def resolve_color_map(color_map: str, is_success_pattern: bool, metric_mode: MetricMode) -> str:
-    '''Auto-reverse hydropattern's default 'RdBu' colormap so red always means "less success".
+def resolve_color_map(color_map: str, is_success_pattern: bool) -> str:
+    '''Auto-reverse the default 'RdBu' map for failure-pattern outcomes.
 
     Only applies when color_map is left at the default 'RdBu' (explicit color_map choices
-    are never touched). Two independent conditions each flip the map to 'RdBu_r':
-      - metric_mode is RETURN_PERIOD (high return period == rare/undesirable, the opposite
-        direction from portion/percentage, where higher == more success).
-      - is_success_pattern is False (the component tracks a failure condition, so a high
-        portion/percentage/return-period value means more of the *bad* thing happening).
-    If both conditions hold, they cancel out and the plain 'RdBu' default is kept.
+    are never touched). A failure-pattern component flips the map so red continues
+    to indicate less of its final outcome.
     '''
     if color_map != 'RdBu':
         return color_map
-    reverse = (metric_mode == MetricMode.RETURN_PERIOD) ^ (not is_success_pattern)
-    return 'RdBu_r' if reverse else 'RdBu'
+    return 'RdBu' if is_success_pattern else 'RdBu_r'
 
 
 def write_grid_csv(xs, ys, zs, path: Path) -> None:
@@ -367,7 +363,7 @@ def plot_component_response_surface(
     title = component.name if climate_canvas.title is None else climate_canvas.title
     zlabel = metric_options.mode.value if climate_canvas.zlabel is None else climate_canvas.zlabel
     color_map = resolve_color_map(
-        climate_canvas.color_map, component.is_success_pattern, metric_options.mode
+        climate_canvas.color_map, component.is_success_pattern
     )
     if output_path is not None:
         write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')

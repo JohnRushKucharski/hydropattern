@@ -59,13 +59,11 @@ class Request:
 class MetricMode(Enum):
     '''Supported formatter summary metric modes.
 
-    PORTION:        fraction of timesteps in [0.0, 1.0] where the condition holds.
+    PORTION:         fraction of known outcomes in [0.0, 1.0] marked as success.
     PERCENTAGE:      portion expressed on a 0-100 scale (portion * 100).
-    RETURN_PERIOD:   1 / portion; undefined (NA) when portion is 0 or NA.
     '''
     PORTION = 'portion'
     PERCENTAGE = 'percentage'
-    RETURN_PERIOD = 'return_period'
 
 
 @dataclass(frozen=True)
@@ -161,4 +159,3 @@ __all__ = [
     'Request',
     'TimeseriesSpec',
 ]
-

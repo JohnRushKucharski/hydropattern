@@ -94,7 +94,7 @@ enabled = false
 | `[output].directory` | string | `{config_stem}_output` | Output folder, created if needed. |
 | `[output].overwrite` | boolean | `true` | Replace existing files; set false to create numbered alternatives. |
 | `[output].excel` | boolean | `true` | Write raw timestep results to Excel rather than separate CSV files. |
-| `[output.metric].mode` | string | `portion` | Summary scale: `portion` (0–1) or `percentage` (0–100). |
+| `[output.metric].mode` | string | `portion` | Summary scale: `portion` (0–1) or `percentage` (0–100). Each column's fraction uses only its known outcomes; an all-unknown group has no defined summary. |
 | `[output.plot].enabled` | boolean | `false` | Create response-surface outputs for a valid scenario grid. |
 
 `[output.plot.climate-canvas]` controls rendering details:
@@ -111,13 +111,11 @@ enabled = false
 | `color_map_ticks` | array of numbers | Renderer-selected | Optional colorbar tick positions. |
 | `fillin` | boolean | `false` | Pass the fill-in setting through to the plot renderer. |
 
-For the next release, use the `portion` or `percentage` mode shown above.
-See [migration guidance](../migration.md) for removal of the former
-`return_period` mode.
-
-The summary-mode options above describe fully known outcomes. Summary
-denominators for unknown outcomes will be updated with their reporting
-implementation. See [output files](../guide/outputs.md).
+The former `return_period` mode is removed. If a configuration still uses it,
+the parser reports the removal and directs you to `portion` or `percentage`;
+both modes summarize configured outcomes only. See
+[migration guidance](../migration.md) and [output files](../guide/outputs.md)
+for denominator and unknown-outcome details.
 
 For plotting options, see the [plotting guide](../guide/plotting.md). The
 future coverage cutoff, protected gaps, and color interpretation are not

@@ -1,11 +1,12 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** agreed design; R0 baseline and R1–R5 complete; R6–R10 not started.
+**Status:** agreed design; R0 baseline and R1–R6 complete; R7–R10 not started.
 Documentation sequence S3–S5 is complete; S4 is integrated into local
 `main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
-R0 evidence was captured while working on `docs-reporting-r0`. R1–R5 are
-committed on `reporting-metrics`, based on `b05b326`. No changes have been
-merged to `main` or pushed. Continue with R6 only after user approval.
+R0 evidence was captured while working on `docs-reporting-r0`. R1–R6 are
+committed on `reporting-metrics`, based on `b05b326`. R6 is complete;
+R7 is next and requires user approval before implementation. No changes have
+been merged to `main` or pushed.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -312,7 +313,7 @@ implements; keep the strict documentation build passing.
 | R3. Duration uncertainty | R1 | Verify possible run boundaries for thresholds and inclusive bounds; cover known runs on each side of unknowns, all-unknown runs, and record boundaries. Use the agreed length-2/length-1 versus length-4 fixture. Preserve whole-run behavior and settled failures, not only unknown propagation. **Complete and committed on `reporting-metrics`.** |
 | R4. Forward frequency uncertainty | R1, R3 | Test possible counts, unknown anchors, zero-admitting predicates, all six operators, inclusive between bounds, overlap union, exclusive scheduling, and record-end truncation. Reproduce both agreed overlap examples and exclusive `[unknown, 1, 1, unknown]` result. Compare short inputs against a binary-completion oracle; production implementation must not enumerate every unknown assignment. **Complete and committed on `reporting-metrics`.** |
 | R5. Nested annual uncertainty | R2, R4 | Test whole-year possible fractions, 12-month examples, definite annual thresholds, count/between annual reduction, unknown annual anchors, exclusive interannual schedules, annual broadcasting, and partial-year exclusion. Remove unknown-to-zero conversion. Preserve existing fully known nested examples. **Complete on `reporting-metrics`.** |
-| R6. Summary fractions and mode removal | R2, R5 | Use per-column known denominators; test 50% example, zero-success versus all-unknown, empty groups, unequal annual coverage, and whole-record aggregation. Make `Result.frequency_table()` and formatter summaries agree on boundaries, counts, and percentages. Reject `return_period` with guidance; remove its enum and all consumers without retaining an alias. |
+| R6. Summary fractions and mode removal | R2, R5 | Use per-column known denominators; test 50% example, zero-success versus all-unknown, empty groups, unequal annual coverage, and whole-record aggregation. Make `Result.frequency_table()` and formatter summaries agree on boundaries, counts, and percentages. Reject `return_period` with guidance; remove its enum and all consumers without retaining an alias. **Complete on `reporting-metrics`.** |
 | R7. Event bounds and rates | R2, R5 | Add named count/rate bounds and scalar ambiguity errors. Test `[1, unknown, 1]` → 1–2, all-unknown patterns, definite zero/counts, conservative bounds from final arrays, record-start runs, cross-year attribution, partial-year exposure, unsupported cadence, and positive-exposure validation. Small exhaustive tests establish correct MVP bounds without claiming source-dependency exactness. |
 | R8. Reporting details | R6, R7 | Preserve existing metric sheets/raw files; add successful/known/total counts, coverage, completeness, component event bounds, exposure, and availability reasons. Test scenario/column alignment, partial-year rows, sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency. |
 | R9. Coverage-aware response surfaces | R6, R8 | Add fractional `minimum_coverage` default 0.9 to TOML, CLI override/conflict resolution, and Python surfaces. Test exact 90%, below/above cutoff, zero cutoff, all-unknown, invalid/nonfinite/bool values, portion/percentage equivalence, protected gaps, `fillin` conflict, grid coverage data, explicit no-surface failure, custom labels/maps, and consistent default coloring. Preserve valid exported data on plotting failure. Verify actual rendered masks for interpolation on/off rather than testing only input arrays. |
@@ -548,8 +549,8 @@ implicit prerequisite or expand MVP while correcting unrelated issues.
 - Validation: `uv run pytest -q` passed (760 tests), `uv run mypy hydropattern/`,
   `uv run mkdocs build --strict`, and `git diff --check` passed.
 
-R6 is next in sequence; wait for user approval before starting. Do not start
-R6–R10 ahead of their dependencies or implement optional R11 without further
+R6 is complete; R7 is next and requires user approval. Do not start R8–R10
+ahead of their dependencies or implement optional R11 without further
 authorization.
 
 ## Validation and completion
@@ -595,6 +596,24 @@ authorization.
 - Installed climate-canvas exposes global `fillin` but no protected-gap mask.
   Its interpolation path can fill NaN regions when filling is enabled.
   Do not edit installed package files as an implementation shortcut.
+
+### R6 completion record (2026-10-08)
+
+Summary portions now divide each characteristic/component's successes by
+that column's known outcomes. All-unknown and empty groups remain undefined;
+whole-record totals aggregate success/known counts instead of averaging annual
+portions. `Result.frequency_table()` now uses the configured water-year
+boundary, ending-year integer labels, and per-column known-outcome percentages,
+matching formatter summaries. `return_period` was removed from `MetricMode`
+and default colormap selection; TOML parsing rejects it with replacement
+guidance. Updated output/configuration/migration/glossary docs and current
+example/developer guidance.
+
+Validation: targeted formatter, metric-option, scenario, and user-documentation
+tests passed; `uv run pytest -q` passed (761 tests), `uv run mypy hydropattern/`,
+`uv run mkdocs build --strict`, and `git diff --check` passed.
+
+R7 is next; wait for user approval before starting it.
 
 ## Reporting-versus-event-count example
 

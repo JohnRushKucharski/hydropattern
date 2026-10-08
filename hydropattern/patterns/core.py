@@ -443,33 +443,31 @@ class Result:
         # return df
 
     def frequency_table(self, by_water_years: bool = False) -> pd.DataFrame:
-        '''Returns a frequency table of the component success.'''
-        T = len(self.df) # pylint: disable=invalid-name
-        data = {'T': [T]}
-        for _, characteristic in enumerate(self.component.characteristics):
-            n = self.df[characteristic.name].sum()
-            data[characteristic.name] = [n]
-            data[f'{characteristic.name}(%)'] = [(n / T) * 100]
-        n = self.df[self.component.name].sum()
-        data[self.component.name] = [n]
-        data[f'{self.component.name}(%)'] = [(n / T) * 100]
+        '''Returns success counts and known-outcome percentages per column.'''
+        def summarize(group: pd.DataFrame) -> dict[str, int | float]:
+            row: dict[str, int | float] = {'T': len(group)}
+            for column in [
+                *(characteristic.name for characteristic in self.component.characteristics),
+                self.component.name,
+            ]:
+                known = int(group[column].notna().sum())
+                successes = int(group[column].sum())
+                row[column] = successes
+                row[f'{column}(%)'] = (
+                    successes / known * 100 if known else float('nan')
+                )
+            return row
+
+        rows = [summarize(self.df)]
+        indexes: list[str | int] = ['total']
         if by_water_years:
             df = self.identify_water_years().dropna(subset=['water_year'])
             wys = df['water_year'].dropna().unique()
-            for _, wy in enumerate(wys):
+            for wy in wys:
                 df_wy = df[df['water_year'] == wy]
-                T = len(df_wy) # pylint: disable=invalid-name
-                data['T'].append(T)
-                for _, characteristic in enumerate(self.component.characteristics):
-                    n_wy = df_wy[characteristic.name].sum()
-                    data[characteristic.name].append(n_wy)
-                    data[f'{characteristic.name}(%)'].append((n_wy / T) * 100)
-                n_wy = df_wy[self.component.name].sum()
-                data[self.component.name].append(n_wy)
-                data[f'{self.component.name}(%)'].append((n_wy / T) * 100)
-            indexs = ['total'] + [str(int(wy)) for wy in wys]
-            return pd.DataFrame(data, index=indexs)
-        return pd.DataFrame(data)
+                rows.append(summarize(df_wy))
+                indexes.append(int(wy))
+        return pd.DataFrame(rows, index=indexes)
 
     def plot_success(self,
                      ylimits: None|tuple[float, float] = None,

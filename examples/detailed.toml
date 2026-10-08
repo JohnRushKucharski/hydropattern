@@ -82,9 +82,9 @@ parameters = [">=", 1, 5]     # At least one qualifying timestep in a window.
 # Component summary workbooks are written even when raw results use CSV.
 #
 # [output.metric]
-# mode = "portion"              # Use portion or percentage for next release.
-# The legacy return_period mode is scheduled for removal, not redefined
-# as a hydrologic recurrence interval. See docs/user/migration.md.
+# mode = "portion"              # Also accepts "percentage".
+# return_period is removed; use portion or percentage instead.
+# Neither summary mode estimates physical event timing or likelihood.
 #
 # [output.plot]
 # enabled = false               # This file's input is not a scenario grid.

@@ -30,10 +30,19 @@ def parse_metric_options(section: Any = None, section_name: str = 'metric') -> M
         match key:
             case 'mode':
                 if not isinstance(value, str) or value not in valid_metric_modes:
+                    if value == 'return_period':
+                        message = (
+                            'return_period mode was removed; replace it with '
+                            '"portion" or "percentage".'
+                        )
+                    else:
+                        message = (
+                            f'{section_name}.mode must be one of {sorted(valid_metric_modes)}, '
+                            f'got: {value!r}.'
+                        )
                     raise_parser_error(
                         ParserErrorCode.INVALID_VALUE,
-                        f'{section_name}.mode must be one of {sorted(valid_metric_modes)}, '
-                        f'got: {value!r}.',
+                        message,
                         section=section_name,
                         field='mode',
                         value=value,

@@ -58,6 +58,51 @@ def _make_result_with_dates(values: list[int], index: pd.DatetimeIndex,
 class TestComputePortionSeries(unittest.TestCase):
     '''Tests for compute_portion_series().'''
 
+    def test_unknown_outcomes_are_excluded_from_each_column_denominator(self):
+        result = _make_result([1, 0, np.nan, np.nan], [2000, 2000, 2001, 2001])
+        result.df['comp'] = [1, 1, np.nan, np.nan]
+
+        magnitude = compute_portion_series(result, 'magnitude')
+        component = compute_portion_series(result, 'comp')
+
+        self.assertAlmostEqual(magnitude['total'], 0.5)
+        self.assertAlmostEqual(component['total'], 1.0)
+        self.assertTrue(pd.isna(magnitude[2001]))
+        self.assertTrue(pd.isna(component[2001]))
+
+    def test_all_unknown_outcomes_have_undefined_summary(self):
+        result = _make_result([np.nan, np.nan], [2000, 2000])
+
+        portion = compute_portion_series(result, 'magnitude')
+
+        self.assertTrue(pd.isna(portion['total']))
+        self.assertTrue(pd.isna(portion[2000]))
+
+    def test_empty_record_has_undefined_total_summary(self):
+        result = _make_result([], [])
+
+        portion = compute_portion_series(result, 'magnitude')
+
+        self.assertTrue(pd.isna(portion['total']))
+
+    def test_frequency_table_uses_known_outcomes_and_configured_water_years(self):
+        result = _make_result([1, 0, np.nan, np.nan], [2000, 2000, 2000, 2000])
+        result.df.index = pd.DatetimeIndex(
+            ['2000-09-30', '2000-10-01', '2001-09-30', '2001-10-01'],
+            name='time',
+        )
+        result.first_day_of_water_year = 274
+        result.df['comp'] = [1, 1, np.nan, np.nan]
+
+        summary = result.frequency_table(by_water_years=True)
+
+        self.assertEqual(list(summary.index), ['total', 2000, 2001, 2002])
+        self.assertEqual(summary.loc['total', 'T'], 4)
+        self.assertEqual(summary.loc['total', 'magnitude'], 1)
+        self.assertAlmostEqual(summary.loc['total', 'magnitude(%)'], 50.0)
+        self.assertAlmostEqual(summary.loc['total', 'comp(%)'], 100.0)
+        self.assertTrue(pd.isna(summary.loc[2002, 'magnitude(%)']))
+
     def test_all_success_total_is_one(self):
         '''All successes -> total portion = 1.0.'''
         result = _make_result([1, 1, 1, 1], [2000, 2000, 2001, 2001])
@@ -188,25 +233,6 @@ class TestComputeMetricSeries(unittest.TestCase):
         s = compute_metric_series(result, 'magnitude', MetricMode.PERCENTAGE)
         self.assertAlmostEqual(s['total'], 0.0)
 
-    def test_return_period_mode_is_inverse_of_portion(self):
-        '''RETURN_PERIOD mode = 1 / portion.'''
-        result = _make_result([1, 0, 0, 0], [2000, 2000, 2001, 2001])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertAlmostEqual(s['total'], 4.0)
-
-    def test_return_period_mode_zero_portion_is_na_not_inf(self):
-        '''RETURN_PERIOD mode: zero-success portion -> NA, never inf (NA/zero policy).'''
-        result = _make_result([0, 0, 0, 0], [2000, 2000, 2001, 2001])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertTrue(pd.isna(s['total']))
-
-    def test_return_period_mode_preserves_existing_na(self):
-        '''RETURN_PERIOD mode: an already-NA portion (T=0 group) stays NA.'''
-        result = _make_result([1, 1], [2000, 2000])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertTrue(pd.isna(s.get(2001, pd.NA)))
-
-
 class TestBuildSummarySheet(unittest.TestCase):
     '''Tests for build_summary_sheet().
 
@@ -245,6 +271,18 @@ class TestBuildSummarySheet(unittest.TestCase):
         df = build_summary_sheet(sr, 'comp', 'magnitude')
         self.assertAlmostEqual(df.loc['total', 'scenario_a'], 0.5)
         self.assertAlmostEqual(df.loc['total', 'scenario_b'], 0.5)
+
+    def test_total_portion_uses_aggregate_known_counts_not_year_average(self):
+        result = _make_result(
+            [1, np.nan, np.nan, 0, 0, 0],
+            [2000, 2000, 2001, 2001, 2001, 2001],
+        )
+
+        summary = build_summary_sheet({'scenario': [result]}, 'comp', 'magnitude')
+
+        self.assertAlmostEqual(summary.loc[2000, 'scenario'], 1.0)
+        self.assertAlmostEqual(summary.loc[2001, 'scenario'], 0.0)
+        self.assertAlmostEqual(summary.loc['total', 'scenario'], 0.25)
 
     def test_per_year_values(self):
         '''Per-year values match compute_portion_series.'''
@@ -596,42 +634,25 @@ class TestResolveColorMap(unittest.TestCase):
 
     def test_default_map_portion_success_pattern_stays_rdbu(self):
         self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=True, metric_mode=MetricMode.PORTION),
+            resolve_color_map('RdBu', is_success_pattern=True),
             'RdBu',
-        )
-
-    def test_default_map_return_period_success_pattern_reverses(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=True,
-                              metric_mode=MetricMode.RETURN_PERIOD),
-            'RdBu_r',
         )
 
     def test_default_map_portion_failure_pattern_reverses(self):
         self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False, metric_mode=MetricMode.PORTION),
+            resolve_color_map('RdBu', is_success_pattern=False),
             'RdBu_r',
-        )
-
-    def test_default_map_return_period_failure_pattern_cancels_out(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False,
-                              metric_mode=MetricMode.RETURN_PERIOD),
-            'RdBu',
         )
 
     def test_default_map_percentage_mode_behaves_like_portion(self):
         self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False,
-                              metric_mode=MetricMode.PERCENTAGE),
+            resolve_color_map('RdBu', is_success_pattern=False),
             'RdBu_r',
         )
 
     def test_explicit_color_map_never_reversed(self):
         for is_success_pattern in (True, False):
-            for metric_mode in MetricMode:
-                self.assertEqual(
-                    resolve_color_map('viridis', is_success_pattern=is_success_pattern,
-                                      metric_mode=metric_mode),
-                    'viridis',
-                )
+            self.assertEqual(
+                resolve_color_map('viridis', is_success_pattern=is_success_pattern),
+                'viridis',
+            )
