@@ -5,14 +5,14 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 
 ## Implementation context
 
-Documentation sequence S1a–S4 is complete and integrated into local `main`;
-S4 integration commit is `4eadda6`. S5's unaffected example curation is
-complete and committed on `docs-reporting-s5`, not integrated into `main`.
-Nothing has been pushed. S6 / R0 baseline and R1–R10 reporting work have not
-started. See the [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
+Documentation sequence S1a–S5 is complete and integrated into local `main`
+at `b05b326`. S6 / R0 baseline is recorded; R1–R4 are committed on
+`reporting-metrics` (R3: `d40b640`, R4: `59e69eb`). R5 is authorized next;
+R6–R10 and optional R11 have not started. Nothing has been pushed.
+Keep completed reporting slices as separate commits on `reporting-metrics`;
+do not merge to `main` or push without approval. See the
+[sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
 and its linked plans for scope, completion records, and prerequisites.
-Next-session work requires explicit approval for S5 integration and for
-starting S6 / R0; the S5 commit approval does not authorize either.
 
 ## Language
 

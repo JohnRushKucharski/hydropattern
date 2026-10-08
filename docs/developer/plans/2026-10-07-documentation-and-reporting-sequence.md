@@ -9,7 +9,7 @@ into local `main`, without pushing. Do not repeat S1a–S4. S1a (`b2d612e`), S1b
 S5's unaffected D5 portion is complete and integrated into local `main` at
 `b05b326`, without pushing. S6 / R0 baseline was captured while working on
 `docs-reporting-r0`; its evidence is committed in the reporting plan on
-`docs-reporting-r1-r2`. `docs-reporting-r0` remains at `b05b326` as the clean
+`reporting-metrics`. `docs-reporting-r0` remains at `b05b326` as the clean
 pre-R0 starting point. R1–R4 are complete and committed on `reporting-metrics`,
 based on `b05b326`; R5 is next after user approval. No changes have been merged
 to `main` or pushed.
@@ -52,7 +52,7 @@ early unless marked parallel.
 | S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan. **Complete (`079d381`), integrated into local `main`; not pushed.** See the [D3 completion record](user-documentation.md#d3-completion-record). | S2 | Strict build, pytest, local links/anchors, generated-site exclusions, and protected-path checks pass; documentation-editor review complete |
 | S4 | D4 (unaffected part): practical foundations, evaluation order, characteristic references, configuration/CLI/API organization, and reference entry point. **Complete on `docs-reporting-s4`; integrated into local `main`, not pushed.** See the [S4 completion record](user-documentation.md#d4-s4-completion-record). | S3 | Executable fixture per worked example, written before prose; all user-site TOML blocks parsed; terminology/link/navigation checks, strict site build, and documentation-editor review pass |
 | S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios. **Complete and integrated into local `main` at `b05b326`; not pushed.** See the [S5 completion record](user-documentation.md#d5-s5-completion-record). | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
-| S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages. **Complete; captured while working on `docs-reporting-r0`, with evidence now committed in the reporting plan on `docs-reporting-r1-r2`.** | S3 | Per reporting plan |
+| S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages. **Complete; captured while working on `docs-reporting-r0`, with evidence now committed in the reporting plan on `reporting-metrics`.** | S3 | Per reporting plan |
 | S7 | R1–R9 in reporting-plan order (R1–R4 complete; R5 next); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
 | S8 | R10 with remaining D4/D5: unknown-outcome section, deferred reference topics, response-surface pack, migration guide | S7 | Fixture for every agreed worked example; strict build |
 | S9 | D6 cleanup: per-file review and explicit permission before any deletion | S2 (not blocking) | User approval |
@@ -63,8 +63,7 @@ R11 is optional and is not part of this sequence.
 S5 example-pack curation is complete in its separately approved scope; the
 first-run pack remains unchanged. S6 reporting baseline was captured while
 working on `docs-reporting-r0`; its evidence is committed on
-`docs-reporting-r1-r2`. R1/R2 are committed on that branch; continue with R3
-after approval.
+`reporting-metrics`. R1–R4 are committed on that branch; R5 is authorized next.
 
 ## Deferred topics (not written in S4/S5)
 

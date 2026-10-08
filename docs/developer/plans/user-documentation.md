@@ -5,7 +5,7 @@ is complete on `docs-reporting-s4` and integrated into local `main`, without
 pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
 integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
 was captured while working on `docs-reporting-r0` and is committed with
-R1/R2 on `docs-reporting-r1-r2`; R3–R10 remain pending.
+R1–R4 on `reporting-metrics`; R5 is authorized next and R6–R10 remain pending.
 Reporting-related D4/D5 work and D6–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
@@ -475,7 +475,7 @@ on its own branch with user approval, without integration or pushing.
 
 At the time of the S5 handoff, S6 / R0 was next and had not started. It has
 since been captured while working on `docs-reporting-r0`; see the baseline
-record committed in the reporting plan on `docs-reporting-r1-r2`. R1/R2 are
+record committed in the reporting plan on `reporting-metrics`. R1–R4 are
 also committed on that branch.
-Reporting-related D4/D5 content, the response-surface pack, and R3–R10 remain
+Remaining reporting-related D4/D5 content, the response-surface pack, and R5–R10 remain
 deferred to their agreed slices. GitHub Pages deployment is still disabled.
