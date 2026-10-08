@@ -429,11 +429,28 @@ class TestPlotResponseSurface(unittest.TestCase):
             )
 
         _, kwargs = mocked.call_args
-        self.assertEqual(kwargs['title'], component.name)
+        self.assertTrue(kwargs['title'].startswith(component.name + '\n'))
         self.assertEqual(
             kwargs['labels'],
-            ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+            (
+                'Precipitation Delta (%)', 'Temperature Delta (C)',
+                'Percentage of known outcomes (%)',
+            ),
         )
+
+    def test_forwards_minimum_coverage_to_shared_plotting_logic(self):
+        result, component = self._grid_evaluate()
+        with mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            result.plot_response_surface(component.name, minimum_coverage=0.65)
+
+        _, kwargs = mocked.call_args
+        self.assertIn('Minimum coverage: 65%', kwargs['title'])
+
+    def test_rejects_invalid_python_minimum_coverage(self):
+        result, component = self._grid_evaluate()
+        for value in (True, float('nan'), -0.1, 1.1):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                result.plot_response_surface(component.name, minimum_coverage=value)
 
 
 if __name__ == '__main__':

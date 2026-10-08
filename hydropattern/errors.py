@@ -25,6 +25,8 @@ class PlotErrorCode(StrEnum):
     '''Stable plotting error codes.'''
 
     INVALID_SCENARIO_GRID = 'PLOT_INVALID_SCENARIO_GRID'
+    FILLIN_WITHHELD_SCENARIOS = 'PLOT_FILLIN_WITHHELD_SCENARIOS'
+    NO_RENDERABLE_SURFACE = 'PLOT_NO_RENDERABLE_SURFACE'
 
 
 class CliErrorCode(StrEnum):

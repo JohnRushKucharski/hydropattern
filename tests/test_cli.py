@@ -355,6 +355,42 @@ class TestCLICommand(unittest.TestCase):
             self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertTrue((output_dir / 'single_characteristic_grid.csv').exists())
             self.assertTrue((output_dir / 'single_characteristic_plot.png').exists())
+            self.assertTrue(
+                (output_dir / 'single_characteristic_grid_coverage.csv').exists()
+            )
+
+    def test_minimum_coverage_cli_option_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.test_files_dir / 'cli_smoke_grid_config.toml'),
+                 '--output-dir', str(Path(temp_dir) / 'out'), '--no-excel', '--plot',
+                 '--minimum-coverage', '0.6'],
+            )
+        self.assertEqual(result.exit_code, 0, msg=result.stdout)
+
+    def test_minimum_coverage_conflicts_with_run_toml_options(self):
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options',
+             '--minimum-coverage', '0.6'],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(
+            result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS
+        )
+        self.assertIn('minimum_coverage', result.exception.envelope.context['options'])
+
+    def test_minimum_coverage_rejects_nonfinite_cli_value(self):
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--minimum-coverage', 'NaN'],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        message = result.output + (str(result.exception) if result.exception else '')
+        self.assertIn('--minimum-coverage', message)
+        self.assertIn('finite fraction', message)
 
     def test_run_command_plot_fails_for_non_grid_scenarios(self):
         '''--plot on a single-scenario config raises a clear PLOT_INVALID_SCENARIO_GRID error.'''

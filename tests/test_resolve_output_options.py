@@ -50,6 +50,14 @@ class TestResolveOutputOptionsAllCliOmitted(unittest.TestCase):
         self.assertEqual(opts.plot.climate_canvas.color_map, 'viridis')
         self.assertEqual(opts.plot.climate_canvas.color_map_ticks, [-1.0, 0.0, 1.0])
 
+    def test_minimum_coverage_toml_used_when_cli_omitted(self):
+        opts = resolve_output_options(
+            {'output': {'plot': {'minimum_coverage': 0.7}}},
+            plot=None, output_directory=None, write_to_excel=None, overwrite=None,
+            interp=None, show=None,
+        )
+        self.assertEqual(opts.plot.minimum_coverage, 0.7)
+
 
 class TestResolveOutputOptionsCliOverridesWin(unittest.TestCase):
     '''Explicit CLI flags override toml values, regardless of toml content.'''
@@ -75,6 +83,14 @@ class TestResolveOutputOptionsCliOverridesWin(unittest.TestCase):
                                       write_to_excel=None, overwrite=None,
                                       interp=None, show=None)
         self.assertTrue(opts.plot.enabled)
+
+    def test_cli_minimum_coverage_overrides_toml_value(self):
+        opts = resolve_output_options(
+            {'output': {'plot': {'minimum_coverage': 0.7}}},
+            plot=None, output_directory=None, write_to_excel=None, overwrite=None,
+            interp=None, show=None, minimum_coverage=0.6,
+        )
+        self.assertEqual(opts.plot.minimum_coverage, 0.6)
 
     def test_cli_interp_and_show_override_toml_climate_canvas(self):
         data = {'output': {'plot': {'climate-canvas': {'interpolate': True, 'show': False}}}}

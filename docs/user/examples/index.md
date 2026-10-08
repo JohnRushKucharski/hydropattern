@@ -106,5 +106,5 @@ download pair. In a local checkout, open a terminal in the repository root:
 uv run hydropattern run examples\detailed.toml --no-excel
 ```
 
-The response-surface pack and unknown-outcome/reporting examples remain
-deferred until their corresponding reporting changes are implemented.
+The response-surface example pack and unknown-outcome examples remain
+deferred to the final documentation and release-readiness step.

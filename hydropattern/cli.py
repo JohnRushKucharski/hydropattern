@@ -20,6 +20,7 @@ from hydropattern.parsers import (
     parse_request,
     parse_timeseries_spec,
 )
+from hydropattern.parsing.specs import is_valid_minimum_coverage
 from hydropattern.patterns import Component, Result
 from hydropattern.scenarios import evaluate_scenarios
 from hydropattern.timeseries import Timeseries
@@ -105,6 +106,13 @@ def run(path: str = typer.Argument(...,
                                     Only affects --plot. Defaults to the configuration
                                     file's [output.plot.climate-canvas].fillin
                                     (false if unset).'''),
+        minimum_coverage: float = typer.Option(
+            None, "--minimum-coverage",
+            rich_help_panel="Climate Canvas Plot",
+            help='''Minimum known-outcome coverage required to include a scenario
+            in a response-surface plot, as a fraction from 0 to 1. Defaults to
+            [output.plot].minimum_coverage (0.9 if unset).''',
+        ),
         run_toml_options: bool = typer.Option(False, "--run-toml-options/--override-toml-options",
                                               rich_help_panel="Output",
                                               help='''If true, run exactly as specified in
@@ -113,7 +121,8 @@ def run(path: str = typer.Argument(...,
                                               (--plot/--no-plot, --output-dir, --excel/--no-excel,
                                               --overwrite/--no-overwrite, --interp/--no-interp,
                                               --show/--no-show, --threshold, --color-map,
-                                              --color-map-ticks, --fillin/--no-fillin)
+                                              --color-map-ticks, --fillin/--no-fillin,
+                                              --minimum-coverage)
                                               may also be passed explicitly,
                                               or a CLI_CONFLICTING_OPTIONS error is raised.
                                               If false (default), any explicit CLI option
@@ -125,20 +134,28 @@ def run(path: str = typer.Argument(...,
             plot=plot, output_directory=output_directory, write_to_excel=write_to_excel,
             overwrite=overwrite, interp=interp, show=show, threshold=threshold,
             color_map=color_map, color_map_ticks=color_map_ticks, fillin=fillin,
+            minimum_coverage=minimum_coverage,
+        )
+    if minimum_coverage is not None and not is_valid_minimum_coverage(minimum_coverage):
+        raise typer.BadParameter(
+            'must be a finite fraction between 0 and 1.',
+            param_hint='--minimum-coverage',
         )
     data = load_config_file(path)
     timeseries = load_timeseries(data)
     components = load_components(data)
     output_options = resolve_output_options(data, plot, output_directory, write_to_excel,
                                             overwrite, interp, show, threshold,
-                                            color_map, color_map_ticks, fillin)
+                                            color_map, color_map_ticks, fillin,
+                                            minimum_coverage)
     scenario_results = evaluate_scenarios(timeseries, components).scenario_results
     output_path = write_output(scenario_results, path, output_options.directory,
                                output_options.excel, output_options.overwrite,
                                timeseries.first_day_of_water_year, output_options.metric)
     if output_options.plot.enabled:
         plot_components(scenario_results, output_path, output_options.metric,
-                        timeseries.first_day_of_water_year, output_options.plot.climate_canvas)
+                        timeseries.first_day_of_water_year, output_options.plot.climate_canvas,
+                        output_options.plot.minimum_coverage)
 
 # Signature mirrors explicit CLI override surface.
 # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -153,6 +170,7 @@ def require_no_conflicting_cli_options(
         color_map: str | None = None,
         color_map_ticks: list[float] | None = None,
         fillin: bool | None = None,
+        minimum_coverage: float | None = None,
 ) -> None:
     '''Raise if any explicit output-related CLI option was passed alongside --run-toml-options.
 
@@ -170,6 +188,7 @@ def require_no_conflicting_cli_options(
         color_map=color_map,
         color_map_ticks=color_map_ticks,
         fillin=fillin,
+        minimum_coverage=minimum_coverage,
     )
     if conflicts:
         raise_cli_error(
@@ -191,7 +210,8 @@ def resolve_output_options(data: dict[str, Any],
                            threshold: float | None = None,
                            color_map: str | None = None,
                            color_map_ticks: list[float] | None = None,
-                           fillin: bool | None = None) -> OutputOptions:
+                           fillin: bool | None = None,
+                           minimum_coverage: float | None = None) -> OutputOptions:
     '''Merge explicit CLI flags with the configuration file's [output] section.
 
     CLI flags default to None (not explicitly passed by the user). An explicit
@@ -205,7 +225,8 @@ def resolve_output_options(data: dict[str, Any],
         color_map=color_map, color_map_ticks=color_map_ticks, fillin=fillin,
     )
     plot_options = merge_overrides(
-        replace(toml_options.plot, climate_canvas=climate_canvas), enabled=plot,
+        replace(toml_options.plot, climate_canvas=climate_canvas),
+        enabled=plot, minimum_coverage=minimum_coverage,
     )
     return merge_overrides(
         toml_options,

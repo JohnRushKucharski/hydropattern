@@ -4,9 +4,9 @@ Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
 is complete on `docs-reporting-s4` and integrated into local `main`, without
 pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
 integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
-was captured while working on `docs-reporting-r0`. R1–R8 are complete and
-committed on `reporting-metrics`; R9–R10 remain pending.
-Reporting-related D4/D5 work and D6–D7 remain pending.
+was captured while working on `docs-reporting-r0`. R1–R8 are committed on
+`reporting-metrics`; R9 implementation and target-page updates are committed
+there. R10 and D6–D7 remain pending.
 S3 commit `079d381` is integrated into local `main` by fast-forward from
 `docs-reporting-s3`; nothing has been pushed.
 
@@ -483,6 +483,8 @@ summaries, aggregation across the full record, and removal of `return_period`.
 
 R7 updated output and API guidance plus migration notes for conservative event
 bounds, scalar ambiguity errors, annual attribution, and whole-record observed
-exposure. R8 added reporting-details guidance to the output page. Remaining
-reporting-related D4/D5 content, the response-surface pack, and R9–R10 remain
-deferred to their agreed slices. GitHub Pages deployment is still disabled.
+exposure. R8 added reporting-details guidance to the output page. R9 updated
+plotting, configuration, CLI, API, and migration guidance; implementation and
+these page changes are committed on `reporting-metrics`. The response-surface
+example pack, unknown-outcome section, remaining examples, and release
+readiness are deferred to R10. GitHub Pages deployment is still disabled.

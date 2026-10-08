@@ -8,13 +8,12 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 
-from hydropattern.errors import HydropatternError
+from hydropattern.errors import HydropatternError, PlotErrorCode
 from hydropattern.formatters import (
     build_summary_sheet,
     compute_metric_series,
     compute_portion_series,
     plot_components,
-    resolve_color_map,
     write_results,
     write_summary,
 )
@@ -598,6 +597,15 @@ class TestPlotComponents(unittest.TestCase):
         }, index=index)
         return Result(df=df, component=component)
 
+    def _grid_result_outcomes(self, component_name: str, outcomes: list[float]) -> Result:
+        component = Component(
+            name=component_name, characteristics=[], is_success_pattern=True
+        )
+        index = pd.date_range('2000-01-01', periods=len(outcomes), freq='D', name='time')
+        df = pd.DataFrame({'flow': np.ones(len(outcomes)), component_name: outcomes},
+                          index=index)
+        return Result(df=df, component=component)
+
     def test_plot_components_writes_grid_csv_and_png_per_component(self):
         '''One {component}_grid.csv and {component}_plot.png written per component.'''
         import tempfile
@@ -614,7 +622,200 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions(interpolate=False, show=False))
 
             self.assertTrue((output_path / 'single_characteristic_grid.csv').exists())
+            self.assertTrue(
+                (output_path / 'single_characteristic_grid_coverage.csv').exists()
+            )
             self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
+
+    def test_minimum_coverage_includes_scenario_at_exact_ninety_percent(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes(
+                'component', [1.0] * 9 + [np.nan]
+            )],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0, 0.0, 0.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0, 1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0, 1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(), 1,
+                ClimateCanvasPlotOptions(interpolate=False),
+            )
+            plotted_zs = mocked.call_args.args[2]
+            self.assertEqual(plotted_zs[0, 0], 1.0)
+            self.assertIn('minimum coverage: 90%', mocked.call_args.kwargs['title'].lower())
+            coverage = pd.read_csv(Path(temp_dir) / 'component_grid_coverage.csv')
+
+        row = coverage.set_index('scenario').loc['_0_0']
+        self.assertEqual(row['precip_delta'], 0)
+        self.assertEqual(row['temp_delta'], 0)
+        self.assertEqual(row['raw_summary'], 1.0)
+        self.assertEqual(row['known_count'], 9)
+        self.assertEqual(row['total_count'], 10)
+        self.assertEqual(row['coverage'], 0.9)
+        self.assertTrue(row['eligible'])
+        self.assertTrue(np.isnan(row['exclusion_reason']))
+
+    def test_scenario_below_minimum_coverage_is_withheld(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(), 1,
+                ClimateCanvasPlotOptions(interpolate=False),
+                minimum_coverage=0.5,
+            )
+            zs = mocked.call_args.args[2]
+            self.assertTrue(np.isnan(zs[0, 0]))
+            coverage = pd.read_csv(Path(temp_dir) / 'component_grid_coverage.csv')
+        row = coverage.set_index('scenario').loc['_0_0']
+        self.assertFalse(row['eligible'])
+        self.assertEqual(row['exclusion_reason'], 'below_minimum_coverage')
+
+    def test_portion_and_percentage_surfaces_have_same_eligibility(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 0.0, 0.0, 0.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(MetricMode.PORTION), 1,
+                minimum_coverage=0.5,
+            )
+            portion_zs = mocked.call_args.args[2].copy()
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(MetricMode.PERCENTAGE), 1,
+                minimum_coverage=0.5,
+            )
+            percentage_zs = mocked.call_args.args[2]
+
+        np.testing.assert_array_equal(np.isnan(portion_zs), np.isnan(percentage_zs))
+        np.testing.assert_allclose(percentage_zs, portion_zs * 100, equal_nan=True)
+
+    def test_actual_renderer_preserves_withheld_gap_with_interpolation_on_or_off(self):
+        import tempfile
+
+        from matplotlib.axes import Axes
+
+        names = [f'_{x}_{y}' for y in range(3) for x in range(3)]
+        scenario_results = {
+            name: [self._grid_result_outcomes(
+                'component', [1.0, np.nan] if name == '_1_1' else [1.0, 1.0]
+            )]
+            for name in names
+        }
+        for interpolate in (False, True):
+            rendered: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+            original = Axes.pcolormesh
+
+            def capture_mesh(axis, *args, **kwargs):
+                if len(args) >= 3:
+                    xs, ys, zs = args[:3]
+                    if np.asarray(zs).ndim == 2:
+                        rendered.append((np.asarray(xs), np.asarray(ys), np.asarray(zs)))
+                return original(axis, *args, **kwargs)
+
+            with tempfile.TemporaryDirectory() as temp_dir, \
+                 mock.patch.object(Axes, 'pcolormesh', new=capture_mesh), \
+                 self.assertWarns(RuntimeWarning):
+                plot_components(
+                    scenario_results, Path(temp_dir), MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=interpolate, show=False),
+                    minimum_coverage=0.9,
+                )
+
+            xs, ys, zs = rendered[0]
+            x_index = int(np.where(xs == 1.0)[0][0])
+            y_index = int(np.where(ys == 1.0)[0][0])
+            self.assertTrue(np.isnan(zs[y_index, x_index]))
+
+    def test_all_unknown_surface_exports_data_then_raises_no_renderable_surface(self):
+        import tempfile
+        scenario_results = {
+            name: [self._grid_result_outcomes('component', [np.nan, np.nan])]
+            for name in ('_0_0', '_0_1', '_1_0', '_1_1')
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=False),
+                )
+            self.assertEqual(
+                ctx.exception.envelope.code, PlotErrorCode.NO_RENDERABLE_SURFACE
+            )
+            self.assertTrue((output_path / 'component_grid.csv').exists())
+            self.assertTrue((output_path / 'component_grid_coverage.csv').exists())
+
+    def test_three_non_collinear_scenarios_can_render_after_one_is_withheld(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertWarns(RuntimeWarning):
+                plot_components(
+                    scenario_results, Path(temp_dir), MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=False, show=False),
+                    minimum_coverage=0.9,
+                )
+            self.assertTrue((Path(temp_dir) / 'component_plot.png').exists())
+
+    def test_zero_cutoff_does_not_make_all_unknown_metrics_renderable(self):
+        import tempfile
+        scenario_results = {
+            name: [self._grid_result_outcomes('component', [np.nan, np.nan])]
+            for name in ('_0_0', '_0_1', '_1_0', '_1_1')
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    minimum_coverage=0,
+                )
+            coverage = pd.read_csv(output_path / 'component_grid_coverage.csv')
+        self.assertEqual(ctx.exception.envelope.code, PlotErrorCode.NO_RENDERABLE_SURFACE)
+        self.assertFalse(coverage['eligible'].any())
+        self.assertTrue((coverage['exclusion_reason'] == 'no_known_outcomes').all())
+
+    def test_fillin_conflicts_with_withheld_scenarios_after_export(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(fillin=True),
+                    minimum_coverage=0.9,
+                )
+            self.assertEqual(
+                ctx.exception.envelope.code, PlotErrorCode.FILLIN_WITHHELD_SCENARIOS
+            )
+            self.assertTrue((output_path / 'component_grid.csv').exists())
+            self.assertTrue((output_path / 'component_grid_coverage.csv').exists())
 
     def test_plot_components_raises_for_non_grid_scenarios(self):
         '''Non-grid scenario names raise HydropatternError (PLOT_INVALID_SCENARIO_GRID).'''
@@ -648,11 +849,16 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions())
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['title'], 'single_characteristic')
+            self.assertTrue(kwargs['title'].startswith('single_characteristic\n'))
+            self.assertIn('withheld: 0 scenario(s)', kwargs['title'])
             self.assertEqual(
                 kwargs['labels'],
-                ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+                (
+                    'Precipitation Delta (%)', 'Temperature Delta (C)',
+                    'Percentage of known outcomes (%)',
+                ),
             )
+            self.assertEqual(kwargs['color_map'], 'RdBu')
 
     def test_plot_components_uses_configured_title_and_labels_when_set(self):
         '''Explicit title/xlabel/ylabel/zlabel override the dynamic defaults.'''
@@ -673,7 +879,8 @@ class TestPlotComponents(unittest.TestCase):
                             ))
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['title'], 'Custom Title')
+            self.assertTrue(kwargs['title'].startswith('Custom Title\n'))
+            self.assertIn('Minimum coverage:', kwargs['title'])
             self.assertEqual(kwargs['labels'], ('X', 'Y', 'Z'))
 
     def test_plot_components_forwards_threshold_color_map_and_ticks(self):
@@ -763,8 +970,8 @@ class TestPlotComponents(unittest.TestCase):
             self.assertEqual(kwargs['levels'], (0.0,))
             self.assertEqual(kwargs['widths'], (1.0,))
 
-    def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
-        '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''
+    def test_plot_components_keeps_default_color_map_for_failure_pattern(self):
+        '''Both pattern modes use same default coloring for final outcomes.'''
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir, \
              mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
@@ -784,7 +991,7 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions())
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['color_map'], 'RdBu_r')
+            self.assertEqual(kwargs['color_map'], 'RdBu')
 
     def test_plot_components_keeps_explicit_color_map_for_failure_pattern(self):
         '''An explicitly-configured color_map is never auto-reversed.'''
@@ -808,32 +1015,3 @@ class TestPlotComponents(unittest.TestCase):
 
             _, kwargs = mocked.call_args
             self.assertEqual(kwargs['color_map'], 'viridis')
-
-
-class TestResolveColorMap(unittest.TestCase):
-    '''Tests for resolve_color_map.'''
-
-    def test_default_map_portion_success_pattern_stays_rdbu(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=True),
-            'RdBu',
-        )
-
-    def test_default_map_portion_failure_pattern_reverses(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False),
-            'RdBu_r',
-        )
-
-    def test_default_map_percentage_mode_behaves_like_portion(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False),
-            'RdBu_r',
-        )
-
-    def test_explicit_color_map_never_reversed(self):
-        for is_success_pattern in (True, False):
-            self.assertEqual(
-                resolve_color_map('viridis', is_success_pattern=is_success_pattern),
-                'viridis',
-            )

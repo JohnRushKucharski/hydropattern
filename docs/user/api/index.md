@@ -80,6 +80,25 @@ outcomes independently and may therefore be wider than the possibilities
 allowed by dependencies in the original evaluation; they are not exact
 source-dependency bounds.
 
+## Plot a scenario grid
+
+`ScenarioResults.plot_response_surface` uses the same default 90% coverage
+cutoff as the CLI. Override it with a fraction from 0 to 1:
+
+```python
+scenarios.plot_response_surface(
+    "sustained_flow",
+    output_path="results",
+    minimum_coverage=0.75,
+)
+```
+
+With an output directory, the method writes the eligible summary grid, a
+companion coverage CSV, and a PNG. Scenarios below the cutoff or without a
+defined summary remain gaps; `fillin=True` cannot be combined with withheld
+scenarios. If fewer than three non-collinear scenarios remain, plotting raises
+`PLOT_NO_RENDERABLE_SURFACE` after writing the grid and coverage data.
+
 ## Read structured errors
 
 Parser and plot errors expose a `HydropatternError` with a code, message,

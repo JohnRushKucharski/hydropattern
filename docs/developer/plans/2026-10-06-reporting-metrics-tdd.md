@@ -1,11 +1,12 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** agreed design; R0 baseline and R1–R8 complete; R9–R10 not started.
+**Status:** agreed design; R0 baseline and R1–R9 complete and committed on
+`reporting-metrics`; R10 not started.
 Documentation sequence S3–S5 is complete; S4 is integrated into local
 `main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
-R0 evidence was captured while working on `docs-reporting-r0`. R1–R8 are
+R0 evidence was captured while working on `docs-reporting-r0`. R1–R9 are
 committed on `reporting-metrics`, based on `b05b326`. No changes have been
-merged to `main` or pushed. Wait for user approval before R9.
+merged to `main` or pushed. Wait for user approval before R10.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -311,11 +312,11 @@ implements; keep the strict documentation build passing.
 | R2. Canonical water years and exposure | R0 | Wire configured boundaries across library/scenario/reporting surfaces. Test January/October/February boundaries, ending-year labels, daily/monthly calendars, monthly mid/end/start dates, optional leap day, partial-year denominators, and full-year exposure of exactly 1. Keep observed summaries available with undetermined completeness for unsupported cadence; reject unsupported time-based requests. No duplicate leap-day boundary or silent January fallback. |
 | R3. Duration uncertainty | R1 | Verify possible run boundaries for thresholds and inclusive bounds; cover known runs on each side of unknowns, all-unknown runs, and record boundaries. Use the agreed length-2/length-1 versus length-4 fixture. Preserve whole-run behavior and settled failures, not only unknown propagation. **Complete and committed on `reporting-metrics`.** |
 | R4. Forward frequency uncertainty | R1, R3 | Test possible counts, unknown anchors, zero-admitting predicates, all six operators, inclusive between bounds, overlap union, exclusive scheduling, and record-end truncation. Reproduce both agreed overlap examples and exclusive `[unknown, 1, 1, unknown]` result. Compare short inputs against a binary-completion oracle; production implementation must not enumerate every unknown assignment. **Complete and committed on `reporting-metrics`.** |
-| R5. Nested annual uncertainty | R2, R4 | Test whole-year possible fractions, 12-month examples, definite annual thresholds, count/between annual reduction, unknown annual anchors, exclusive interannual schedules, annual broadcasting, and partial-year exclusion. Remove unknown-to-zero conversion. Preserve existing fully known nested examples. **Complete on `reporting-metrics`.** |
-| R6. Summary fractions and mode removal | R2, R5 | Use per-column known denominators; test 50% example, zero-success versus all-unknown, empty groups, unequal annual coverage, and whole-record aggregation. Make `Result.frequency_table()` and formatter summaries agree on boundaries, counts, and percentages. Reject `return_period` with guidance; remove its enum and all consumers without retaining an alias. **Complete on `reporting-metrics`.** |
-| R7. Event bounds and rates | R2, R5 | Add named count/rate bounds and scalar ambiguity errors. Test `[1, unknown, 1]` → 1–2, all-unknown patterns, definite zero/counts, conservative bounds from final arrays, record-start runs, cross-year attribution, partial-year exposure, unsupported cadence, and positive-exposure validation. Small exhaustive tests establish correct MVP bounds without claiming source-dependency exactness. **Complete on `reporting-metrics`.** |
+| R5. Nested annual uncertainty | R2, R4 | Test whole-year possible fractions, 12-month examples, definite annual thresholds, count/between annual reduction, unknown annual anchors, exclusive interannual schedules, annual broadcasting, and partial-year exclusion. Remove unknown-to-zero conversion. Preserve existing fully known nested examples. **Complete and committed on `reporting-metrics`.** |
+| R6. Summary fractions and mode removal | R2, R5 | Use per-column known denominators; test 50% example, zero-success versus all-unknown, empty groups, unequal annual coverage, and whole-record aggregation. Make `Result.frequency_table()` and formatter summaries agree on boundaries, counts, and percentages. Reject `return_period` with guidance; remove its enum and all consumers without retaining an alias. **Complete and committed on `reporting-metrics`.** |
+| R7. Event bounds and rates | R2, R5 | Add named count/rate bounds and scalar ambiguity errors. Test `[1, unknown, 1]` → 1–2, all-unknown patterns, definite zero/counts, conservative bounds from final arrays, record-start runs, cross-year attribution, partial-year exposure, unsupported cadence, and positive-exposure validation. Small exhaustive tests establish correct MVP bounds without claiming source-dependency exactness. **Complete and committed on `reporting-metrics`.** |
 | R8. Reporting details | R6, R7 | Preserve existing metric sheets/raw files; add successful/known/total counts, coverage, completeness, component event bounds, exposure, and availability reasons. Test scenario/column alignment, partial-year rows, sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency. **Complete and committed on `reporting-metrics`.** |
-| R9. Coverage-aware response surfaces | R6, R8 | Add fractional `minimum_coverage` default 0.9 to TOML, CLI override/conflict resolution, and Python surfaces. Test exact 90%, below/above cutoff, zero cutoff, all-unknown, invalid/nonfinite/bool values, portion/percentage equivalence, protected gaps, `fillin` conflict, grid coverage data, explicit no-surface failure, custom labels/maps, and consistent default coloring. Preserve valid exported data on plotting failure. Verify actual rendered masks for interpolation on/off rather than testing only input arrays. |
+| R9. Coverage-aware response surfaces | R6, R8 | Add fractional `minimum_coverage` default 0.9 to TOML, CLI override/conflict resolution, and Python surfaces. Test exact 90%, below/above cutoff, zero cutoff, all-unknown, invalid/nonfinite/bool values, portion/percentage equivalence, protected gaps, `fillin` conflict, grid coverage data, explicit no-surface failure, custom labels/maps, and consistent default coloring. Preserve valid exported data on plotting failure. Verify actual rendered masks for interpolation on/off rather than testing only input arrays. **Complete and committed on `reporting-metrics`.** |
 | R10. Documentation and release readiness | R1–R9 | Complete dedicated unknown-outcome section and characteristic/reporting/plotting/API examples. Add executable fixtures for every agreed worked example. Explain breaking changes, optional leap-day trade-off, MVP bounds, coverage cutoff, reciprocal removal, and changed colors. Coordinate with the user-documentation redesign and next matching release; keep unreleased notice accurate. |
 
 ## R0 baseline record (2026-10-08)
@@ -548,9 +549,9 @@ implicit prerequisite or expand MVP while correcting unrelated issues.
 - Validation: `uv run pytest -q` passed (760 tests), `uv run mypy hydropattern/`,
   `uv run mkdocs build --strict`, and `git diff --check` passed.
 
-R1–R8 are complete; R9 is next and requires user approval. Do not start
-R9–R10 ahead of their dependencies or implement optional R11 without further
-authorization.
+R1–R9 are complete and committed. R10 is next and requires user approval.
+Do not start R10 ahead of its dependencies or implement optional R11 without
+further authorization.
 
 ## Validation and completion
 
@@ -658,7 +659,35 @@ passed (776 tests), `uv run mypy hydropattern/`, strict MkDocs build, Ruff on
 changed Python files, and `git diff --check` passed. R8 is committed on
 `reporting-metrics`; no merge or push occurred.
 
-R9 is next; wait for user approval before starting it.
+R9 is complete and committed; R10 awaits user approval.
+
+### R9 completion record (2026-10-08)
+
+Added fractional `minimum_coverage` (default 0.9) to `[output.plot]`, the
+`--minimum-coverage` CLI override/conflict surface, and
+`ScenarioResults.plot_response_surface`. Configuration, CLI, Python options,
+and plotting reject booleans, nonfinite values, and fractions outside [0, 1].
+The cutoff applies to each scenario's whole-record component summary and uses
+known final outcomes divided by recorded timesteps; equality at the cutoff
+passes, while zero does not define an all-unknown summary.
+
+The summary grid now masks under-covered and undefined scenarios. A companion
+`{component}_grid_coverage.csv` records coordinates, raw summary, known/total
+counts, coverage, cutoff, eligibility, and exclusion reason. Plot titles
+always report cutoff and withheld count; warnings identify exclusions.
+Default labels identify the known-outcome summary scale, and default coloring
+uses red for lower component-outcome fractions regardless of pattern type.
+
+`fillin = true` raises `PLOT_FILLIN_WITHHELD_SCENARIOS` when a scenario is
+withheld, preserving its gap. Fewer than three non-collinear eligible
+scenarios raises `PLOT_NO_RENDERABLE_SURFACE`. Both failures occur after grid
+and coverage exports are written. Actual renderer tests verify protected
+unknown gaps with interpolation on and off. Plotting, configuration, CLI,
+Python API, and migration pages were updated. R9 is committed on
+`reporting-metrics`; no merge or push occurred.
+Validation: full `uv run pytest -q` passed (791 tests), `uv run mypy
+hydropattern/`, strict MkDocs build, Ruff on changed Python files, and
+`git diff --check` passed.
 
 ## Reporting-versus-event-count example
 

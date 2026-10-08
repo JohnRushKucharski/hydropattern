@@ -1,8 +1,8 @@
 # Migration notes: pattern-correctness changes
 
 **Unreleased:** completed changes below are present in current source, not
-PyPI v0.2.0. See [installation](getting-started/installation.md). Later
-reporting changes remain pending; this page will expand as they are implemented.
+PyPI v0.2.0. See [installation](getting-started/installation.md). R10
+documentation work remains pending.
 
 These behavior changes affect configurations and results produced by versions
 before the pattern-correctness update. Review them before comparing new results
@@ -19,6 +19,8 @@ with historical outputs.
 | Annual calculations | A day-of-water-year reset could make an incomplete trailing year appear complete. | Recompute and review affected historical annual results. |
 | Result dataframe | Results could carry all input data columns and use a generic `dv` name. | Each result contains only the evaluated data column under its original name, then DOWY, characteristic outputs, and the component output. Datetime indexes are named `time`; other indexes are preserved. |
 | Statistics | Historical frequency arrays and derived statistics reflect the earlier window and completeness rules. | Recompute and review historical comparisons. `return_period` has been removed; use `portion` or `percentage` for outcome summaries. |
+| Response-surface coverage | Every defined summary could appear regardless of known-outcome coverage. | Plots now require 90% known-outcome coverage by default. Set `[output.plot].minimum_coverage` or `--minimum-coverage` to a finite fraction from 0 to 1. Exactly-at-cutoff scenarios remain eligible; all-unknown summaries remain undefined even at zero cutoff. |
+| Response-surface colors | Failure-pattern plots reversed the default color map. | Default coloring now uses red for lower final component-outcome fractions for both pattern types. Explicit color maps remain unchanged; colors describe configured outcomes, not ecological benefit. |
 
 For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference/characteristics/frequency.md) and the
@@ -57,6 +59,27 @@ event counts are attributed to the water year containing each run's first
 successful observation. Rates require supported daily or monthly timestamps;
 unsupported cadence raises an error instead of falling back to complete-year
 exposure. Review historical event-rate comparisons after upgrading.
+
+## Next release: coverage-aware response surfaces
+
+Plots now require 90% known-outcome coverage by default. Set
+`[output.plot].minimum_coverage` or pass `--minimum-coverage` as a finite
+fraction from 0 through 1. Exactly-at-cutoff scenarios remain eligible;
+all-unknown summaries remain undefined even at zero cutoff. Summary matrices
+are unchanged. Companion coverage CSVs explain each scenario's eligibility.
+
+Failure-pattern plots no longer reverse the default color map. Red represents
+lower final component-outcome fractions for both pattern types. Explicit color
+maps remain unchanged; colors describe configured outcomes, not ecological
+benefit.
+
+Plots use whole-record component summaries but omit scenarios below the
+configured coverage cutoff. A companion coverage CSV records each scenario's
+coordinates, raw summary, known/total counts, coverage, eligibility, and
+exclusion reason. Lower the cutoff only when a less-complete surface is
+appropriate for the analysis. `fillin = true` is rejected when scenarios are
+withheld, because the renderer cannot preserve those protected gaps. Recheck
+historical plots after upgrading.
 
 ## Next release: unknown annual frequency
 

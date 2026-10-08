@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from collections import Counter
 from numbers import Integral, Real
 from pathlib import Path
@@ -12,7 +13,9 @@ import pandas as pd
 from climate_canvas.plots_utilities import plot_response_surface  # type: ignore[import-untyped]
 from matplotlib.colors import Normalize
 
+from hydropattern.errors import PlotErrorCode, raise_plot_error
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
+from hydropattern.parsing.specs import is_valid_minimum_coverage
 from hydropattern.patterns import (
     Component,
     EventCountBounds,
@@ -21,7 +24,11 @@ from hydropattern.patterns import (
     water_year_label,
 )
 from hydropattern.patterns.water_year import water_year_exposure_by_year
-from hydropattern.scenario_grid import build_grid, require_scenario_grid
+from hydropattern.scenario_grid import (
+    build_grid,
+    parse_scenario_name,
+    require_scenario_grid,
+)
 from hydropattern.timeseries import to_day_of_water_year
 
 
@@ -560,18 +567,6 @@ def _next_available_path(path: Path) -> Path:
         suffix += 1
 
 
-def resolve_color_map(color_map: str, is_success_pattern: bool) -> str:
-    '''Auto-reverse the default 'RdBu' map for failure-pattern outcomes.
-
-    Only applies when color_map is left at the default 'RdBu' (explicit color_map choices
-    are never touched). A failure-pattern component flips the map so red continues
-    to indicate less of its final outcome.
-    '''
-    if color_map != 'RdBu':
-        return color_map
-    return 'RdBu' if is_success_pattern else 'RdBu_r'
-
-
 def write_grid_csv(xs, ys, zs, path: Path) -> None:
     '''Write a (precip_delta x temp_delta) grid to csv: rows=temp deltas, columns=precip deltas.'''
     pd.DataFrame(zs, index=ys, columns=xs).to_csv(path, index_label='temp_delta\\precip_delta')
@@ -585,45 +580,84 @@ def plot_component_response_surface(
         metric_options: MetricOptions,
         first_day_of_wy: int,
         climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions(),
-        output_path: Path | None = None) -> None:
+        output_path: Path | None = None,
+        minimum_coverage: float = 0.9) -> None:
     '''Build and plot one component's response-surface grid.
 
     Requires scenario names to form a valid precip/temp scenario grid (see
     hydropattern.scenario_grid). Raises HydropatternError otherwise.
 
-    output_path: directory to write '{component}_grid.csv' + '{component}_plot.png' into.
-    None (default) skips both file writes and shows the plot interactively instead
-    (forces show=True regardless of climate_canvas.show, since nothing else would
-    display it). When output_path is given, show follows climate_canvas.show as usual.
+    minimum_coverage: required known-outcome fraction for a scenario to appear.
+    output_path: directory for the eligible summary grid, coverage CSV, and PNG.
+    None (default) skips file writes and shows the plot interactively instead
+    (forces show=True regardless of climate_canvas.show). When output_path is
+    given, show follows climate_canvas.show as usual.
 
-    title defaults to the component name and zlabel defaults to the configured
-    metric mode value when climate_canvas.title/zlabel are None (unset).
+    title defaults to the component name; zlabel names the selected summary mode.
+    Both defaults apply when climate_canvas.title/zlabel are unset. The title
+    also reports the cutoff and number of withheld scenarios.
     '''
     scenario_names = list(scenario_results.keys())
     require_scenario_grid(scenario_names)
-    summary = build_summary_sheet(scenario_results, component.name, component.name,
-                                  first_day_of_wy, metric_options.mode)
-    metric_values: dict[str, float] = {}
-    for name in scenario_names:
-        value = summary.at['total', name]
-        if not isinstance(value, Real):
-            raise ValueError(
-                f'Expected numeric summary metric for scenario {name!r}, got {value!r}.'
-            )
-        metric_values[name] = float(value)
-    xs, ys, zs = build_grid(scenario_names, metric_values)
-    title = component.name if climate_canvas.title is None else climate_canvas.title
-    zlabel = metric_options.mode.value if climate_canvas.zlabel is None else climate_canvas.zlabel
-    color_map = resolve_color_map(
-        climate_canvas.color_map, component.is_success_pattern
+    if not is_valid_minimum_coverage(minimum_coverage):
+        raise ValueError('minimum_coverage must be a finite number in [0, 1].')
+    raw_values, coverage_rows = _plot_metric_coverage(
+        scenario_results, component.name, scenario_names, first_day_of_wy,
+        metric_options.mode, minimum_coverage,
     )
+    metric_values = {
+        name: raw_values[name] if coverage_rows[name]['eligible'] else np.nan
+        for name in scenario_names
+    }
+    xs, ys, zs = build_grid(scenario_names, metric_values)
+    withheld = [row for row in coverage_rows.values() if not row['eligible']]
+    title = component.name if climate_canvas.title is None else climate_canvas.title
+    title = (
+        f'{title}\nMinimum coverage: {minimum_coverage:.0%}; '
+        f'withheld: {len(withheld)} scenario(s)'
+    )
+    default_zlabel = (
+        'Portion of known outcomes' if metric_options.mode is MetricMode.PORTION
+        else 'Percentage of known outcomes (%)'
+    )
+    zlabel = default_zlabel if climate_canvas.zlabel is None else climate_canvas.zlabel
+    color_map = climate_canvas.color_map
     if output_path is not None:
         write_grid_csv(xs, ys, zs, output_path / f'{component.name}_grid.csv')
+        pd.DataFrame(coverage_rows.values()).to_csv(
+            output_path / f'{component.name}_grid_coverage.csv', index=False
+        )
         save_path = output_path / f'{component.name}_plot.png'
         show = climate_canvas.show
     else:
         save_path = None
         show = True
+    if withheld:
+        details = ', '.join(
+            f"{row['scenario']} ({row['exclusion_reason']})" for row in withheld
+        )
+        warnings.warn(
+            f'Response surface for {component.name!r} excluded scenarios at '
+            f'{minimum_coverage:.0%} minimum coverage: {details}.',
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        if climate_canvas.fillin:
+            raise_plot_error(
+                PlotErrorCode.FILLIN_WITHHELD_SCENARIOS,
+                'fillin cannot be enabled when scenarios are withheld from the '
+                'response surface; set fillin = false to preserve coverage gaps.',
+                component=component.name,
+                scenarios=[row['scenario'] for row in withheld],
+            )
+    if not _has_renderable_surface(scenario_names, metric_values):
+        raise_plot_error(
+            PlotErrorCode.NO_RENDERABLE_SURFACE,
+            f'No renderable response surface remains for component {component.name!r}; '
+            'at least three non-collinear scenarios with defined metrics are required.',
+            component=component.name,
+            eligible_scenarios=int(np.isfinite(zs).sum()),
+        )
     norm, levels, widths = _degenerate_range_norm(zs)
     plot_response_surface(
         xs, ys, zs, interpolate=climate_canvas.interpolate,
@@ -639,6 +673,69 @@ def plot_component_response_surface(
         levels=levels,
         widths=widths,
     )
+
+
+def _plot_metric_coverage(
+    scenario_results: dict[str, list[Result]],
+    component_name: str,
+    scenario_names: list[str],
+    first_day_of_wy: int,
+    mode: MetricMode,
+    minimum_coverage: float,
+) -> tuple[dict[str, float], dict[str, dict[str, object]]]:
+    '''Return raw whole-record metrics and per-scenario coverage eligibility.'''
+    summary = build_summary_sheet(
+        scenario_results, component_name, component_name, first_day_of_wy, mode
+    )
+    metrics: dict[str, float] = {}
+    rows: dict[str, dict[str, object]] = {}
+    for name in scenario_names:
+        result = next(r for r in scenario_results[name] if r.component.name == component_name)
+        outcomes = result.df[component_name]
+        total_count = len(outcomes)
+        known_count = int(outcomes.notna().sum())
+        coverage = known_count / total_count if total_count else 0.0
+        raw_value = summary.at['total', name]
+        metric = float(raw_value) if isinstance(raw_value, Real) else np.nan
+        metrics[name] = metric
+        coordinates = parse_scenario_name(name)
+        assert coordinates is not None
+        precip_delta, temp_delta = coordinates
+        reason: str | None = None
+        if total_count == 0:
+            reason = 'no_recorded_timesteps'
+        elif known_count == 0 or not np.isfinite(metric):
+            reason = 'no_known_outcomes'
+        elif coverage < minimum_coverage:
+            reason = 'below_minimum_coverage'
+        rows[name] = {
+            'scenario': name,
+            'precip_delta': precip_delta,
+            'temp_delta': temp_delta,
+            'raw_summary': metric,
+            'known_count': known_count,
+            'total_count': total_count,
+            'coverage': coverage,
+            'minimum_coverage': minimum_coverage,
+            'eligible': reason is None,
+            'exclusion_reason': reason,
+        }
+    return metrics, rows
+
+
+def _has_renderable_surface(
+    scenario_names: list[str], metric_values: dict[str, float]
+) -> bool:
+    '''Require three non-collinear known points to form a meaningful 2D region.'''
+    points = [
+        parse_scenario_name(name)
+        for name in scenario_names
+        if np.isfinite(metric_values[name])
+    ]
+    if len(points) < 3:
+        return False
+    coordinates = np.asarray(points, dtype=float)
+    return bool(np.linalg.matrix_rank(coordinates[1:] - coordinates[0]) == 2)
 
 
 def _degenerate_range_norm(
@@ -666,7 +763,8 @@ def _degenerate_range_norm(
 def plot_components(scenario_results: dict[str, list[Result]],
                     output_path: Path, metric_options: MetricOptions,
                     first_day_of_wy: int,
-                    climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions()) -> None:
+                    climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions(),
+                    minimum_coverage: float = 0.9) -> None:
     '''Save one response-surface grid csv + plot png per component to output_path.
 
     Requires scenario names to form a valid precip/temp scenario grid (see
@@ -676,5 +774,5 @@ def plot_components(scenario_results: dict[str, list[Result]],
     for result in first_scenario_results:
         plot_component_response_surface(
             scenario_results, result.component, metric_options, first_day_of_wy,
-            climate_canvas, output_path,
+            climate_canvas, output_path, minimum_coverage,
         )

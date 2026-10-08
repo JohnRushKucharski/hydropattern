@@ -10,9 +10,9 @@ S5's unaffected D5 portion is complete and integrated into local `main` at
 `b05b326`, without pushing. S6 / R0 baseline was captured while working on
 `docs-reporting-r0`; its evidence is committed in the reporting plan on
 `reporting-metrics`. `docs-reporting-r0` remains at `b05b326` as the clean
-pre-R0 starting point. R1–R8 are committed on `reporting-metrics`, based on
-`b05b326`; R9–R10 remain pending. No changes have been merged to `main` or
-pushed; wait for user approval before R9.
+pre-R0 starting point. R1–R9 are committed on `reporting-metrics`, based on
+`b05b326`; R10 remains pending. No changes have been merged to `main` or
+pushed; obtain user approval before R10.
 See the [next-session handoff](../agents/next-session-prompt.md) for the pickup
 checklist.
 
@@ -53,7 +53,7 @@ early unless marked parallel.
 | S4 | D4 (unaffected part): practical foundations, evaluation order, characteristic references, configuration/CLI/API organization, and reference entry point. **Complete on `docs-reporting-s4`; integrated into local `main`, not pushed.** See the [S4 completion record](user-documentation.md#d4-s4-completion-record). | S3 | Executable fixture per worked example, written before prose; all user-site TOML blocks parsed; terminology/link/navigation checks, strict site build, and documentation-editor review pass |
 | S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios. **Complete and integrated into local `main` at `b05b326`; not pushed.** See the [S5 completion record](user-documentation.md#d5-s5-completion-record). | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
 | S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages. **Complete; captured while working on `docs-reporting-r0`, with evidence now committed in the reporting plan on `reporting-metrics`.** | S3 | Per reporting plan |
-| S7 | R1–R9 in reporting-plan order (R1–R8 complete; R9 next); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
+| S7 | R1–R9 in reporting-plan order (complete and committed); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
 | S8 | R10 with remaining D4/D5: unknown-outcome section, deferred reference topics, response-surface pack, migration guide | S7 | Fixture for every agreed worked example; strict build |
 | S9 | D6 cleanup: per-file review and explicit permission before any deletion | S2 (not blocking) | User approval |
 | S10 | D7 publish: enable GitHub Pages deploy triggered by a version-bump commit tagged `v*`; developer authoring and release checklist | S8 | First tagged deploy succeeds; unreleased notice kept until the package release exists on PyPI |
@@ -63,17 +63,17 @@ R11 is optional and is not part of this sequence.
 S5 example-pack curation is complete in its separately approved scope; the
 first-run pack remains unchanged. S6 reporting baseline was captured while
 working on `docs-reporting-r0`; its evidence is committed on
-`reporting-metrics`. R1–R8 are complete and committed there. R9 is next and
-awaits user approval.
+`reporting-metrics`. R1–R9 implementation and documentation are complete and
+committed there; R10 awaits user approval.
 
 ## Remaining deferred topics
 
-R1–R8 updated their target pages. Write remaining topics only in the R-slice
+R1–R9 updated their target pages. Write remaining topics only in the R-slice
 that changes them, or in S8:
 
-- Response-surface coloring, `minimum_coverage`, `fillin` conflict.
 - Optional leap day, water-year completeness, unsupported cadence.
 - Dedicated unknown-outcome section and remaining uncertainty examples.
+- Response-surface example pack and worked plotting examples.
 
 S4 may describe fully known behavior of duration and frequency (whole-run
 assessment, overlapping and exclusive windows, record-end truncation) because
@@ -93,7 +93,7 @@ Indicative paths under `docs\user\`; follow names chosen in S3.
 | R6 | `guide/outputs`, `reference/configuration` (`[output.metric]` modes), migration |
 | R7 | `guide/outputs` (event statistics), `api/`, migration |
 | R8 | `guide/outputs` (reporting-details sheet) |
-| R9 | `guide/plotting`, `reference/configuration`, `reference/cli`, migration |
+| R9 | `guide/plotting`, `reference/configuration`, `reference/cli`, `api/`, migration |
 | R10 | All above; completes unknown-outcome section and migration guide |
 
 ## Agent checklist per step

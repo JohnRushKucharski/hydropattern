@@ -96,6 +96,7 @@ enabled = false
 | `[output].excel` | boolean | `true` | Write raw timestep results to Excel rather than separate CSV files. |
 | `[output.metric].mode` | string | `portion` | Summary scale: `portion` (0–1) or `percentage` (0–100). Each column's fraction uses only its known outcomes; an all-unknown group has no defined summary. |
 | `[output.plot].enabled` | boolean | `false` | Create response-surface outputs for a valid scenario grid. |
+| `[output.plot].minimum_coverage` | number | `0.9` | Minimum known-outcome coverage for a scenario to appear in a response-surface plot; finite fraction from 0 to 1, inclusive. Does not change summaries. |
 
 `[output.plot.climate-canvas]` controls rendering details:
 
@@ -105,11 +106,11 @@ enabled = false
 | `show` | boolean | `false` | Also display a plot window interactively. |
 | `title` | string | Component name | Plot title. |
 | `xlabel`, `ylabel` | strings | Precipitation and temperature labels | Axis labels. |
-| `zlabel` | string | Configured summary mode | Colorbar label. |
+| `zlabel` | string | Portion or percentage of known outcomes | Custom colorbar label. |
 | `threshold` | number | Midpoint of the plotted range | Center of the diverging color scale. |
 | `color_map` | string | `RdBu` | Matplotlib colormap name. |
 | `color_map_ticks` | array of numbers | Renderer-selected | Optional colorbar tick positions. |
-| `fillin` | boolean | `false` | Pass the fill-in setting through to the plot renderer. |
+| `fillin` | boolean | `false` | Fill missing grid cells using renderer interpolation. Rejected when scenarios are withheld for low coverage or undefined summaries, because filling could hide those gaps. |
 
 The former `return_period` mode is removed. If a configuration still uses it,
 the parser reports the removal and directs you to `portion` or `percentage`;
@@ -117,6 +118,5 @@ both modes summarize configured outcomes only. See
 [migration guidance](../migration.md) and [output files](../guide/outputs.md)
 for denominator and unknown-outcome details.
 
-For plotting options, see the [plotting guide](../guide/plotting.md). The
-future coverage cutoff, protected gaps, and color interpretation are not
-described here ahead of their implementation.
+For plotting behavior, coverage exports, and color interpretation, see the
+[plotting guide](../guide/plotting.md).

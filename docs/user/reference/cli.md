@@ -24,6 +24,7 @@ for the options supported by the installed version.
 | `--color-map NAME` | `RdBu` | Choose a Matplotlib colormap. |
 | `--color-map-ticks FLOAT` | Renderer-selected | Add a colorbar tick; repeat the option for multiple ticks. |
 | `--fillin` / `--no-fillin` | `--no-fillin` | Enable or disable the plot renderer's fill-in option. |
+| `--minimum-coverage FLOAT` | `0.9` | Require this fraction of known component outcomes for each scenario to appear in a response-surface plot. Valid range: 0–1. |
 | `--run-toml-options` | Off | Use the configuration's output choices without CLI output overrides. |
 | `--override-toml-options` | On | Allow explicitly supplied CLI options to override matching TOML settings. |
 
@@ -58,6 +59,10 @@ Common parser codes are:
 `PLOT_INVALID_SCENARIO_GRID` means plotting was requested, but the scenario
 names do not form a response-surface grid. The envelope source for this
 error is `plot`; see [plotting requirements](../guide/plotting.md).
+`PLOT_FILLIN_WITHHELD_SCENARIOS` means fill-in was requested while one or more
+scenarios were excluded for coverage or undefined summaries.
+`PLOT_NO_RENDERABLE_SURFACE` means fewer than three non-collinear scenarios
+with defined summaries remain. Summary and grid exports are retained.
 
 Python callers can inspect the error code and message; see
 [structured API errors](../api/index.md#read-structured-errors).

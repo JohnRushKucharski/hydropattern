@@ -28,6 +28,7 @@ class TestParseOutputOptionsDefaults(unittest.TestCase):
             metric=MetricOptions(mode=MetricMode.PORTION),
             plot=PlotOptions(
                 enabled=False,
+                minimum_coverage=0.9,
                 climate_canvas=ClimateCanvasPlotOptions(
                     interpolate=True,
                     show=False,
@@ -74,6 +75,25 @@ class TestParseOutputOptionsPlot(unittest.TestCase):
     def test_plot_enabled_override(self):
         opts = parse_output_options({'output': {'plot': {'enabled': True}}})
         self.assertTrue(opts.plot.enabled)
+
+    def test_minimum_coverage_defaults_to_ninety_percent(self):
+        opts = parse_output_options({})
+        self.assertEqual(opts.plot.minimum_coverage, 0.9)
+
+    def test_minimum_coverage_accepts_fraction(self):
+        opts = parse_output_options({'output': {'plot': {'minimum_coverage': 0.75}}})
+        self.assertEqual(opts.plot.minimum_coverage, 0.75)
+
+    def test_minimum_coverage_rejects_bool_as_invalid_type(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_output_options({'output': {'plot': {'minimum_coverage': True}}})
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_TYPE)
+
+    def test_minimum_coverage_rejects_out_of_range_and_nonfinite_values(self):
+        for value in (-0.01, 1.01, float('nan'), float('inf')):
+            with self.subTest(value=value), self.assertRaises(HydropatternError) as ctx:
+                parse_output_options({'output': {'plot': {'minimum_coverage': value}}})
+            self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_VALUE)
 
     def test_climate_canvas_all_overrides(self):
         opts = parse_output_options({'output': {'plot': {'climate-canvas': {

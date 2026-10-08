@@ -1,8 +1,9 @@
 # Next-session handoff
 
 Continue hydropattern reporting work from branch `reporting-metrics`.
-R1–R8 are committed on this branch, based on local `main` at `b05b326`.
-The worktree should be clean. Do not merge to `main` or push.
+R1–R9 are committed on this branch, based on local `main` at `b05b326`.
+Start from the clean worktree and latest R9 commit. Do not merge to `main` or
+push.
 
 Before further work:
 
@@ -15,9 +16,9 @@ Before further work:
    `b05b326`; previous documentation branches remain unchanged. Local `main`
    is already ten commits ahead of `origin/main` from earlier approved work;
    do not push it.
-4. Review R1–R8 completion notes, including the R4 correction, in the reporting plan.
-5. R9 is next. Obtain user approval before implementation. Do not begin R10
-   or optional R11.
+4. Review R1–R9 completion notes, including the R4 correction, in the reporting plan.
+5. R10 documentation and release readiness is next, subject to user approval.
+   Do not begin optional R11.
 
 R1 preserves unavailable order-1 comparison inputs as `NaN`. R2 propagates
 configured water-year boundaries to `Result`, uses shared ending-year labels,
@@ -54,7 +55,22 @@ handles partial years, sheet-name collisions, CSV/Excel exports, and Python/CLI
 parity. `docs/user/guide/outputs.md` documents the sheet. R8 is committed; full suite
 passed (776 tests), mypy, strict MkDocs, Ruff, and `git diff --check`.
 
-No changes have been merged to `main` or pushed. R9 is next, pending approval.
+R9 adds coverage-aware response surfaces with `minimum_coverage = 0.9` in
+`[output.plot]`, CLI override `--minimum-coverage`, and a Python API argument.
+Under-covered and undefined component summaries are excluded from plotted
+grids, with `{component}_grid_coverage.csv` explaining coordinates, raw
+summary, counts, coverage, eligibility, and reason. Plot titles and warnings
+show cutoff and excluded scenarios. `fillin` conflicts with withheld
+scenarios; fewer than three non-collinear eligible scenarios raises an
+explicit no-surface error after grid exports. Actual renderer tests cover
+protected gaps with interpolation on/off. Plotting, configuration, CLI, API,
+and migration pages are updated. R9 is committed; see its completion record.
+Full `uv run pytest -q` passed (791 tests), `uv run mypy
+hydropattern/`, strict MkDocs build, Ruff on changed Python files, and
+`git diff --check` passed.
+
+No changes have been merged to `main` or pushed. Obtain user approval before
+starting R10.
 
 Dense-unknown exact count windows cost more than the superseded R4
 approximation. A 3,653-step, 95%-unknown record with N=30 took approximately
