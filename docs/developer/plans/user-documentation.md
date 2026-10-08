@@ -1,8 +1,8 @@
 # User documentation redesign
 
 Status: D1–D3 complete (S1a–S3 in the sequence); D4–D7 remain pending.
-S3 is implemented on local `docs-reporting-s3`, based on local `main` at
-`7227686`; it has not been merged or pushed.
+S3 commit `079d381` is integrated into local `main` by fast-forward from
+`docs-reporting-s3`; nothing has been pushed. S4 is next.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
