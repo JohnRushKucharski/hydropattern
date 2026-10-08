@@ -21,8 +21,8 @@ Before further implementation:
 R1 preserves unavailable order-1 comparison inputs as `NaN`. R2 propagates
 configured water-year boundaries to `Result`, uses shared ending-year labels,
 supports optional February 29 in daily completeness, and exposes cadence-
-validated daily/monthly observed exposure. `Result.event_rate()` retains its
-old exposure behavior until R7. R3 evaluates all possible duration run
+validated daily/monthly observed exposure. R7 now uses observed exposure for
+event rates, including partial water years. R3 evaluates all possible duration run
 boundaries: known verdicts remain known only when every possible run agrees;
 definite preceding failures still settle failure. R4 propagates unknown
 qualifying trials through un-nested forward frequency windows and considers
@@ -43,6 +43,14 @@ R7 adds named event-count/rate bounds, scalar ambiguity errors, annual
 first-success attribution, and whole-record observed exposure, including
 partial water years. Bounds treat unknown final outcomes independently and
 may include counts impossible under source-characteristic dependencies.
+Implementation commit: `27112d2`.
+
+R8 adds a reporting-details sheet while preserving existing metric sheets and
+raw timestep files. Capture successful/known/total counts, known-outcome
+coverage, completeness, component event-count/rate bounds, observed exposure,
+and availability reasons. Test scenario/column alignment, partial-year rows,
+Excel sheet-name collisions, CSV/Excel behavior, and Python/CLI consistency.
+Sequence plan identifies `docs/user/guide/outputs.md` as its user-doc target.
 
 Last verified before handoff: `uv run pytest -q` (771 passed),
 `uv run mypy hydropattern/`, `uv run mkdocs build --strict`, and
