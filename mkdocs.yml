@@ -1,0 +1,25 @@
+site_name: hydropattern
+site_description: Flow-pattern evaluation for hydrologists and environmental scientists.
+site_url: https://johnrushkucharski.github.io/hydropattern/
+repo_url: https://github.com/JohnRushKucharski/hydropattern
+docs_dir: docs/user
+theme:
+  name: material
+plugins:
+  - search
+nav:
+  - Start here:
+      - Overview: index.md
+      - Installation: getting-started/installation.md
+      - First evaluation: getting-started/first-run.md
+      - Interpreting first results: getting-started/results.md
+  - User guide:
+      - Command-line usage: guide/cli.md
+  - Scientific concepts:
+      - Glossary: concepts/glossary.md
+  - Reference: reference.md
+  - Upgrade guidance: migration.md
+  - Python API: api/index.md
+validation:
+  links:
+    anchors: warn

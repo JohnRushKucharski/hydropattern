@@ -144,6 +144,9 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# Reproducible outputs from the first-run pack only
+/examples/first-run/first-run_output/
+
 # mypy
 .mypy_cache/
 .dmypy.json

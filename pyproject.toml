@@ -21,6 +21,9 @@ dependencies = [
 hydropattern = "hydropattern.cli:app"
 
 [dependency-groups]
+docs = [
+	"mkdocs-material>=9.7.0,<10.0.0",
+]
 test = [
 	"pytest>=8.3.2,<9.0.0",
 ]

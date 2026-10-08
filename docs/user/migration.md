@@ -1,5 +1,9 @@
 # Migration notes: pattern-correctness changes
 
+**Unreleased:** completed changes below are present in current source, not
+PyPI v0.2.0. See [installation](getting-started/installation.md). Later
+reporting changes remain pending; this page will expand as they are implemented.
+
 These behavior changes affect configurations and results produced by versions
 before the pattern-correctness update. Review them before comparing new results
 with historical outputs.
@@ -18,7 +22,7 @@ with historical outputs.
 
 For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference.md#frequency) and the
-[pattern-correctness decision record](../developer/adr/0003-pattern-correctness-contract.md).
+[pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s3/docs/developer/adr/0003-pattern-correctness-contract.md).
 
 ## Next release: ordered characteristic tables
 

@@ -1,6 +1,8 @@
 # User documentation redesign
 
-Status: agreed design; implementation pending.
+Status: D1–D3 complete (S1a–S3 in the sequence); D4–D7 remain pending.
+S3 is implemented on local `docs-reporting-s3`, based on local `main` at
+`7227686`; it has not been merged or pushed.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
@@ -363,3 +365,40 @@ Completion means:
 - Protected directories have no changes; no unapproved deletions occurred.
 - Release status is accurate; the unreleased notice is removed only after
   publishing a package that supports the documented behavior and syntax.
+
+## D3 completion record
+
+The user-site foundation now has explicit Material/MkDocs navigation, built-in
+search, a `docs` dependency group, and a read-only pull-request strict-build
+workflow. README is the shorter front door; installation, first evaluation,
+result interpretation, glossary, CLI guidance, and the secondary API example
+live under `docs\user`. The existing reference and migration pages remain
+available, with their reference reorganization deferred to D4 and reporting
+updates deferred to the implementing R-slices.
+
+The single authoritative first-run pair is under `examples\first-run`.
+Acceptance tests execute the pair from a separate working folder, compare the
+published timestep table and summary rows with actual output, check its TOML
+block against the download, execute the relocated Python example, and scan
+user prose for unambiguous `CONTEXT.md` avoided terms. Context-dependent terms
+still require editorial review; code identifiers and historical migration
+syntax are excluded from the prose scan. A separate documentation editor
+reviewed the draft, and its changes were inspected.
+
+Completion checks passed: strict MkDocs build, all 642 pytest tests, linting
+of the changed tests, built-site local links and anchors, site exclusions, and
+preservation of scientific code, protected directories, and both tracked PDFs.
+
+Local preview is `uv run --group docs mkdocs serve`; strict validation is
+`uv run --group docs mkdocs build --strict`. Authors edit Markdown in
+`docs\user` and update explicit navigation in `mkdocs.yml`. Developer records,
+scientific PDFs, protected case studies, and research files stay outside the
+site source.
+
+Source-install and first-run download links currently share the
+`docs-reporting-s3` ref. They are explicitly unavailable remotely until the
+branch is pushed; local-checkout instructions work before publication. Keep
+that branch available while those links use it, and update installation and
+download references together when integrating subsequent work or preparing
+the matching release. GitHub Pages deployment is not enabled; S10 will add it
+after R10. No cleanup deletions or scientific changes were made in D3.

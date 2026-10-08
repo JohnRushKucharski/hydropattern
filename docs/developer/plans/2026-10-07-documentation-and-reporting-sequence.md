@@ -1,7 +1,9 @@
 # Documentation and reporting work sequence
 
-**Status:** S1a–S2 complete; S2 commit `fb03a08` is on local `main` (not pushed).
-**Next pickup:** start S3 on local `main`. S1a (`b2d612e`), S1b
+**Status:** S1a–S3 complete. S3 is on local `docs-reporting-s3`, branched from
+local `main` at `7227686`; it has not been merged or pushed.
+**Next pickup:** integrate reviewed S3 into local `main` when approved, then
+start S4 from that integrated state. S1a (`b2d612e`), S1b
 (`f5c93b7`), and S1c are complete; do not repeat them.
 
 This plan defines the order in which agents pick up work from two plans:
@@ -37,7 +39,7 @@ early unless marked parallel.
 | S1b | D1: rename `exclusive_event_window` → `exclusive_windows` everywhere (spec fields, function arguments, docstrings, tests, docs); interannual spec field `interannual_exclusive_windows`; rename `mark_events` to `mark_windows`; no aliases | S0 | TDD; targeted pytest + mypy; migration note; complete (`f5c93b7`) |
 | S1c | D1: keep shared fields neutral; use `interannual_*` and `has_interannual_pattern` for the interannual part, and `is_terminal` for the characteristic marker. Preserve overall helper/result-column names and evaluation behavior. See the [migration guide](../../user/migration.md) for API mappings. **Complete.** | S1b | TDD; targeted pytest + mypy; migration note; no aliases |
 | S2 | D2: organize retained engineering records under `docs\developer\` (ADRs, agent guidance, plans, reviews, handoff, and scientific PDFs); update repository-wide links and file references. **Complete.** | S1a–S1c | `git mv`; stale-reference search; pytest; protected case studies unchanged |
-| S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan | S2 | `mkdocs build --strict`; site excludes developer records/PDFs/case studies |
+| S3 | D3: `mkdocs.yml`, `docs` dependency group, PR strict-build workflow (**no deploy**), version notice, README, installation, first run, glossary page, avoided-term pytest scan. **Complete on local `docs-reporting-s3`; not merged/pushed.** See the [D3 completion record](user-documentation.md#d3-completion-record). | S2 | Strict build, pytest, local links/anchors, generated-site exclusions, and protected-path checks pass; documentation-editor review complete |
 | S4 | D4 (unaffected part): concepts and reference pages whose behavior R-slices do not change; see "Deferred topics" | S3 | Executable fixture per worked example, written before prose; TOML-block parse test |
 | S5 | D5 (unaffected part): `detailed.toml` curation; packs for first run, seasonal thresholds, duration, frequency, multiple scenarios | S4 (parallel with S4 allowed after S3) | Expected results first; parametrized CLI test per pack |
 | S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages | S3 | Per reporting plan |

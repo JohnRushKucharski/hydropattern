@@ -1,5 +1,10 @@
 # hydropattern User Reference
 
+**Unreleased:** this reference describes current source, not PyPI v0.2.0.
+Use the [installation guide](getting-started/installation.md). This existing
+combined reference is retained while its topics are reorganized. Reporting
+rules below have not yet received the planned reporting changes.
+
 This reference covers all characteristic parameters, their valid values, and the
 parser error codes you may encounter. It supplements the inline comments in example
 configuration files such as `examples/detailed.toml`.
@@ -38,7 +43,7 @@ sheet_name               = 0                # optional, defaults to 0 (Excel onl
 
 | Key                        | Type          | Default | Required | Description |
 |----------------------------|---------------|---------|----------|--------------|
-| `path`                     | string        | —       | **yes**  | Path to a `*.csv` or `*.xlsx`/`*.xls` file with header row `time, <column_1>, ..., <column_n>`. Every column after `time` is treated as its own scenario (see [Response surface plots](#response-surface-plots---plot)). |
+| `path`                     | string        | —       | **yes**  | Path to a `*.csv` or `*.xlsx`/`*.xls` file with header row `time, <column_1>, ..., <column_n>`. Every column after `time` is treated as its own scenario (see [Response surface plots](#response-surface-plots-plot)). |
 | `date_format`              | string        | `''`    | no       | `strftime`/`strptime` format code for the `time` column, e.g. `"%Y-%m-%d"`. Empty string (default) lets pandas auto-detect the format. |
 | `first_day_of_water_year`  | integer       | `1`     | no       | Day-of-year (1–365) the water year starts on. `1` = 1 January. |
 | `sheet_name`               | string or int | `0`     | no       | Excel sheet name or 0-based index to read. Ignored when `path` is a `*.csv` file. |
@@ -393,7 +398,7 @@ the [migration notes](migration.md) for an example of the change.
 
 For `success_pattern = false`, characteristics describe a combined failure
 condition and the component reports its logical complement (non-failure), not
-affirmative ecological success. Unknown values remain unknown unless a known
+affirmative evidence of ecological benefit. Unknown values remain unknown unless a known
 failure or success determines the conjunction.
 
 ### Python evaluation and result columns
@@ -478,7 +483,7 @@ values, not characteristic or component outcomes. The `Result` object returned b
 |------------------|-------------|----------------|
 | `"portion"`      | Fraction of timesteps in `[0.0, 1.0]` where the condition holds. | Zero successes → `0.0`. No timesteps in a water year → blank (NA). |
 | `"percentage"`   | `portion * 100`, on a `[0, 100]` scale. | Same as portion. |
-| `"return_period"`| Descriptive reciprocal `1 / portion`; it is not a Poisson recurrence probability or guaranteed mean recurrence interval. | Zero-success (undefined/infinite) and NA portions both → blank (NA), never `inf`. |
+| `"return_period"`| Descriptive reciprocal `1 / portion`; it does not establish independence, recurrence probabilities, or timing of physical hydrologic occurrences. | Zero-success (undefined/infinite) and NA portions both → blank (NA), never `inf`. |
 
 **Examples**
 ```toml
@@ -504,9 +509,11 @@ threshold = 0.5        # PARSER_UNKNOWN_OPTION: 'threshold' is not a recognized 
 
 ### `[output.plot]` and `[output.plot.climate-canvas]`
 
-See [Response surface plots](#response-surface-plots---plot) below.
+See [Response surface plots](#response-surface-plots-plot) below.
 
 ---
+
+<a id="response-surface-plots---plot"></a>
 
 ## Response surface plots (`--plot`)
 
@@ -582,7 +589,7 @@ These codes appear in the `code` field of a `HydropatternError` envelope.
 ## Plot error codes
 
 These codes appear in the `code` field of a `HydropatternError` envelope raised by
-`--plot` (see [Response surface plots](#response-surface-plots---plot) above). Unlike
+`--plot` (see [Response surface plots](#response-surface-plots-plot) above). Unlike
 parser errors, plot errors use `source: 'plot'` in the envelope.
 
 | Code | Meaning | Common cause |
