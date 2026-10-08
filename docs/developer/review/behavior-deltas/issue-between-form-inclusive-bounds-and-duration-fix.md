@@ -8,7 +8,7 @@
    called `between_parser(metrics[0:2], inclusive=False)` (strict `min < n < max`);
    they now call `between_parser(metrics[0:2])` (inclusive `min <= n <= max`).
    This resolves the follow-up flagged in
-   `docs/adr/0001-frequency-between-form-inclusive-bounds.md` ("A follow-up task
+   `docs/developer/adr/0001-frequency-between-form-inclusive-bounds.md` ("A follow-up task
    should revisit changing the shared `between_parser` default to `inclusive=True`
    everywhere ... to remove the inconsistency").
 2. **Bug fix:** `duration_parser`'s between-form built its comparison incorrectly:
@@ -92,6 +92,6 @@ Config: `magnitude = [0.5, 5.0]` (order=1)
   `rate_of_change_parser` (BETWEEN branches) + docstrings.
 - `docs/user/reference.md` — magnitude/duration/rate_of_change between-form tables
   and examples updated from "exclusive" to "inclusive".
-- `docs/adr/0001-frequency-between-form-inclusive-bounds.md` — status note added;
+- `docs/developer/adr/0001-frequency-between-form-inclusive-bounds.md` — status note added;
   the deferred follow-up it names is now done.
 - `tests/test_between_inclusive_bounds.py` — new.

@@ -88,5 +88,5 @@ may change because partial water years are excluded. The default exclusivity
 change also permits overlapping windows unless explicitly enabled. A
 `return_period` output is a descriptive reciprocal of portion; it does not
 represent a Poisson recurrence probability or guarantee a mean recurrence
-interval. See the [user reference](../user/reference.md) and
-[migration notes](../user/migration.md) for examples and upgrade guidance.
+interval. See the [user reference](../../user/reference.md) and
+[migration notes](../../user/migration.md) for examples and upgrade guidance.

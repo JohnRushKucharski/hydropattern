@@ -4,7 +4,7 @@ duration characteristics, and fixing the duration between-form bug
 (currently mis-built as `comparison_fx('<', min, '>', max)`, which
 collapses to `n > max` instead of `min <= n <= max`).
 
-See docs/agents session plan: Phase 1 (between-bounds inclusivity +
+See docs/developer/agents session plan: Phase 1 (between-bounds inclusivity +
 duration bug fix).
 '''
 # pylint: disable=missing-class-docstring,missing-function-docstring

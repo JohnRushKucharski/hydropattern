@@ -232,7 +232,7 @@ class TestParseRequestGolden(unittest.TestCase):
         self.assertFalse(result.components[0].is_success_pattern)
 
     def test_verbose_is_rejected(self):
-        '''`verbose` is a removed option (see docs/plans/2026-10-01-pattern-
+        '''`verbose` is a removed option (see docs/developer/plans/2026-10-01-pattern-
         correctness-tdd.md): timing/magnitude/rate_of_change are now
         unconditionally independent diagnostics, so there is nothing left
         for `verbose` to toggle.'''

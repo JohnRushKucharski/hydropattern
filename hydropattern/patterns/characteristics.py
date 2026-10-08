@@ -137,7 +137,7 @@ def timing_fx(f: Callable[[float], bool],
             raise ValueError('''Timing characteristics must be evaluated on a
                              day of water year timeseries.''')
         validate_order(order, output, CharacteristicType.TIMING)
-        # Timing is an independent diagnostic (see docs/plans/2026-10-01-
+        # Timing is an independent diagnostic (see docs/developer/plans/2026-10-01-
         # pattern-correctness-tdd.md): it reports its own truth value
         # regardless of position/preceding characteristics, never gated by
         # `output`'s earlier columns.

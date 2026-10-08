@@ -317,7 +317,7 @@ class TestPatterns(unittest.TestCase):
         self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
 
     def test_rate_of_change_fx_order3_ignores_precedents(self):
-        '''rate_of_change is an independent diagnostic (see docs/plans/2026-10-01-
+        '''rate_of_change is an independent diagnostic (see docs/developer/plans/2026-10-01-
         pattern-correctness-tdd.md): its own truth value shows regardless of
         order or preceding characteristic columns.'''
         order = 3

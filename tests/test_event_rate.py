@@ -3,7 +3,7 @@
 event_rate(events, years) = events / years -- a plain descriptive rate, not a
 recurrence-interval/Poisson-probability claim (Great Lakes water-level
 records show multi-decadal persistence/clustering, so between-event
-independence should not be assumed; see docs/adr and prior review notes).
+independence should not be assumed; see docs/developer/adr and prior review notes).
 
 record_length_years(dowy) computes the record length in *water* years, not
 calendar years -- reusing identify_full_water_years() (the same dowy-based

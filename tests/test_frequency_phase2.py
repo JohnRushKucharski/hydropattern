@@ -1,4 +1,4 @@
-'''Phase 2 (frequency) tests, per docs/plans/2026-10-01-pattern-correctness-tdd.md.
+'''Phase 2 (frequency) tests, per docs/developer/plans/2026-10-01-pattern-correctness-tdd.md.
 
 Supersedes the phase 0 baseline (tests/test_golden_frequency_baseline.py,
 removed): the same six golden rows now pass for real (forward, event-
@@ -165,4 +165,3 @@ def test_suppression_boundary_next_anchor_exactly_at_span_end():
     # anchor t=4 lands exactly at span_end=4 -> suppressed.
     expected = [1, 1, 1, 1, 1, 0]
     assert _run_frequency(source, ['>=', 1, 5], True) == expected
-

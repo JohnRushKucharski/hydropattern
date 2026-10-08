@@ -218,7 +218,7 @@ type check, docs examples, and downstream smoke checks at phase boundaries.
   Remove obsolete `verbose`, old trailing-history language, and incorrect
   denominator-floor claims; label examples by actual units, not assumed
   years. Document output-column shape and conditional dependencies.
-- `docs/adr/`: **supersede** ADR 0002's accepted *trailing* window rule with
+- `docs/developer/adr/`: **supersede** ADR 0002's accepted *trailing* window rule with
   a new ADR detailing forward source-anchored windows, exclusivity,
   noncausal retrospective classification, alternatives and implications.
   Link supersession from ADR 0002; retain historical text rather than
@@ -238,7 +238,7 @@ type check, docs examples, and downstream smoke checks at phase boundaries.
   that historical frequency outputs/return-period interpretations may
   shift; do not claim a Poisson recurrence probability.
 - Add docs tests or reproducible golden fixtures for published examples so
-  docs cannot drift from code. Revisit `docs/agents/` only when onboarding
+  docs cannot drift from code. Revisit `docs/developer/agents/` only when onboarding
   guidance references removed behavior.
 
 ### Verification, impact, rollback
@@ -291,9 +291,9 @@ this deferred event-count/reporting policy before interview.
 ## Handoff
 
 Current phase 8 worktree changes are: `README.md`,
-`docs/adr/0002-frequency-sliding-window.md`,
-`docs/adr/0003-pattern-correctness-contract.md`,
-`docs/plans/2026-10-01-pattern-correctness-tdd.md`,
+`docs/developer/adr/0002-frequency-sliding-window.md`,
+`docs/developer/adr/0003-pattern-correctness-contract.md`,
+`docs/developer/plans/2026-10-01-pattern-correctness-tdd.md`,
 `docs/user/reference.md`, `docs/user/migration.md`,
 `examples/detailed.toml`, `examples/frequency.toml`, and
 `tests/test_documented_contracts.py`. The new ADR, migration note, example,
@@ -310,6 +310,6 @@ For the separate reporting/event-count session:
 
 > Start by interviewing the user about the open event-count, nested-year, and
 > event-rate semantics in the "Deferred reporting/event-count redesign"
-> section of `docs/plans/2026-10-01-pattern-correctness-tdd.md`. Create a
+> section of `docs/developer/plans/2026-10-01-pattern-correctness-tdd.md`. Create a
 > separate TDD plan only after those decisions are clear. Do not change the
 > pending phase 8 documentation as part of that work.

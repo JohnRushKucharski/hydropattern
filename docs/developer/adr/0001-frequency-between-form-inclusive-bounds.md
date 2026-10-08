@@ -17,7 +17,7 @@ enhancement ships, to remove the inconsistency.
 `rate_of_change_parser` now call `between_parser(metrics[0:2])` (no
 `inclusive=False` override), and `duration_parser`'s independently-broken
 between-form (see
-`docs/review/behavior-deltas/issue-between-form-inclusive-bounds-and-duration-fix.md`)
+`docs/developer/review/behavior-deltas/issue-between-form-inclusive-bounds-and-duration-fix.md`)
 was fixed to use the same construction. All between-form characteristics
 (magnitude, rate_of_change, duration, frequency) are now consistently
 inclusive at both bounds; `timing`'s between form was already inclusive via

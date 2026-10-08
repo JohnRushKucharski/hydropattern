@@ -18,7 +18,7 @@ from hydropattern.parsing.characteristics import (
 from hydropattern.parsing.specs import CharacteristicSpec, ComponentSpec, Request
 from hydropattern.patterns import CharacteristicType
 
-# Options removed per docs/plans/2026-10-01-pattern-correctness-tdd.md:
+# Options removed per docs/developer/plans/2026-10-01-pattern-correctness-tdd.md:
 # `order` is always inferred from characteristic sequence; `verbose` is gone
 # because timing/magnitude/rate_of_change are now unconditionally independent
 # diagnostics (duration/frequency unconditionally stay gated).
@@ -156,7 +156,7 @@ def _parse_compact_characteristics(
             raise_parser_error(
                 ParserErrorCode.REMOVED_OPTION,
                 f'''"{name}" is no longer a supported component option (see
-                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                docs/developer/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
                 order is always inferred from sequence; diagnostic characteristics
                 are always independent.''',
                 component=component_name,
@@ -192,7 +192,7 @@ def _parse_ordered_characteristics(
             raise_parser_error(
                 ParserErrorCode.REMOVED_OPTION,
                 f'''"{name}" is no longer a supported component option (see
-                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                docs/developer/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
                 order is always inferred from sequence; diagnostic characteristics
                 are always independent.''',
                 component=component_name,

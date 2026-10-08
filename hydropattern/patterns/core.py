@@ -330,7 +330,7 @@ def event_rate(events: int, years: float) -> float:
     and does NOT assume independence between events. Great Lakes water-level
     records show documented multi-decadal persistence/clustering, so
     between-event independence should not be assumed when interpreting this
-    rate (see docs/adr and prior review notes on this component's stats).
+    rate (see docs/developer/adr and prior review notes on this component's stats).
 
     Parameters
     ----------

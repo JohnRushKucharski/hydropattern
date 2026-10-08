@@ -4,11 +4,11 @@
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
-[user-documentation plan](../developer/plans/user-documentation.md).
+[user-documentation plan](user-documentation.md).
 Work order relative to that plan, and the user pages each slice updates, are
 defined in the [documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md):
 R0 starts after the documentation site skeleton (sequence step S3) exists.
-Terminology follows [`CONTEXT.md`](../../CONTEXT.md). Since this plan was written,
+Terminology follows [`CONTEXT.md`](../../../CONTEXT.md). Since this plan was written,
 `exclusive_event_window` became `exclusive_windows`. Nested frequency parts are
 called intra-annual and interannual patterns; shared and un-nested code fields
 stay neutral, while fields specific to the second part use `interannual_`.

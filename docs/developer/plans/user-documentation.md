@@ -3,7 +3,7 @@
 Status: agreed design; implementation pending.
 
 Related prerequisite: the
-[reporting and unknown-outcome TDD plan](../../plans/2026-10-06-reporting-metrics-tdd.md)
+[reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
 now defines additional scientific and reporting changes for the next release.
 Keep those changes separate from editorial implementation, but coordinate the
 user-facing explanations and worked examples with this redesign. In particular,
@@ -13,7 +13,7 @@ The reporting plan requires a dedicated unknown-outcome section and characterist
 event-count, water-year, and plotting examples, not merely developer records.
 
 Work order across both plans is defined in the
-[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md).
+[documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md).
 Phases below are labelled D1–D7 there.
 
 ## Goal and audience
@@ -321,7 +321,7 @@ any consolidation/deletion. The default outcome is reorganization.
 ## Implementation sequence and completion criteria
 
 Execute in the order given by the
-[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md);
+[documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md);
 phases 4 and 5 are split around reporting slices R0–R10 there.
 
 1. **Schema prerequisite (D1):** add failing tests, implement `parameters`-only

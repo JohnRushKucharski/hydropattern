@@ -171,6 +171,6 @@ except HydropatternError as exc:
 
 ## Affected code locations
 
-- [`hydropattern/parsers.py`](../../../hydropattern/parsers.py) — all validation changes
-- [`tests/test_parameter_validation.py`](../../../tests/test_parameter_validation.py) — new test file
-- [`docs/user/reference.md`](../../user/reference.md) — new user documentation
+- [`hydropattern/parsers.py`](../../../../hydropattern/parsers.py) — all validation changes
+- [`tests/test_parameter_validation.py`](../../../../tests/test_parameter_validation.py) — new test file
+- [`docs/user/reference.md`](../../../user/reference.md) — new user documentation

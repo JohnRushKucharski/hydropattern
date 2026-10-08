@@ -1,4 +1,4 @@
-'''Phase 1 (schema/order) tests, per docs/plans/2026-10-01-pattern-correctness-tdd.md.
+'''Phase 1 (schema/order) tests, per docs/developer/plans/2026-10-01-pattern-correctness-tdd.md.
 
 Covers:
   - `verbose` removed from ComponentSpec and rejected as a config key.

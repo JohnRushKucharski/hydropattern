@@ -28,7 +28,7 @@ Rationale:
 
 ## Affected code locations
 
-- [hydropattern/errors.py](../../../hydropattern/errors.py)
-- [hydropattern/parsers.py](../../../hydropattern/parsers.py)
-- [hydropattern/cli.py](../../../hydropattern/cli.py)
-- [tests/test_cli.py](../../../tests/test_cli.py)
+- [hydropattern/errors.py](../../../../hydropattern/errors.py)
+- [hydropattern/parsers.py](../../../../hydropattern/parsers.py)
+- [hydropattern/cli.py](../../../../hydropattern/cli.py)
+- [tests/test_cli.py](../../../../tests/test_cli.py)
