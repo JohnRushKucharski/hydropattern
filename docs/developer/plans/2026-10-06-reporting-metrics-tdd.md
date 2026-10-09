@@ -1,11 +1,11 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
 **Status:** required MVP R0–R10 complete and merged to remote `main` by PR #46
-at `d82d2d3`. Optional R11 has not started and requires separate approval.
-Documentation sequence S3–S5 and R0–R10 are integrated and pushed. The S9
-cleanup review is complete; reviewed files were retained and no deletion was
-authorized. Remaining work is S10 release verification and publication, which
-remain gated; no required reporting slice remains.
+at `d82d2d3`. S10 package release and user-site publication completed on
+2026-10-09; see the S10 record in the
+[documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md).
+Optional R11 has not started and requires separate approval. No required
+reporting or release work remains.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -717,13 +717,13 @@ GitHub Pages deployment remains disabled.
 
 Validation: full `uv run pytest -q` passed (801 tests), `uv run mypy
 hydropattern/`, strict MkDocs build, Ruff on the R10 acceptance test, and
-`git diff --check` passed. R10 is committed on `reporting-metrics` in
-`docs: complete R10 and prepare documentation handoff`; reporting changes
-have not been merged to `main` or pushed. Optional R11 was not started.
-This completes the required reporting MVP for 0.3.0, not package release or
-site publication. S9 cleanup review is complete; reviewed artifacts remain
-tracked. Continue with release-gated S10 under the sequence plan. This is not
-authorization to implement optional R11.
+`git diff --check` passed. At the R10 handoff, R10 was committed on
+`reporting-metrics` in `docs: complete R10 and prepare documentation handoff`;
+PR #46 subsequently merged those reporting changes to `main`. Optional R11
+was not started.
+At R10 completion, package release and site publication were still pending;
+both were completed later in S10. S9 cleanup review is complete; reviewed
+artifacts remain tracked. This is not authorization to implement optional R11.
 
 ## Reporting-versus-event-count example
 
