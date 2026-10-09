@@ -3,7 +3,7 @@
 This illustrative pack requires at least one qualifying timestep in a
 five-timestep forward window. Only January 2 and 5 qualify under magnitude.
 Flow units are arbitrary; thresholds are not ecological recommendations.
-Use current source code, not PyPI v0.2.0.
+This pack targets v0.3.0; it does not run as documented with PyPI v0.2.0.
 
 Save `flow.csv` and `frequency.toml` in one folder. Open a terminal there;
 relative input paths resolve from that working folder:

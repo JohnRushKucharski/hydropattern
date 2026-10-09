@@ -1,14 +1,12 @@
 # Installation
 
-**Unreleased:** use current source for these examples. PyPI v0.2.0 and the
-latest published GitHub release do not match this documentation. The version
-number for the matching release has not yet been assigned.
+**v0.3.0 is not yet released.** PyPI v0.2.0 and the latest published GitHub
+release do not match this documentation. Use a v0.3.0 source checkout for
+these examples.
 
-The commands below use the `docs-reporting-s3` source branch, including its
-matching example files. **Until that branch is pushed to GitHub, remote
-installation and downloads are unavailable.** If you are reviewing a local
-checkout, use the local-checkout instructions below instead. Do not silently
-substitute the older published package or another source branch.
+Until v0.3.0 source is published, remote installation and downloads are
+unavailable. If you are reviewing a local checkout, use the local-checkout
+instructions below. Do not substitute the v0.2.0 package.
 
 ## Install uv and Python
 
@@ -33,13 +31,12 @@ Install Git for your operating system, reopen the terminal, and check it:
 git --version
 ```
 
-## Install the current-source command-line application
+## Install the v0.3.0 command-line application
 
-After the source branch is available on GitHub, use this command on Windows,
-macOS, or Linux:
+After v0.3.0 is released on PyPI, install the CLI on Windows, macOS, or Linux:
 
 ```console
-uv tool install --python 3.12 "hydropattern @ git+https://github.com/JohnRushKucharski/hydropattern.git@docs-reporting-s3"
+uv tool install --python 3.12 hydropattern==0.3.0
 uv tool update-shell
 ```
 
@@ -54,9 +51,7 @@ hydropattern --help
 You do not need to clone the repository or install development or test
 dependencies. Continue with the [first evaluation](first-run.md).
 
-**After the matching release is on PyPI**, the recommended command will be
-`uv tool install hydropattern`. PyPI supplies the package; uv installs it.
-Do not use that unqualified command for the unreleased examples yet.
+Until v0.3.0 is released, use the local-checkout route below.
 
 ## Alternative: pip in a virtual environment
 
@@ -67,7 +62,7 @@ On Windows PowerShell:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install "hydropattern @ git+https://github.com/JohnRushKucharski/hydropattern.git@docs-reporting-s3"
+.\.venv\Scripts\python.exe -m pip install hydropattern==0.3.0
 .\.venv\Scripts\hydropattern.exe --help
 ```
 
@@ -75,18 +70,18 @@ On macOS or Linux:
 
 ```sh
 python3.12 -m venv .venv
-.venv/bin/python -m pip install "hydropattern @ git+https://github.com/JohnRushKucharski/hydropattern.git@docs-reporting-s3"
+.venv/bin/python -m pip install hydropattern==0.3.0
 .venv/bin/hydropattern --help
 ```
 
-These source commands also require the branch to be published. You can use the
-full path to the environment's command without activating the environment.
-For the first evaluation, either keep the example files in this working folder
-or activate the environment before changing folders.
+These package commands apply after v0.3.0 is released. You can use the full
+path to the environment's command without activating the environment. For the
+first evaluation, either keep the example files in this working folder or
+activate the environment before changing folders.
 
 ## Local-checkout route before publication
 
-If you already have the S3 checkout, open a terminal in the repository root.
+If you have a v0.3.0 source checkout, open a terminal in the repository root.
 Check that it contains the current code and `examples/first-run`:
 
 ```console
@@ -120,7 +115,7 @@ hydropattern importable in your own Python project. In a Python 3.12+ project,
 after the source branch is published, install it as a project dependency:
 
 ```console
-uv add "hydropattern @ git+https://github.com/JohnRushKucharski/hydropattern.git@docs-reporting-s3"
+uv add "hydropattern==0.3.0"
 ```
 
 Alternatively, use the pip virtual-environment instructions above and execute

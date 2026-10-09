@@ -1,24 +1,20 @@
 # User documentation redesign
 
-Status: D1–D3 complete (S1a–S3 in the sequence); the unaffected D4 portion
-is complete on `docs-reporting-s4` and integrated into local `main`, without
-pushing. The unaffected D5 portion is complete on `docs-reporting-s5` and
-integrated into local `main` at `b05b326`, without pushing. S6 / R0 baseline
-was captured while working on `docs-reporting-r0`. R1–R8 are committed on
-`reporting-metrics`; R9 implementation and target-page updates are committed
-there. R10 is complete and committed on `reporting-metrics`; D4–D5 are now
-fully complete, including their reporting-dependent topics. D6–D7
-remain pending.
-S3 commit `079d381` is integrated into local `main` by fast-forward from
-`docs-reporting-s3`; nothing has been pushed.
+Status: D1–D5 and their reporting-dependent documentation are complete and
+integrated in local `reporting-metrics`. R0–R10 are complete and committed on
+that branch; phase 8 pattern-correctness documentation is also complete.
+S9/D6 cleanup review is complete: artifacts were retained and no deletion was
+authorized. D7/S10 release preparation remains; package publication and
+GitHub Pages deployment remain gated. The forthcoming package version is
+0.3.0; work has not been merged to `main` or pushed. Commit, merge, and push
+were authorized on 2026-10-09.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
-now defines additional scientific and reporting changes for the next release.
-Keep those changes separate from editorial implementation, but coordinate the
-user-facing explanations and worked examples with this redesign. In particular,
-do not publish the former reciprocal mode, denominator policies, or failure-pattern
-color reversal as the new behavior; document the implementation actually released.
+records additional scientific and reporting changes implemented for v0.3.0.
+Keep algorithm changes separate from editorial work and describe the
+implemented behavior; do not present superseded reciprocal mode, denominator
+policies, or failure-pattern color reversal as current behavior.
 The reporting plan requires a dedicated unknown-outcome section and characteristic,
 event-count, water-year, and plotting examples, not merely developer records.
 
@@ -39,9 +35,9 @@ Documentation must explain actual behavior, not merely improve existing prose.
 
 ## Non-negotiable boundaries
 
-- Preserve existing modified and untracked work. The pattern-correctness plan
-  records documentation changes awaiting review; integrate them, do not reset
-  or silently replace them.
+- Preserve existing modified and untracked work. Pattern-correctness
+  documentation is complete for v0.3.0; integrate it without overwriting
+  subsequent local edits.
 - Do not edit, move, or delete these case-study directories:
   `examples\Data_comparing`, `examples\frio`, `examples\longtailpoint`,
   `examples\Luvuvhu`. Do not include them in the documentation site.
@@ -71,10 +67,13 @@ Keep the authoring system close to ordinary Markdown:
 - No additional plugins, external search service, Docker requirement, custom
   frontend, generated API documentation, or multi-version tooling.
 - Local preview: `uv run --group docs mkdocs serve`.
-- Pull requests build the site with strict validation. Deployment through
-  GitHub Pages is enabled only after reporting slice R10 and a matching
-  package release is available on PyPI. It is triggered by a version-bump
-  commit tagged `v*`, not by every main-branch update.
+- Pull requests build the site with strict validation. The package release
+  workflow is triggered by a published GitHub Release; it validates the
+  version tag, reruns tests, builds distributions, and publishes through the
+  configured PyPI trusted publisher. Pages deployment is a separate manual
+  workflow dispatch after PyPI verification and after post-release notices
+  have been removed. It validates the release tag and package version and
+  deploys the current default branch, not every main-branch update.
 - Set the documentation source directory to `docs\user`. Developer records,
   PDFs, and protected case studies must not be copied into the site.
 
@@ -84,20 +83,20 @@ the user navigation.
 
 ## Version and installation policy
 
-Document current code and the next release. Display a prominent **unreleased**
-notice until a matching package release exists.
+Document v0.3.0. Display a prominent **unreleased** notice until that package
+release exists.
 
-At design time, PyPI and the latest GitHub release provide v0.2.0, whose frequency
-behavior differs from current code. Do not pair current examples with an
-unqualified instruction to install that release.
+PyPI and the latest GitHub release provide v0.2.0, whose frequency behavior
+differs from v0.3.0. Do not pair v0.3.0 examples with an unqualified
+instruction to install v0.2.0.
 
-After the matching release, lead CLI installation with `uv tool install
-hydropattern`. Explain Python 3.12+ requirements and provide platform-specific
-setup steps. PyPI is the package source; uv is the installer, so publishing to
-PyPI does not change this recommendation.
+After v0.3.0 is published, lead CLI installation with
+`uv tool install hydropattern==0.3.0`. Explain Python 3.12+ requirements and
+provide platform-specific setup steps. PyPI is the package source; uv is the
+installer.
 
-During the unreleased transition, provide an explicit current-source installation
-route. Keep pip/virtual-environment installation as an alternative, and explain
+Until v0.3.0 is released, provide an explicit local-source installation route.
+Keep pip/virtual-environment installation as an alternative, and explain
 Python API installation separately. Ordinary users should not install test or
 development dependency groups.
 
@@ -253,7 +252,7 @@ failure-pattern settings affect the component outcome.
 Explain retrospective assessment, independent characteristic conditions versus
 dependent duration/frequency assessment, and the meaning of `success_pattern`.
 For failure-pattern configurations, distinguish non-failure from demonstrated
-ecological success. `return_period` is removed in the next release; document
+ecological success. `return_period` is removed in v0.3.0; document
 only its removal and migration, and never present `1 / portion` as a hydrologic
 recurrence interval or guarantee of event independence.
 
@@ -404,13 +403,13 @@ Local preview is `uv run --group docs mkdocs serve`; strict validation is
 scientific PDFs, protected case studies, and research files stay outside the
 site source.
 
-Source-install and first-run download links currently share the
-`docs-reporting-s3` ref. They are explicitly unavailable remotely until the
-branch is pushed; local-checkout instructions work before publication. Keep
-that branch available while those links use it, and update installation and
-download references together when integrating subsequent work or preparing
-the matching release. GitHub Pages deployment is not enabled; S10 will add it
-after R10. No cleanup deletions or scientific changes were made in D3.
+At the D3 handoff, source-install and first-run download links shared the
+`docs-reporting-s3` ref and were unavailable until that branch was pushed.
+Release-preparation edits have since aligned user-facing downloads to the
+`v0.3.0` tag; those links remain unavailable until publication. Local-checkout
+instructions work before publication. GitHub Pages deployment is not enabled;
+S10 will add it after R10. No cleanup deletions or scientific changes were
+made in D3.
 
 ## D4 (S4) completion record
 
@@ -454,11 +453,12 @@ and input specification are preserved. No scientific algorithms changed.
 The site's Examples navigation now leads to `docs\user\examples\index.md`,
 with task-labelled downloads, commands, expected arrays and portions, and
 interpretation linked to the characteristic pages. Runnable files remain
-authoritative under `examples`; none are copied into the site. New download
-links target `docs-reporting-s5` and retain an explicit unavailable-until-
-pushed notice. Existing first-run and source-install references still use
-`docs-reporting-s3`. Four narrowly scoped ignore rules prevent default
-outputs from the new packs being accidentally tracked.
+authoritative under `examples`; none are copied into the site. At the D5 handoff, new download links targeted `docs-reporting-s5` and the
+first-run/source-install references still used `docs-reporting-s3`. Release
+preparation has since aligned these user-facing references to the `v0.3.0`
+tag, with a notice that links are unavailable until publication. Four
+narrowly scoped ignore rules prevent default outputs from the new packs being
+accidentally tracked.
 
 Expected results were written first in `tests/test_s5_examples.py`. The
 initial run passed the existing first-run case and failed for the four
@@ -493,8 +493,9 @@ plotting, configuration, CLI, API, and migration guidance; implementation and
 these page changes are committed on `reporting-metrics`. R10's
 response-surface example pack, unknown-outcome section, cross-linked
 uncertainty examples, and migration guidance are complete and committed on
-`reporting-metrics`; see the R10 completion record below. D6 cleanup and D7 publication
-remain pending. GitHub Pages deployment is still disabled.
+`reporting-metrics`; see the R10 completion record below. S9/D6 cleanup review
+is complete; reviewed files were retained and no deletions were authorized.
+D7/S10 release preparation remains pending. GitHub Pages deployment is disabled.
 
 ## R10 documentation and release-readiness completion record
 
@@ -522,21 +523,19 @@ R10 is committed on `reporting-metrics` in
 `docs: complete R10 and prepare documentation handoff`; reporting changes
 have not been merged to `main` or pushed.
 
-## Next-session scope (2026-10-09)
+## Release preparation status (2026-10-09)
 
-D1–D5 are complete; do not restart schema, reference, example, or reporting
-work. Next is S9 / D6 review: inspect the six named generated-output
-candidates above, check fixture and documentation dependencies, and present
-per-file evidence before requesting deletion permission. Review historical
-developer records individually; preserve unique content and provenance.
-No cleanup deletion has been authorized or performed. Cleanup remains
-non-blocking if permission is withheld.
+D1–D5 and reporting slices R0–R10 are complete; do not restart schema,
+reference, example, or reporting work without a concrete defect. S9/D6 review
+of the six generated-output candidates and historical developer records is
+complete. Artifacts were retained; no deletion was authorized or performed.
 
-S10 / D7 is pending: developer authoring/release instructions, matching-version
-installation/download refs, deployment configuration, and the first successful
-tagged deploy. `.github\workflows\docs.yml` currently performs strict PR builds
-only. Keep deployment disabled and the unreleased notice accurate until the
-matching package release exists on PyPI; verify release status at pickup
-rather than assuming the design-time v0.2.0 observation is still current.
-Merge, push, release, and publication require separate user authorization.
+D7/S10 is in progress: developer authoring/release instructions, verification of the
+installation and download references to v0.3.0, deployment configuration, and
+verification of the first successful deployment. `.github/workflows/docs.yml`
+strictly builds PRs and accepts a manual deployment dispatch after the matching
+package is available on PyPI and release notices are removed. Keep Pages
+disabled and the v0.3.0 unreleased notice until then. Package publication and
+Pages enablement remain gated; branch commit, merge, and push were authorized
+on 2026-10-09.
 Optional R11 is not required and must not be started without approval.

@@ -43,6 +43,10 @@ class TestIsScenarioGrid(unittest.TestCase):
         '''A single scenario is not a grid, even if its name matches the convention.'''
         self.assertFalse(is_scenario_grid(['_0_0']))
 
+    def test_false_when_coordinate_is_nonfinite(self):
+        '''Non-finite numeric coordinates are not valid grid coordinates.'''
+        self.assertFalse(is_scenario_grid(['_0_0', '_0_1', '_1_0', '_nan_1']))
+
 
 class TestBuildGrid(unittest.TestCase):
     '''Tests for build_grid.'''
@@ -76,6 +80,16 @@ class TestBuildGrid(unittest.TestCase):
         self.assertEqual(zs[1, 0], 2.0)
         self.assertEqual(zs[1, 1], 4.0)
 
+    def test_duplicate_numeric_coordinates_raise_plot_error(self):
+        '''Grid construction rejects aliases for one numeric coordinate.'''
+        with self.assertRaises(HydropatternError) as context:
+            build_grid(
+                ['_0_0', '_0_0.0', '_0_1', '_1_0'],
+                {'_0_0': 1.0, '_0_0.0': 2.0, '_0_1': 3.0, '_1_0': 4.0},
+            )
+
+        self.assertEqual(context.exception.envelope.code, PlotErrorCode.INVALID_SCENARIO_GRID)
+
 
 class TestRequireScenarioGrid(unittest.TestCase):
     '''Tests for require_scenario_grid.'''
@@ -91,3 +105,19 @@ class TestRequireScenarioGrid(unittest.TestCase):
     def test_does_not_raise_for_valid_grid_names(self):
         '''A valid scenario grid does not raise.'''
         require_scenario_grid(['_0_0', '_0_1.5', '_5_0', '_5_1.5'])
+
+    def test_raises_plot_error_for_nonfinite_coordinates(self):
+        '''Non-finite coordinates raise PLOT_INVALID_SCENARIO_GRID.'''
+        with self.assertRaises(HydropatternError) as context:
+            require_scenario_grid(['_0_0', '_0_1', '_1_0', '_nan_1'])
+
+        self.assertEqual(context.exception.envelope.code, PlotErrorCode.INVALID_SCENARIO_GRID)
+        self.assertEqual(context.exception.envelope.source, 'plot')
+
+    def test_raises_plot_error_for_duplicate_numeric_coordinates(self):
+        '''Different names for one coordinate raise PLOT_INVALID_SCENARIO_GRID.'''
+        with self.assertRaises(HydropatternError) as context:
+            require_scenario_grid(['_0_0', '_0_0.0', '_0_1', '_1_0'])
+
+        self.assertEqual(context.exception.envelope.code, PlotErrorCode.INVALID_SCENARIO_GRID)
+        self.assertEqual(context.exception.envelope.source, 'plot')

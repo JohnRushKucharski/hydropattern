@@ -6,9 +6,10 @@ Documentation sequence S3–S5 is complete; S4 is integrated into local
 `main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
 R0 evidence was captured while working on `docs-reporting-r0`. R1–R10 are
 committed on `reporting-metrics`, based on `b05b326`. Reporting-branch changes
-have not been merged to `main` or pushed. Next work belongs to sequence S9
-(reviewed cleanup) and S10 (release-gated publishing), not another required
-reporting slice.
+have not been merged to `main` or pushed. The S9 cleanup review is complete;
+the reviewed files were retained and no deletion was authorized. Remaining
+work is S10 release preparation and publication, which requires separate
+authorization; no required reporting slice remains.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the
@@ -104,7 +105,7 @@ stay neutral, while fields specific to the second part use `interannual_`.
   raise a clear error directing callers to the bounds method. Do not silently
   select an endpoint or midpoint. Apply consistent rules to lower-level public
   helpers and document the changed treatment of unknowns.
-- Remove reciprocal summary support for the next release. Supported summary
+- Remove reciprocal summary support in v0.3.0. Supported summary
   modes are `portion` and `percentage` only. Reject `return_period` with clear
   explanation and migration guidance; do not silently substitute another mode
   or retain an alias. Remove the Python enum member and update parser choices,
@@ -723,9 +724,10 @@ hydropattern/`, strict MkDocs build, Ruff on the R10 acceptance test, and
 `git diff --check` passed. R10 is committed on `reporting-metrics` in
 `docs: complete R10 and prepare documentation handoff`; reporting changes
 have not been merged to `main` or pushed. Optional R11 was not started.
-This completes the required reporting MVP, not package release or site
-publication. Continue with S9 review and release-gated S10 under the
-sequence plan; neither is authorization to implement R11.
+This completes the required reporting MVP for 0.3.0, not package release or
+site publication. S9 cleanup review is complete; reviewed artifacts remain
+tracked. Continue with release-gated S10 under the sequence plan. This is not
+authorization to implement optional R11.
 
 ## Reporting-versus-event-count example
 

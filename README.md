@@ -5,14 +5,12 @@ a command-line application and a secondary Python API.
 
 ## Version status
 
-**Unreleased documentation:** these instructions describe current source and
-the next release, not PyPI v0.2.0. That release has different frequency behavior
-and does not support the current ordered-table syntax. A matching release
-version has not yet been assigned.
+**v0.3.0 is not yet released.** These instructions describe v0.3.0, not the
+published v0.2.0 package. v0.2.0 uses different frequency behavior and does
+not support the ordered-table syntax documented here.
 
-The source commands and downloads below use `docs-reporting-s3`. Until that
-branch is pushed, use the [local-checkout instructions](docs/user/getting-started/installation.md#local-checkout-route-before-publication).
-Do not substitute the older published package.
+Until v0.3.0 is published, use the
+[local-checkout instructions](docs/user/getting-started/installation.md#local-checkout-route-before-publication).
 
 ## Documentation
 
@@ -26,7 +24,7 @@ Start with the [user documentation](docs/user/index.md), then follow:
 - [Upgrade guidance](docs/user/migration.md)
 
 The Material/MkDocs site is available for local preview. GitHub Pages publishing
-is not enabled yet; it waits for the coordinated reporting work and release.
+is not enabled yet; it waits for v0.3.0 release preparation and authorization.
 
 ## Inputs and results
 
@@ -48,32 +46,30 @@ Scenario grids can also produce response-surface plots. Characteristics cover
 timing, magnitude, duration, frequency, and rate of change.
 See [CLI usage](docs/user/guide/cli.md) for output choices and working folders.
 
-## Install current source
+## Install v0.3.0 from a checkout
 
 Requires Python 3.12+, [uv](https://docs.astral.sh/uv/getting-started/installation/),
-and Git. After the source branch is published:
+and Git. Before v0.3.0 is released, install from a local source checkout:
 
 ```console
 uv python install 3.12
-uv tool install --python 3.12 "hydropattern @ git+https://github.com/JohnRushKucharski/hydropattern.git@docs-reporting-s3"
-uv tool update-shell
-hydropattern --help
+uv sync --no-default-groups
+uv run --no-default-groups hydropattern --help
 ```
 
-Restart your terminal if uv requests it. Ordinary users do not need development
-or test dependency groups. The installation guide provides platform-specific
-steps, a pip/virtual-environment alternative, and separate
+Ordinary users do not need development or test dependency groups. The
+installation guide provides platform-specific steps, a pip/virtual-environment alternative, and separate
 [Python API installation](docs/user/getting-started/installation.md#install-for-the-python-api).
 
-After the matching release exists on PyPI, the recommended CLI command will be
-`uv tool install hydropattern`; do not use it for these unreleased examples yet.
+After v0.3.0 is published on PyPI, install the CLI with
+`uv tool install hydropattern==0.3.0`.
 
 ## First evaluation
 
-Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/flow.csv)
-and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/first-run.toml)
-in one folder. The downloads become available when the source branch is pushed;
-local reviewers already have them under `examples/first-run`.
+Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv)
+and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml)
+in one folder. The downloads become available when the v0.3.0 release tag is
+published; until then, copy them from `examples/first-run` in a local checkout.
 
 Open a terminal **in that folder**, then execute:
 

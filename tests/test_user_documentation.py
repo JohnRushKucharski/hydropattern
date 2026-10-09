@@ -135,20 +135,50 @@ def test_site_foundation_uses_only_user_sources_and_material_search():
     }
     assert not any(path.suffix.lower() in {".pdf", ".csv", ".xlsx", ".ipynb"}
                    for path in USER_DOCS.rglob("*"))
-    assert "Unreleased" in (USER_DOCS / "index.md").read_text(encoding="utf-8")
+    assert "v0.3.0 is not yet released" in (
+        USER_DOCS / "index.md"
+    ).read_text(encoding="utf-8")
     groups = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert len(groups["dependency-groups"]["docs"]) == 1
     assert groups["dependency-groups"]["docs"][0].startswith("mkdocs-material")
 
 
-def test_docs_workflow_is_pr_validation_not_deployment():
+def test_docs_workflow_keeps_pull_request_build_strict_and_read_only():
     workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
     assert "pull_request:" in workflow
     assert "uv run --locked --group docs mkdocs build --strict" in workflow
     assert "contents: read" in workflow
-    assert "write" not in workflow
-    assert "deploy" not in workflow.lower()
     assert "push:" not in workflow
+
+
+def test_docs_deployment_requires_manual_release_and_pypi_checks():
+    workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in workflow
+    assert "release_tag:" in workflow
+    assert "if: github.event_name == 'workflow_dispatch'" in workflow
+    assert "git merge-base --is-ancestor" in workflow
+    assert "gh release view" in workflow
+    assert "https://pypi.org/pypi/hydropattern/" in workflow
+    assert "release notice is cleared" in workflow
+    assert "pages: write" in workflow
+    assert "id-token: write" in workflow
+    assert "enablement: false" in workflow
+    assert "actions/deploy-pages@v4" in workflow
+    assert "push:" not in workflow
+
+
+def test_pypi_publisher_validates_version_and_tests_before_building():
+    workflow = (ROOT / ".github" / "workflows" / "publish.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "types: [published]" in workflow
+    assert 'test "$RELEASE_TAG" = "v$(uv version --short)"' in workflow
+    assert "uv sync --locked --group test" in workflow
+    assert "uv run --locked pytest -q" in workflow
+    assert "uv build --out-dir dist" in workflow
+    assert "id-token: write" in workflow
+    assert "pypa/gh-action-pypi-publish@release/v1" in workflow
+    assert "workflow_dispatch" not in workflow
 
 
 @pytest.mark.parametrize("path", sorted(USER_DOCS.rglob("*.md")), ids=lambda p: p.name)

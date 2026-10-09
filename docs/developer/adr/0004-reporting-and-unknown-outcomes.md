@@ -1,6 +1,8 @@
 # Reporting and unknown outcomes
 
-**Status:** accepted design; implementation pending.
+**Status:** accepted; required behavior implemented and documented in R0–R10
+on `reporting-metrics`. Package release 0.3.0 and site publication remain
+pending separate release authorization.
 
 This decision supersedes ADR 0003's known-trial annual probability denominator,
 complete-year-only event-rate exposure, strict rejection of omitted leap days,

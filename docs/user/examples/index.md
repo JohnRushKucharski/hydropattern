@@ -1,10 +1,11 @@
 # Runnable examples by task
 
-**Unreleased:** use the [current-source application](../getting-started/installation.md),
-not PyPI v0.2.0. These small packs use ordered characteristic tables with
-`parameters`. Their arbitrary flow units, seasons, and thresholds illustrate
-software behavior, not universal ecological criteria. The response-surface
-pack also demonstrates unavailable calculations and coverage-based eligibility.
+**For v0.3.0:** use the [v0.3.0 source checkout](../getting-started/installation.md),
+not the published PyPI v0.2.0 package. These small packs use ordered
+characteristic tables with `parameters`. Their arbitrary flow units, seasons,
+and thresholds illustrate software behavior, not universal ecological
+criteria. The response-surface pack also demonstrates unavailable calculations
+and coverage-based eligibility.
 
 Each pack has one authoritative CSV/TOML pair under `examples` in the source
 repository, plus instructions and expected results. The site links to those
@@ -19,12 +20,9 @@ files rather than keeping a second copy.
 3. Execute the command in the table below. The named output folder contains
    raw CSV files and component summary workbooks.
 
-S5 pack links use `docs-reporting-s5`; the response-surface pack uses
-`reporting-metrics`. Those links become available when their branches are
-pushed. Until then, copy files from your local checkout.
-The already completed first-run pack retains its `docs-reporting-s3` links,
-which are also unavailable until that branch is pushed. These packs use
-existing evaluator behavior; S5 adds no new scientific algorithms.
+Source-file links point to the `v0.3.0` tag and become available when that
+release is published. Until then, copy files from your local v0.3.0 source
+checkout. These packs illustrate the evaluator behavior included in v0.3.0.
 
 With a local checkout, stay in the copied pack's folder and supply the
 checkout location to uv. For example:
@@ -39,12 +37,12 @@ results, choose `--output-dir` or add `--no-overwrite`.
 
 | Task | Files | Command | Output folder |
 | --- | --- | --- | --- |
-| First evaluation | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/first-run.toml) | `hydropattern run first-run.toml --no-excel` | `first-run_output` |
-| Seasonal thresholds | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/seasonal-thresholds/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/seasonal-thresholds/seasonal-thresholds.toml) | `hydropattern run seasonal-thresholds.toml --no-excel` | `seasonal-thresholds_output` |
-| Duration | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/duration/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/duration/duration.toml) | `hydropattern run duration.toml --no-excel` | `duration_output` |
-| Frequency | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/frequency/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/frequency/frequency.toml) | `hydropattern run frequency.toml --no-excel` | `frequency_output` |
-| Multiple scenarios | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/multiple-scenarios/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s5/examples/multiple-scenarios/multiple-scenarios.toml) | `hydropattern run multiple-scenarios.toml --no-excel` | `multiple-scenarios_output` |
-| Response-surface coverage | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/reporting-metrics/examples/response-surface/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/reporting-metrics/examples/response-surface/response-surface.toml) | `hydropattern run response-surface.toml --plot --no-excel` | `response-surface_output` |
+| First evaluation | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml) | `hydropattern run first-run.toml --no-excel` | `first-run_output` |
+| Seasonal thresholds | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/seasonal-thresholds/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/seasonal-thresholds/seasonal-thresholds.toml) | `hydropattern run seasonal-thresholds.toml --no-excel` | `seasonal-thresholds_output` |
+| Duration | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/duration/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/duration/duration.toml) | `hydropattern run duration.toml --no-excel` | `duration_output` |
+| Frequency | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/frequency/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/frequency/frequency.toml) | `hydropattern run frequency.toml --no-excel` | `frequency_output` |
+| Multiple scenarios | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/multiple-scenarios/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/multiple-scenarios/multiple-scenarios.toml) | `hydropattern run multiple-scenarios.toml --no-excel` | `multiple-scenarios_output` |
+| Response-surface coverage | [CSV](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/response-surface/flow.csv), [TOML](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/response-surface/response-surface.toml) | `hydropattern run response-surface.toml --plot --no-excel` | `response-surface_output` |
 
 ## Expected results
 
@@ -114,12 +112,12 @@ defined. See [response-surface plotting](../guide/plotting.md) and
 
 Each source folder's README lists the exact output filenames, characteristic
 summaries, and local-checkout command. Browse the
-[S5 example folders](https://github.com/JohnRushKucharski/hydropattern/tree/docs-reporting-s5/examples)
-for those details.
+[example source folders](https://github.com/JohnRushKucharski/hydropattern/tree/v0.3.0/examples)
+for those details after the release tag is published.
 
 ## Comprehensive configuration
 
-[detailed.toml](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s5/examples/detailed.toml)
+[detailed.toml](https://github.com/JohnRushKucharski/hydropattern/blob/v0.3.0/examples/detailed.toml)
 demonstrates all five characteristics, a failure-pattern component, ordered
 tables, and commented optional settings. It is an annotated configuration,
 not a replacement for the [reference](../reference.md) or a self-contained

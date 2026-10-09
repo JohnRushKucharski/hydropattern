@@ -1,17 +1,16 @@
 # Next-session handoff
 
-Continue hydropattern documentation work from local branch `reporting-metrics`.
-R0–R10 and S8 are complete and committed on this branch, based on local
-`main` at `b05b326`. R9 is `b657ba4`; the following R10 commit is titled
-`docs: complete R10 and prepare documentation handoff`.
-Do not repeat reporting implementation. Do not merge to `main` or push
-without separate user authorization.
+Continue 0.3.0 documentation and release preparation from local branch
+`reporting-metrics`. Pattern-correctness documentation and reporting slices
+R0–R10 are complete on this branch. Do not repeat completed implementation.
+The user authorized commit, merge, and push on 2026-10-09. Do not publish the
+package or enable Pages without separate release authorization.
 
 Before further work:
 
 1. Run `git branch --show-current`, `git status --short`, and
-   `git --no-pager log -5 --oneline`. Expect `reporting-metrics` and a clean
-   worktree at this handoff; preserve any changes made since then.
+   `git --no-pager log -5 --oneline`. Preserve any changes made since this
+   handoff; do not assume the worktree is clean.
 2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
@@ -21,34 +20,26 @@ Before further work:
    is already ten commits ahead of `origin/main` from earlier approved work;
    do not push it.
 4. Review R1–R10 completion notes, including the R4 correction, in the reporting plan.
-5. S8 / R10 is complete and committed. S9 / D6 cleanup is separate and
-   non-blocking; obtain explicit user permission before each deletion.
-   S10 / D7 publishing remains gated on a matching package release. Do not
-   begin optional R11.
+5. R0–R10 are complete. S9/D6 cleanup review is complete; reviewed files
+   were retained, and no deletion was authorized. S10/D7 release preparation
+   remains; the target package version is 0.3.0. Do not begin optional R11.
 
 ## Next work and authorization gates
 
-The next sequence step is **S9 / D6: review cleanup candidates**, not
-automatic deletion. Inspect each named output candidate in the
-user-documentation plan, check tracked status and fixture/documentation
-references, and determine whether it is reproducible or deliberately curated.
-Review developer records individually for unique decisions and provenance.
-Present specific candidates with evidence and any preserved-content
-destination; obtain explicit permission before each deletion. Approval to
-commit R10 does not authorize cleanup. Preserve protected case studies,
-research data/notebooks, and both scientific PDFs.
+S9 cleanup review is complete. The six generated-output candidates and
+historical developer records were reviewed and retained. No deletion was
+performed or authorized.
 
-S9 is non-blocking: retain files if deletion is declined. **S10 / D7 remains
-pending**, including developer authoring/release instructions and deployment
-configuration. The existing `.github\workflows\docs.yml` only builds pull
-requests; it does not deploy. Before publication, obtain release/integration
-authorization, confirm a matching package is available on PyPI, and align
-installation and example-download refs with that release. Current refs
-(`docs-reporting-s3`, `docs-reporting-s5`, `reporting-metrics`) remain local
-and their new download links are unavailable until published. Keep the
-unreleased notice and deployment disabled until the release gate is met.
-Deployment must use a version-bump commit tagged `v*`, not every main update;
-verify the first tagged deployment before marking S10 complete.
+**S10 / D7 is in progress:** release instructions, tag validation, and a
+manual post-PyPI documentation deployment gate are prepared. Verify that
+installation and example-download refs target v0.3.0. PyPI currently has no
+0.3.0 release; its version endpoint returned HTTP 404 on 2026-10-09. Keep
+Pages disabled and the unreleased notice until publication is confirmed.
+Package publication and Pages enablement remain gated. Verify the GitHub
+Release, successful PyPI publisher workflow, PyPI distribution metadata, and a
+clean-install CLI smoke test before clearing release notices. Then merge that
+notice update and manually deploy docs with `release_tag=v0.3.0`; verify the
+first published site before marking S10 complete.
 
 ## Completed implementation and validation
 
@@ -116,8 +107,8 @@ Validation: full `uv run pytest -q` passed (801 tests), `uv run mypy
 hydropattern/`, strict MkDocs build, Ruff on the new acceptance test, and
 `git diff --check` passed on 2026-10-09. Reporting-branch changes have not
 been merged to `main` or pushed.
-Obtain user approval before deleting files during D6 or enabling publication
-during D7.
+Do not delete reviewed artifacts or publish/enable deployment without explicit
+user authorization.
 
 Dense-unknown exact count windows cost more than the superseded R4
 approximation. A 3,653-step, 95%-unknown record with N=30 took approximately

@@ -1,8 +1,9 @@
 # Documentation and reporting work sequence
 
 **Status:** S1a–S3 complete and integrated into local `main` (not pushed).
-S3 commit `079d381` was fast-forwarded from `docs-reporting-s3`; keep that branch
-available because current source-install and download links reference it.
+S3 commit `079d381` was fast-forwarded from `docs-reporting-s3`. The earlier
+source-install/download links have since been aligned to the forthcoming
+`v0.3.0` tag; those links remain unavailable until publication.
 S4's unaffected D4 portion is complete on `docs-reporting-s4` and integrated
 into local `main`, without pushing. Do not repeat S1a–S4. S1a (`b2d612e`), S1b
 (`f5c93b7`), and S1c are complete; do not repeat them.
@@ -13,8 +14,9 @@ S5's unaffected D5 portion is complete and integrated into local `main` at
 pre-R0 starting point. R0–R10 are complete and committed on `reporting-metrics`,
 based on `b05b326`; S8 and all D4/D5 topics are complete.
 Reporting-branch changes have not been merged to `main` or pushed.
-Next is S9 review; S10 remains release-gated. No cleanup deletion,
-deployment, or optional R11 work has been authorized.
+S9 review is complete; reviewed artifacts were retained and no deletion was
+authorized. S10 release preparation is in progress; package release,
+deployment, and optional R11 have not been authorized.
 See the [next-session handoff](../agents/next-session-prompt.md) for the pickup
 checklist.
 
@@ -57,8 +59,8 @@ early unless marked parallel.
 | S6 | R0 baseline; inventory documentation consumers against the S3–S5 pages. **Complete; captured while working on `docs-reporting-r0`, with evidence now committed in the reporting plan on `reporting-metrics`.** | S3 | Per reporting plan |
 | S7 | R1–R9 in reporting-plan order (complete and committed); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
 | S8 | R10 with remaining D4/D5: unknown-outcome section, deferred reference topics, response-surface pack, migration guide. **Complete and committed on `reporting-metrics`.** | S7 | Executable fixtures for worked examples; strict build passed. See the R10 completion record in the reporting plan. |
-| S9 | D6 cleanup: **pending review**, per-file evidence and explicit permission before any deletion | S2 (not blocking) | User approval for each deletion; retaining files is acceptable |
-| S10 | D7 publish: **pending**, GitHub Pages deploy triggered by a version-bump commit tagged `v*`; developer authoring and release checklist | S8; matching package release on PyPI before enabling deployment | Separate integration/publication authorization; matching install/download refs; first tagged deploy succeeds; unreleased notice kept until matching package release exists |
+| S9 | D6 cleanup review: **complete**; per-file review recommended retaining all six generated-output candidates and historical records. No deletion was authorized or performed. | S2 (not blocking) | Review evidence reported to user; retaining files is acceptable |
+| S10 | D7 publish: **in progress**, for package v0.3.0; validated GitHub Release triggers PyPI publish; manual GitHub Pages deployment follows package verification and release-notice update | S8; v0.3.0 package release on PyPI before Pages enablement/deployment | Matching install/download refs; successful package and site verification; unreleased notice retained until PyPI release exists |
 
 R11 is optional and is not part of this sequence.
 
@@ -70,22 +72,29 @@ committed there. R10 documentation is complete and committed in
 `docs: complete R10 and prepare documentation handoff`; reporting changes
 have not been merged to `main` or pushed.
 
-## Pickup after S8 (2026-10-09)
+## Status after S9 review (2026-10-09)
 
-Continue on local `reporting-metrics`; verify branch, clean handoff worktree,
-and latest commit before editing. Review the named cleanup candidates and
-historical records under D6, then request per-file deletion approval. Do not
-infer deletion permission from approval to implement or commit R10.
-S9 may be deferred or declined without blocking S10.
+S9 review is complete. The six generated-output candidates and historical
+developer records were reviewed; artifacts were retained, no deletion was
+performed, and cleanup does not block S10.
 
-The current documentation workflow builds PRs only. S10 must include authoring
-and release instructions, matching-version installation/download refs, and
-verification of the first tagged deployment. Existing source/download refs
-remain local and unpublished; do not promise remote downloads work yet.
-Keep deployment disabled and the unreleased notice until a matching package
-release exists. Do not merge, push, select/publish a release, or enable Pages
-without separate user authorization. R10 release readiness does not mean a
-package or documentation release has happened.
+Continue on local `reporting-metrics`; verify branch, worktree, and latest
+commit before editing, preserving any intervening changes. The documentation
+workflow strictly builds PRs and supports a manual deploy after PyPI confirms
+the matching package and release notices have been removed. Installation and
+download references target v0.3.0, but remote downloads remain unavailable
+until its tag is published. Keep Pages disabled and the unreleased notice
+until the package is available. The user authorized commit, merge, and push on
+2026-10-09; package publication and Pages enablement remain gated. R10 release
+readiness does not mean package or site publication has happened.
+
+The package workflow validates the tag and runs tests before publishing.
+PyPI's `hydropattern/0.3.0` endpoint returned HTTP 404 during preparation, so
+the package has not yet been released. After publishing and verifying the
+package, remove pre-release notices, merge that update, enable Pages, and run
+the docs workflow with `release_tag=v0.3.0`. The workflow verifies the GitHub
+Release, PyPI distributions, source version, and release notices before
+deployment.
 
 ## R10 topics completed in S8
 

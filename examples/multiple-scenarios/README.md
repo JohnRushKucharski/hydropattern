@@ -3,7 +3,8 @@
 This illustrative pack applies the same component to two numeric columns:
 `low_flow` and `high_flow`. Each is a separate scenario, not a reference or
 an evaluation role. Flow units are arbitrary; thresholds are not ecological
-recommendations. Use current source code, not PyPI v0.2.0.
+recommendations. This pack targets v0.3.0; it does not run as documented with
+PyPI v0.2.0.
 
 Save `flow.csv` and `multiple-scenarios.toml` in one folder. Open a terminal
 there; relative input paths resolve from that working folder:

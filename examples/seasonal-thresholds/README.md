@@ -2,7 +2,7 @@
 
 This illustrative pack checks flow above 1 on December 1 and 2. Flow units
 are arbitrary; the season and threshold are not ecological recommendations.
-Use current source code, not PyPI v0.2.0.
+This pack targets v0.3.0; it does not run as documented with PyPI v0.2.0.
 
 Save `flow.csv` and `seasonal-thresholds.toml` in one folder. Open a terminal
 in that folder; input paths resolve from the terminal's working folder:

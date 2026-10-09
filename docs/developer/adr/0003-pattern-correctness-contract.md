@@ -3,9 +3,10 @@
 **Status:** accepted
 
 **Partial supersession:** [ADR 0004](0004-reporting-and-unknown-outcomes.md)
-records the next design's changes to annual probability denominators,
-event-rate exposure, omitted leap days, and reciprocal reporting.
-Its implementation is pending; the historical decisions below are retained.
+records implemented changes to annual probability denominators, event-rate
+exposure, omitted leap days, and reciprocal reporting. Those changes are
+complete in the forthcoming 0.3.0 release; the historical decisions below
+are retained as the original contract.
 
 **Supersedes:** [ADR 0002](0002-frequency-sliding-window.md)'s trailing
 frequency-window decision. The historical ADR is retained as a record of the

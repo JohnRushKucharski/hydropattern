@@ -2,7 +2,8 @@
 
 This illustrative pack contains qualifying runs of four and two daily
 timesteps. Flow units are arbitrary; thresholds demonstrate software
-behavior, not ecological criteria. Use current source code, not PyPI v0.2.0.
+behavior, not ecological criteria. This pack targets v0.3.0; it does not run
+as documented with PyPI v0.2.0.
 
 Save `flow.csv` and `duration.toml` in one folder. Open a terminal in that
 folder; relative input paths resolve from the terminal's working folder:

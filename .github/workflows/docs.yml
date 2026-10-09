@@ -2,12 +2,19 @@ name: Documentation
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published package tag to verify before deployment
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,3 +30,94 @@ jobs:
 
       - name: Build user documentation
         run: uv run --locked --group docs mkdocs build --strict
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - name: Check out current default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify published GitHub and PyPI release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH format."
+            exit 1
+          fi
+          git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git merge-base --is-ancestor "$RELEASE_TAG" HEAD || {
+            echo "::error::Default branch does not contain $RELEASE_TAG."
+            exit 1
+          }
+          test "$RELEASE_TAG" = "v$(uv version --short)" || {
+            echo "::error::Release tag $RELEASE_TAG does not match pyproject.toml."
+            exit 1
+          }
+          gh release view "$RELEASE_TAG" \
+            --json tagName,isDraft,publishedAt \
+            --jq "select(.tagName == \"$RELEASE_TAG\" and .isDraft == false and .publishedAt != null) | .tagName" \
+            | grep -Fx "$RELEASE_TAG"
+          python - <<'PY'
+          import json
+          import os
+          from urllib.request import urlopen
+
+          version = os.environ["RELEASE_TAG"][1:]
+          url = f"https://pypi.org/pypi/hydropattern/{version}/json"
+          with urlopen(url, timeout=20) as response:
+              release = json.load(response)
+          if release["info"]["version"] != version or not release["urls"]:
+              raise SystemExit(f"PyPI does not contain a complete hydropattern {version} release.")
+          print(f"Verified hydropattern {version} on PyPI.")
+          PY
+
+      - name: Confirm release notice is cleared
+        run: |
+          if grep -RniE "not yet released|until v0\.3\.0|become available after" \
+            README.md docs/user/index.md docs/user/getting-started docs/user/migration.md; then
+            echo "::error::Clear release notices after PyPI publication before deployment."
+            exit 1
+          fi
+
+      - name: Build user documentation
+        run: uv run --locked --group docs mkdocs build --strict
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: false
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

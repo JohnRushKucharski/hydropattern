@@ -1,7 +1,8 @@
 # First evaluation
 
-**Unreleased:** use the [current-source application](installation.md), not
-PyPI v0.2.0. This example's ordered tables require the current `parameters` key.
+**For v0.3.0:** use the [v0.3.0 source checkout](installation.md), not the
+published PyPI v0.2.0 package. This example's ordered tables use the
+`parameters` key supported in v0.3.0.
 
 This example looks for flow above 1 for at least two consecutive daily
 timesteps. The eight observations are illustrative, with arbitrary flow
@@ -11,18 +12,17 @@ units; the threshold is not an ecological recommendation.
 
 Create a folder called `hydropattern-first-run`, then save both downloads in it:
 
-- [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/flow.csv)
-- [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/docs-reporting-s3/examples/first-run/first-run.toml)
+- [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv)
+- [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml)
 
-These links use the same source branch as the installation instructions.
-They become available only after that branch is pushed. Until then, local
-reviewers can copy the pair from `examples/first-run` in their checkout.
-No full-repository clone is needed to download the pair after publication.
+These links become available after the v0.3.0 release tag is published. Until
+then, copy the pair from `examples/first-run` in a local v0.3.0 checkout. No
+full-repository clone is needed to download the pair after publication.
 
 Use your browser's **Save as** action if a link displays text. Preserve the
 exact filenames; check that your editor did not append `.txt`.
-The [example source folder](https://github.com/JohnRushKucharski/hydropattern/tree/docs-reporting-s3/examples/first-run)
-also contains its purpose and expected results.
+The [example source folder](https://github.com/JohnRushKucharski/hydropattern/tree/v0.3.0/examples/first-run)
+also contains its purpose and expected results after publication.
 
 ## Understand the configuration
 

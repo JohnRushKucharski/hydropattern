@@ -3,7 +3,8 @@
 The Python API is secondary to the command-line guides. Install hydropattern
 in your own Python environment using the
 [API installation instructions](../getting-started/installation.md#install-for-the-python-api).
-These examples require current source, not PyPI v0.2.0.
+These examples describe the forthcoming v0.3.0 API, not the published
+PyPI v0.2.0 API.
 Results can contain `NaN` or `pd.NA` when a verdict cannot be determined;
 missing input flow values are rejected. See
 [unknown outcomes](../concepts/unknown-outcomes.md) for propagation and

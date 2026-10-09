@@ -5,25 +5,21 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 
 ## Implementation context
 
-Documentation sequence S1a–S5 is complete and integrated into local `main`
-at `b05b326`. S6 / R0 baseline is recorded; R1–R9 are committed on
-`reporting-metrics` (R3: `d40b640`, R4: `59e69eb`, R4 correction:
-`e53612a`, R7: `27112d2`). R10 documentation and release-readiness work is
-complete and committed on `reporting-metrics`; required reporting MVP is done.
-S9 cleanup review and release-gated S10 publishing remain pending.
-Optional R11 has not started. Reporting changes have not been merged to
-`main` or pushed. Cleanup deletions, integration/publication, and R11
-require separate user authorization.
-Keep reporting slices separate on `reporting-metrics`. See the
+Pattern-correctness documentation and required reporting slices R0–R10 are
+complete on `reporting-metrics` for the forthcoming v0.3.0 release. S9 cleanup
+review is complete; reviewed artifacts were retained, with no deletions.
+S10 release preparation is in progress; commit, merge, and push were authorized
+on 2026-10-09. Package publication, Pages enablement, and optional R11 remain
+gated.
+See the
 [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
 and its linked plans for scope, completion records, and prerequisites.
 
 ## Language
 
-This file is the source of truth for domain terminology. Some entries capture
-agreed terminology for future reporting behavior; their presence does not
-mean that behavior is implemented. Check the documentation and reporting
-plans for each work item's implementation status before describing it to users.
+This file is the source of truth for domain terminology. Its reporting and
+pattern-correctness terms describe the implemented v0.3.0 behavior unless an
+entry explicitly labels itself as historical.
 
 **Scenario**:
 One data column in a `[timeseries]` input, representing one hydrologic trace/run to

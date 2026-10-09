@@ -3,8 +3,9 @@
 Plotting compares a component's whole-record summary across a scenario grid.
 It requires multiple input columns whose names encode two numeric axes in
 the form `_precipitation_delta_temperature_delta`, such as `_0_1.5`. There
-must be at least two distinct values on each axis. An arbitrary set of
-scenario names or one scenario alone is not a grid.
+must be at least two distinct values on each axis, and each coordinate pair
+must be unique and finite. An arbitrary set of scenario names or one scenario
+alone is not a grid.
 
 Each plotted value is the component's whole-record `portion` or `percentage`
 of known outcomes. The default color scale uses red for lower fractions for

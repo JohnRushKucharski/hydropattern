@@ -167,7 +167,7 @@ def test_detailed_configuration_cli_works_from_repository_root(tmp_path, monkeyp
 @pytest.mark.parametrize("pack", PACK_OUTCOMES)
 def test_pack_download_links_identify_authoritative_files(pack):
     page = (ROOT / "docs" / "user" / "examples" / "index.md").read_text(encoding="utf-8")
-    ref = "docs-reporting-s3" if pack == "first-run" else "docs-reporting-s5"
+    ref = "v0.3.0"
     for name in ("flow.csv", f"{pack}.toml"):
         url = (
             "https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/"

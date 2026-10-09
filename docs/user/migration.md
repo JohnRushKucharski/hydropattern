@@ -1,14 +1,14 @@
-# Migration notes: pattern-correctness changes
+# Migration notes for v0.3.0
 
-**Unreleased:** completed changes below are present in current source, not
-PyPI v0.2.0. See [installation](getting-started/installation.md). Review
-these changes before comparing results with earlier releases.
+**v0.3.0 is not yet released.** The changes below describe v0.3.0 and differ
+from the published v0.2.0 package. See
+[installation](getting-started/installation.md). Review these changes before
+comparing results with v0.2.0.
 
-These behavior changes affect configurations and results produced by versions
-before the pattern-correctness update. Review them before comparing new results
-with historical outputs.
+The “Earlier behavior (v0.2.0)” column describes the published package;
+“v0.3.0 behavior” describes the forthcoming release.
 
-| Area | Earlier behavior | Current behavior and action |
+| Area | Earlier behavior (v0.2.0) | v0.3.0 behavior and action |
 |---|---|---|
 | Frequency flag | `event_bool` defaulted to `true`. | The optional trailing boolean in a count or between frequency form now defaults to `false`, so overlapping qualifying windows are unioned. Set it to `true` to suppress later anchors within a qualifying fixed-length span. |
 | Frequency windows | Trailing windows ended at each evaluated timestep. | Candidate windows extend forward from eligible source timesteps, truncate at record end, and produce retrospective classifications. Un-nested N is measured in input timesteps, not years. |
@@ -33,11 +33,11 @@ leap-day assumptions, and worked examples, see
 
 For frequency evaluation rules, worked examples, and Python API details, see
 the [frequency reference](reference/characteristics/frequency.md) and the
-[pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/docs-reporting-s3/docs/developer/adr/0003-pattern-correctness-contract.md).
+[pattern-correctness decision record](https://github.com/JohnRushKucharski/hydropattern/blob/v0.3.0/docs/developer/adr/0003-pattern-correctness-contract.md).
 
 ## Summary denominator and removed mode
 
-Current unreleased source excludes unknown outcomes from summary denominators.
+In v0.3.0, unknown outcomes are excluded from summary denominators.
 For outcomes `[1, 0, unknown, unknown]`, the `portion` is `0.5`, not `0.25`.
 Each characteristic and component column uses its own known outcomes. A
 group with known outcomes but no successes has portion `0`; an all-unknown
@@ -50,7 +50,7 @@ portions. Recompute historical summaries before comparing results.
 or timing. Do not treat a reciprocal portion as a measure of event spacing;
 portions do not assert independent events. No compatibility alias is provided.
 
-## Next release: event-count bounds and exposure
+## Event-count bounds and exposure in v0.3.0
 
 Unknown final outcomes no longer count as definite separators between
 component events. `Result.event_count()` and `Result.event_rate()` now raise
@@ -70,7 +70,7 @@ successful observation. Rates require supported daily or monthly timestamps;
 unsupported cadence raises an error instead of falling back to complete-year
 exposure. Review historical event-rate comparisons after upgrading.
 
-## Next release: coverage-aware response surfaces
+## Coverage-aware response surfaces in v0.3.0
 
 Plots now require 90% known-outcome coverage by default. Set
 `[output.plot].minimum_coverage` or pass `--minimum-coverage` as a finite
@@ -91,7 +91,7 @@ appropriate for the analysis. `fillin = true` is rejected when scenarios are
 withheld, because the renderer cannot preserve those protected gaps. Recheck
 historical plots after upgrading.
 
-## Next release: unknown annual frequency
+## Unknown annual frequency in v0.3.0
 
 Nested annual conditions now retain unknown preceding outcomes instead of
 treating them as failures. An annual fraction uses all observed timesteps in
@@ -113,11 +113,10 @@ fraction. Nested condition evaluation still returns a known verdict when all
 attainable fractions agree. Annual condition denominators remain distinct from these known-outcome
 summary denominators.
 
-## Next release: ordered characteristic tables
+## Ordered characteristic tables in v0.3.0
 
-This change applies to the next release; its version number has not yet been
-assigned. Ordered characteristic tables will use the literal TOML key
-`parameters` instead of `metrics`:
+In v0.3.0, ordered characteristic tables use the literal TOML key
+`parameters` instead of the `metrics` key accepted by v0.2.0:
 
 ```toml
 [[components.pulse.characteristics]]
@@ -138,11 +137,11 @@ An ordered table containing `metrics` is rejected, even if it also contains
 This changes configuration syntax only: characteristic order and evaluation
 behavior remain the same.
 
-## Next release: frequency-window API names
+## Frequency-window API names in v0.3.0
 
-The next release changes names used by direct Python calls. TOML files do not
-need edits: the optional boolean stays in the same position in each frequency
-list, and evaluation results do not change.
+v0.3.0 changes names used by direct Python calls from v0.2.0. TOML files do
+not need edits: the optional boolean stays in the same position in each
+frequency list, and evaluation results do not change.
 
 ```toml
 frequency = [">=", 1, 5, true]
@@ -162,10 +161,10 @@ Replace the keyword argument `exclusive_event_window` with
 
 No compatibility aliases are provided. Evaluation results do not change.
 
-## Next release: nested-frequency specification names
+## Nested-frequency specification names in v0.3.0
 
-Direct Python users must update code that reads or constructs nested-frequency
-specifications. Shared fields such as `operator`, `values`, `big_n`, and
+Direct Python users upgrading from v0.2.0 must update code that reads or
+constructs nested-frequency specifications. Shared fields such as `operator`, `values`, and
 `exclusive_windows` remain unchanged. Names specific to the interannual pattern
 now use `interannual_`; the flag identifying that a specification has this
 pattern is `has_interannual_pattern`. The generic characteristic marker is

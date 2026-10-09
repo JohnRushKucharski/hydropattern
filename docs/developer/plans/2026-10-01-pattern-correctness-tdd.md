@@ -1,16 +1,10 @@
 # Pattern correctness: TDD implementation plan
 
-**Status:** phases 0–7 are implemented, verified, and committed. Phase 8
-documentation implementation and verification are complete, but its changes
-are **pending user review and discussion before commit**. Do not commit or
-revise those documentation changes until that discussion happens. Phase 3–4
-are committed in `08a3ac0`, phase 5 in `ee39c02`, phase 6 in `1be477f`, and
-phase 7 in `ed786c7`. Phase 3 tests include an antecedent frequency's
-exclusive-window output feeding a nested probability. Phase 8 updates the
-README, user reference, ADRs, examples, migration notes, and executable
-documentation checks. Current verification: 596 tests pass; mypy reports no
-issues. The frequency, minimal, and detailed example configurations run
-successfully from the CLI.
+**Status:** implementation, documentation, and executable examples are
+complete for the forthcoming 0.3.0 release. The work is integrated on
+`reporting-metrics`; see the reporting plan's R0–R10 completion records for
+validation and release readiness. The frequency, minimal, and detailed
+example configurations run successfully from the CLI.
 **Scope:** component calculation,
 configuration, validation, tests, and user-facing documentation. This document
 is a handoff for a new implementation session, not a description of all current
@@ -263,12 +257,12 @@ reporting/event-count redesign with the correctness migration.
 
 ## Follow-up work (separate sessions/issues)
 
-### Documentation review before phase 8 commit
+### Documentation and release status
 
-Phase 8 documentation changes are present in the worktree but are not ready
-to commit. Discuss requested documentation changes in a separate issue and
-session first. Preserve the current changes while doing that work; do not
-commit phase 8 until the user approves the resulting documentation.
+Pattern-correctness documentation and executable examples are complete and
+included in the forthcoming 0.3.0 release. Do not restart this completed work.
+Review future edits against the current implementation and preserve historical
+decisions as records rather than presenting them as current behavior.
 
 ### Deferred reporting/event-count redesign
 
@@ -279,37 +273,16 @@ windows? How should a nested year-grain event and failure/non-failure
 component count? Define denominators/exposure for `event_rate`; avoid
 implied Poisson recurrence intervals from `1 / portion`.
 
-Then create a **separate** TDD/reporting plan: fix `Result.identify_water_years`
-and `frequency_table(by_water_years=True)` grouping/labeling for non-Jan-1
-water years using the canonical grouping contract; add reporting tests and
-review formatter metrics, table labels, zero/NA treatment, and event_count
-up/downstream consumers. `Result.frequency_table` currently has CC 6,
-0% branch-inclusive coverage, CRAP 42 under the reviewed full test run:
-prioritize coverage and statistical interpretation. No implementation of
-this deferred event-count/reporting policy before interview.
+R0–R10 established the required reporting behavior, including configured
+water-year labels, known-outcome summaries, and conservative event bounds.
+Optional R11 would tighten dependency-aware event bounds; it is not required
+for 0.3.0 and needs separate user approval. Do not reopen completed reporting
+work without a concrete behavior defect.
 
 ## Handoff
 
-Current phase 8 worktree changes are: `README.md`,
-`docs/developer/adr/0002-frequency-sliding-window.md`,
-`docs/developer/adr/0003-pattern-correctness-contract.md`,
-`docs/developer/plans/2026-10-01-pattern-correctness-tdd.md`,
-`docs/user/reference.md`, `docs/user/migration.md`,
-`examples/detailed.toml`, `examples/frequency.toml`, and
-`tests/test_documented_contracts.py`. The new ADR, migration note, example,
-and test are untracked. Preserve all of these changes.
-
-For the next documentation session:
-
-> Discuss requested changes to the phase 8 documentation in the separate
-> issue before editing or committing. Read the current worktree and this plan
-> first; preserve all phase 8 changes. Do not commit until the user approves
-> the revised documentation.
-
-For the separate reporting/event-count session:
-
-> Start by interviewing the user about the open event-count, nested-year, and
-> event-rate semantics in the "Deferred reporting/event-count redesign"
-> section of `docs/developer/plans/2026-10-01-pattern-correctness-tdd.md`. Create a
-> separate TDD plan only after those decisions are clear. Do not change the
-> pending phase 8 documentation as part of that work.
+Pattern correctness is implemented and documented for 0.3.0. The reporting
+plan and sequence plan track the remaining release work. Before release, keep
+installation/download links aligned with the package tag, retain the
+unreleased notice until publication, and do not publish or deploy without
+separate authorization.

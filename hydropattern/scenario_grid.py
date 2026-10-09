@@ -4,6 +4,8 @@ Scenario columns in a timeseries encode a two-axis "scenario grid" via a naming
 convention: ``_<precip_delta>_<temp_delta>`` (e.g. ``_0_1.5`` -> precip_delta=0.0,
 temp_delta=1.5). See CONTEXT.md for the canonical terms.
 '''
+from math import isfinite
+
 import numpy as np
 
 from hydropattern.errors import PlotErrorCode, raise_plot_error
@@ -19,9 +21,10 @@ def parse_scenario_name(name: str) -> tuple[float, float] | None:
     if len(parts) != 3 or parts[0] != '':
         return None
     try:
-        return (float(parts[1]), float(parts[2]))
+        coordinates = (float(parts[1]), float(parts[2]))
     except ValueError:
         return None
+    return coordinates if all(isfinite(value) for value in coordinates) else None
 
 
 def is_scenario_grid(names: list[str]) -> bool:
@@ -35,6 +38,8 @@ def is_scenario_grid(names: list[str]) -> bool:
     if any(p is None for p in parsed_with_none):
         return False
     parsed = [p for p in parsed_with_none if p is not None]
+    if len(set(parsed)) != len(parsed):
+        return False
     precip_deltas = {p[0] for p in parsed}
     temp_deltas = {p[1] for p in parsed}
     return len(precip_deltas) >= 2 and len(temp_deltas) >= 2
@@ -49,6 +54,7 @@ def build_grid(scenario_names: list[str],
     zs[i, j] = metric_values[scenario] for the scenario at (temp=ys[i], precip=xs[j]),
     or NaN where no scenario exists for that combo (missing grid cell).
     '''
+    require_scenario_grid(scenario_names)
     coords: dict[str, tuple[float, float]] = {}
     for name in scenario_names:
         parsed = parse_scenario_name(name)
@@ -76,7 +82,7 @@ def require_scenario_grid(names: list[str]) -> None:
         raise_plot_error(
             PlotErrorCode.INVALID_SCENARIO_GRID,
             'Scenario names do not form a valid precip/temp scenario grid. '
-            'Expected `_<precip_delta>_<temp_delta>` names with >= 2 distinct values '
-            'on each axis.',
+            'Expected unique finite `_<precip_delta>_<temp_delta>` coordinates with '
+            '>= 2 distinct values on each axis.',
             scenario_names=names,
         )
