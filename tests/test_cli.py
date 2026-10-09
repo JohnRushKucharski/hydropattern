@@ -388,7 +388,9 @@ class TestCLICommand(unittest.TestCase):
             ['run', str(self.cli_smoke_config_path), '--minimum-coverage', 'NaN'],
         )
         self.assertNotEqual(result.exit_code, 0)
-        message = result.output + (str(result.exception) if result.exception else '')
+        message = _strip_ansi(
+            result.output + (str(result.exception) if result.exception else '')
+        )
         self.assertIn('--minimum-coverage', message)
         self.assertIn('finite fraction', message)
 

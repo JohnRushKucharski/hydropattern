@@ -291,7 +291,7 @@ class TestToExcelAndToCsv(unittest.TestCase):
                 expected_dir = Path(temp_dir) / 'flows_output'
                 self.assertEqual(output_path, expected_dir)
                 self.assertTrue((expected_dir / 'flows_output.xlsx').exists())
-                self.assertTrue((expected_dir / 'Low_summary.xlsx').exists())
+                self.assertTrue((expected_dir / 'low_summary.xlsx').exists())
             finally:
                 for f in expected_dir.glob('*'):
                     os.remove(f)
@@ -307,13 +307,13 @@ class TestToExcelAndToCsv(unittest.TestCase):
 
             self.assertEqual(output_path, custom_dir)
             self.assertTrue((custom_dir / 'flows_output.xlsx').exists())
-            self.assertTrue((custom_dir / 'Low_summary.xlsx').exists())
+            self.assertTrue((custom_dir / 'low_summary.xlsx').exists())
 
     def test_to_csv_writes_per_scenario_component_csv_plus_summary(self):
         '''write_to_excel=False path: one csv per scenario/component pair, plus the
         per-component summary xlsx (always written, matching CLI parity).'''
         with tempfile.TemporaryDirectory() as temp_dir:
-            result, component = self._evaluate_from_csv(temp_dir)
+            result, _ = self._evaluate_from_csv(temp_dir)
             custom_dir = Path(temp_dir) / 'csv_out'
 
             output_path = result.to_csv(output_directory=str(custom_dir))
@@ -321,7 +321,7 @@ class TestToExcelAndToCsv(unittest.TestCase):
             self.assertEqual(output_path, custom_dir)
             csv_files = list(custom_dir.glob('*.csv'))
             self.assertEqual(len(csv_files), 1)
-            self.assertTrue((custom_dir / f'{component.name}_summary.xlsx').exists())
+            self.assertTrue((custom_dir / 'low_summary.xlsx').exists())
 
     def test_to_excel_without_source_file_falls_back_to_hydropattern_output_name(self):
         '''An in-memory Timeseries (no file_path) must still produce a sensible default
