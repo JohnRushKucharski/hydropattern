@@ -1,12 +1,11 @@
 # User documentation redesign
 
-Status: D1–D5, their reporting-dependent documentation, and R0–R10 are
-complete and merged to remote `main` by PR #46 at `d82d2d3`. Phase 8
-pattern-correctness documentation is also complete.
-S9/D6 cleanup review is complete: artifacts were retained and no deletion was
-authorized. D7/S10 release preparation remains; package publication and
-GitHub Pages deployment remain gated. Package version is 0.3.0; commit,
-merge, and push were authorized on 2026-10-09.
+Status: D1–D7 and R0–R10 are complete. PR #46 merged reporting and release
+preparation at `d82d2d3`; PR #48 merged post-release user guidance at
+`67e964b`. GitHub Release `v0.3.0`, PyPI publication, and GitHub Pages
+deployment were verified on 2026-10-09. S9 cleanup review retained artifacts;
+no deletion was authorized. Optional R11 is not required and needs separate
+approval.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
@@ -404,11 +403,10 @@ site source.
 
 At the D3 handoff, source-install and first-run download links shared the
 `docs-reporting-s3` ref and were unavailable until that branch was pushed.
-Release-preparation edits have since aligned user-facing downloads to the
-`v0.3.0` tag; those links remain unavailable until publication. Local-checkout
-instructions work before publication. GitHub Pages deployment is not enabled;
-S10 will add it after R10. No cleanup deletions or scientific changes were
-made in D3.
+Release preparation later aligned user-facing downloads to the `v0.3.0` tag;
+that tag was published and its links now resolve. GitHub Pages was later
+enabled and deployed as part of S10 below. No cleanup deletions or scientific
+changes were made in D3.
 
 ## D4 (S4) completion record
 
@@ -454,10 +452,9 @@ with task-labelled downloads, commands, expected arrays and portions, and
 interpretation linked to the characteristic pages. Runnable files remain
 authoritative under `examples`; none are copied into the site. At the D5 handoff, new download links targeted `docs-reporting-s5` and the
 first-run/source-install references still used `docs-reporting-s3`. Release
-preparation has since aligned these user-facing references to the `v0.3.0`
-tag, with a notice that links are unavailable until publication. Four
-narrowly scoped ignore rules prevent default outputs from the new packs being
-accidentally tracked.
+preparation later aligned these user-facing references to the `v0.3.0` tag;
+the tag is published and those links resolve. Four narrowly scoped ignore
+rules prevent default outputs from the new packs being accidentally tracked.
 
 Expected results were written first in `tests/test_s5_examples.py`. The
 initial run passed the existing first-run case and failed for the four
@@ -494,7 +491,8 @@ response-surface example pack, unknown-outcome section, cross-linked
 uncertainty examples, and migration guidance are complete and committed on
 `reporting-metrics`; see the R10 completion record below. S9/D6 cleanup review
 is complete; reviewed files were retained and no deletions were authorized.
-D7/S10 release preparation remains pending. GitHub Pages deployment is disabled.
+At the R10 handoff, D7/S10 release preparation remained pending and GitHub
+Pages deployment was disabled; see the completed S10 record below.
 
 ## R10 documentation and release-readiness completion record
 
@@ -514,27 +512,27 @@ and rendered PNG. `tests\test_r10_documentation.py` also checks worked
 duration, frequency, annual-fraction, and `[1, unknown, 1]` summary/event
 examples against the evaluator and reporting API. The migration guide records
 unknown propagation, the annual denominator change, leap-day trade-off, and
-current reporting behavior. The unreleased notice remains; deployment and
-publication remain disabled.
+current reporting behavior. At R10 completion, the unreleased notice remained
+and deployment/publication were still disabled; both conditions cleared in
+S10 below.
 
 Validation results are recorded in the reporting-plan completion record.
 R10 is committed on `reporting-metrics` in
 `docs: complete R10 and prepare documentation handoff`; reporting changes
 have not been merged to `main` or pushed.
 
-## Release preparation status (2026-10-09)
+## D7/S10 release and site publication completion (2026-10-09)
 
 D1–D5 and reporting slices R0–R10 are complete; do not restart schema,
 reference, example, or reporting work without a concrete defect. S9/D6 review
 of the six generated-output candidates and historical developer records is
 complete. Artifacts were retained; no deletion was authorized or performed.
 
-D7/S10 is in progress: developer authoring/release instructions, verification of the
-installation and download references to v0.3.0, deployment configuration, and
-verification of the first successful deployment. `.github/workflows/docs.yml`
-strictly builds PRs and accepts a manual deployment dispatch after the matching
-package is available on PyPI and release notices are removed. Keep Pages
-disabled and the v0.3.0 unreleased notice until then. Package publication and
-Pages enablement remain gated; branch commit, merge, and push were authorized
-on 2026-10-09.
-Optional R11 is not required and must not be started without approval.
+D7/S10 is complete. GitHub Release `v0.3.0` targets `9acb8cf`; publisher
+workflow `37915725339` succeeded. PyPI provides the `0.3.0` wheel and sdist,
+and a clean Python 3.12 install passed `hydropattern --help`. PR #48 removed
+pre-release wording and merged at `67e964b`. Pages Source is GitHub Actions;
+deployment workflow `37916615564` succeeded. The live homepage and
+installation page returned HTTP 200 with current content, and both first-run
+example downloads returned HTTP 200. Optional R11 remains unapproved and
+outside required scope.

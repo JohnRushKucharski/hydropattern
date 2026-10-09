@@ -1,12 +1,11 @@
 # Next-session handoff
 
-Continue v0.3.0 release preparation from `main`. PR #46 merged
-`reporting-metrics` and release preparation into `main` at `d82d2d3`; the
-remote is pushed and the `reporting-metrics` branch is retained. Pattern-
-correctness documentation and reporting slices R0–R10 are complete. Do not
-repeat completed implementation.
-The user authorized commit, merge, and push on 2026-10-09. Do not publish the
-package or enable Pages without separate release authorization.
+v0.3.0 release and user-site publication are complete on `main` at
+`67e964b`. PR #46 merged reporting and release preparation; PR #47 corrected
+the handoff; PR #48 updated post-release guidance and merged to `main`.
+Pattern-correctness documentation and reporting slices R0–R10 are complete.
+Do not repeat completed implementation. Optional R11 is not required and
+needs separate approval.
 
 Before further work:
 
@@ -16,29 +15,25 @@ Before further work:
 2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
-3. Confirm `main` and `origin/main` contain merge commit `d82d2d3`; retain
-   existing documentation and reporting branches for provenance.
+3. Confirm `main` and `origin/main` contain `67e964b`; retain existing
+   documentation and reporting branches for provenance.
 4. Review R1–R10 completion notes, including the R4 correction, in the reporting plan.
-5. R0–R10 are complete. S9/D6 cleanup review is complete; reviewed files
-   were retained, and no deletion was authorized. S10/D7 release preparation
-   remains; the target package version is 0.3.0. Do not begin optional R11.
+5. R0–R10 and S10/D7 are complete. S9 cleanup retained reviewed files; no
+   deletion was authorized. Do not begin optional R11 without approval.
 
-## Next work and authorization gates
+## Release completion record
 
 S9 cleanup review is complete. The six generated-output candidates and
 historical developer records were reviewed and retained. No deletion was
 performed or authorized.
 
-**S10 / D7 is in progress:** release instructions, tag validation, and a
-manual post-PyPI documentation deployment gate are prepared. Verify that
-installation and example-download refs target v0.3.0. PyPI currently has no
-0.3.0 release; its version endpoint returned HTTP 404 on 2026-10-09. Keep
-Pages disabled and the unreleased notice until publication is confirmed.
-Package publication and Pages enablement remain gated. Verify the GitHub
-Release, successful PyPI publisher workflow, PyPI distribution metadata, and a
-clean-install CLI smoke test before clearing release notices. Then merge that
-notice update and manually deploy docs with `release_tag=v0.3.0`; verify the
-first published site before marking S10 complete.
+**S10 / D7 completed 2026-10-09.** GitHub Release `v0.3.0` targets commit
+`9acb8cf`; publisher workflow `37915725339` succeeded. PyPI serves version
+`0.3.0` wheel and sdist, and a clean Python 3.12 install passed
+`hydropattern --help`. PR #48 merged post-release user guidance at `67e964b`.
+Pages uses the GitHub Actions source; deployment workflow `37916615564`
+succeeded. The public homepage and installation page returned HTTP 200 with
+current content; both first-run example downloads returned HTTP 200.
 
 ## Completed implementation and validation
 

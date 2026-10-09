@@ -1,12 +1,12 @@
 # Documentation and reporting work sequence
 
-**Status:** S1a–S8 and R0–R10 are complete and merged to remote `main` by
-PR #46 at `d82d2d3`. Their phase records below preserve the original branch
-and handoff state. The v0.3.0 source-install/download refs point to tag
-`v0.3.0` and remain unavailable until that tag is published.
-S9 review is complete; reviewed artifacts were retained and no deletion was
-authorized. S10 release preparation is in progress; package release,
-deployment, and optional R11 have not been authorized.
+**Status:** S1a–S10 and R0–R10 are complete. PR #46 merged implementation
+and release preparation to `main` at `d82d2d3`; PR #48 merged post-release
+user guidance at `67e964b`. GitHub Release `v0.3.0`, PyPI distributions, and
+the GitHub Pages site have been verified. Phase records below preserve their
+original branch and handoff state. S9 review retained artifacts; no deletion
+was authorized. Optional R11 remains out of scope and requires separate
+approval.
 See the [next-session handoff](../agents/next-session-prompt.md) for the pickup
 checklist.
 
@@ -50,7 +50,7 @@ early unless marked parallel.
 | S7 | R1–R9 in reporting-plan order (complete and committed); each slice updates its target pages below | S6 | Per reporting plan; strict docs build passes after each slice |
 | S8 | R10 with remaining D4/D5: unknown-outcome section, deferred reference topics, response-surface pack, migration guide. **Complete and committed on `reporting-metrics`.** | S7 | Executable fixtures for worked examples; strict build passed. See the R10 completion record in the reporting plan. |
 | S9 | D6 cleanup review: **complete**; per-file review recommended retaining all six generated-output candidates and historical records. No deletion was authorized or performed. | S2 (not blocking) | Review evidence reported to user; retaining files is acceptable |
-| S10 | D7 publish: **in progress**, for package v0.3.0; validated GitHub Release triggers PyPI publish; manual GitHub Pages deployment follows package verification and release-notice update | S8; v0.3.0 package release on PyPI before Pages enablement/deployment | Matching install/download refs; successful package and site verification; unreleased notice retained until PyPI release exists |
+| S10 | D7 publish: **complete (2026-10-09)**. Published GitHub Release `v0.3.0`; trusted-publisher workflow succeeded; verified PyPI wheel/sdist and clean Python 3.12 CLI install. PR #48 removed pre-release wording; GitHub Actions Pages source enabled and manual deployment succeeded. | S8; package verification before notice update and site deployment | PyPI metadata, clean install, strict build, release notices, deployment, site content, and release-tag example downloads verified |
 
 R11 is optional and is not part of this sequence.
 
@@ -61,14 +61,15 @@ plan. R1–R9 implementation and documentation are complete. R10 documentation
 is complete and was committed in `docs: complete R10 and prepare documentation
 handoff`. All required work is integrated into `main` through PR #46.
 
-## Status after S9 review (2026-10-09)
+## Status at S9 review handoff (2026-10-09; historical)
 
 S9 review is complete. The six generated-output candidates and historical
 developer records were reviewed; artifacts were retained, no deletion was
 performed, and cleanup does not block S10.
 
-Continue on local `reporting-metrics`; verify branch, worktree, and latest
-commit before editing, preserving any intervening changes. The documentation
+At this handoff, instructions were to continue on local `reporting-metrics`;
+verify branch, worktree, and latest commit before editing, preserving any
+intervening changes. The documentation
 workflow strictly builds PRs and supports a manual deploy after PyPI confirms
 the matching package and release notices have been removed. Installation and
 download references target v0.3.0, but remote downloads remain unavailable
@@ -77,13 +78,22 @@ until the package is available. The user authorized commit, merge, and push on
 2026-10-09; package publication and Pages enablement remain gated. R10 release
 readiness does not mean package or site publication has happened.
 
-The package workflow validates the tag and runs tests before publishing.
-PyPI's `hydropattern/0.3.0` endpoint returned HTTP 404 during preparation, so
-the package has not yet been released. After publishing and verifying the
-package, remove pre-release notices, merge that update, enable Pages, and run
-the docs workflow with `release_tag=v0.3.0`. The workflow verifies the GitHub
-Release, PyPI distributions, source version, and release notices before
-deployment.
+At that handoff, PyPI's `hydropattern/0.3.0` endpoint returned HTTP 404.
+Those release gates have since completed as recorded below.
+
+## S10 release and site verification (2026-10-09)
+
+- GitHub Release `v0.3.0` published against commit `9acb8cf`.
+- PyPI publisher run `37915725339` succeeded; PyPI reports version `0.3.0`
+  and serves wheel and sdist. A clean Python 3.12 install passed
+  `hydropattern --help`.
+- PR #48 merged release-status updates at `67e964b`; Pages Source is GitHub
+  Actions. Deployment run `37916615564` succeeded.
+- Public homepage and installation page returned HTTP 200 with current
+  release guidance; both first-run example downloads at tag `v0.3.0` returned
+  HTTP 200. A first deploy attempt encountered a transient artifact lookup
+  failure; a fresh dispatch completed successfully.
+- S10 is complete. Optional R11 remains unapproved and out of scope.
 
 ## R10 topics completed in S8
 
