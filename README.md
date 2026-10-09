@@ -37,13 +37,13 @@ Scenario grids can also produce response-surface plots. Characteristics cover
 timing, magnitude, duration, frequency, and rate of change.
 See [CLI usage](docs/user/guide/cli.md) for output choices and working folders.
 
-## Install v0.3.0
+## Install v0.3.1
 
 Install the CLI with [uv](https://docs.astral.sh/uv/getting-started/installation/)
 and Python 3.12 or newer:
 
 ```console
-uv tool install --python 3.12 hydropattern==0.3.0
+uv tool install --python 3.12 hydropattern==0.3.1
 uv tool update-shell
 hydropattern --help
 ```
@@ -57,8 +57,8 @@ To install from a source checkout, follow the
 
 ## First evaluation
 
-Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv)
-and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml)
+Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.1/examples/first-run/flow.csv)
+and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.1/examples/first-run/first-run.toml)
 in one folder.
 
 Open a terminal **in that folder**, then execute:

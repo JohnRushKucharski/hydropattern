@@ -1,11 +1,12 @@
 # Next-session handoff
 
-v0.3.0 release and user-site publication are complete on `main` at
-`67e964b`. PR #46 merged reporting and release preparation; PR #47 corrected
-the handoff; PR #48 updated post-release guidance and merged to `main`.
-Pattern-correctness documentation and reporting slices R0–R10 are complete.
-Do not repeat completed implementation. Optional R11 is not required and
-needs separate approval.
+v0.3.0 release and site publication are complete. Preparing corrective
+v0.3.1 patch because PyPI's embedded 0.3.0 project description still contains
+the pre-release banner from tag `v0.3.0`. User authorized v0.3.1 release on
+2026-10-09. Current `main` README and installation guidance now target 0.3.1;
+run release checks, merge the change, publish, verify PyPI metadata, then
+redeploy docs. Pattern-correctness documentation and reporting R0–R10 are
+complete. Optional R11 remains out of scope and needs separate approval.
 
 Before further work:
 
@@ -15,10 +16,10 @@ Before further work:
 2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
-3. Confirm `main` and `origin/main` contain `67e964b`; retain existing
+3. Confirm `main` and `origin/main` are synchronized; retain existing
    documentation and reporting branches for provenance.
 4. Review R1–R10 completion notes, including the R4 correction, in the reporting plan.
-5. R0–R10 and S10/D7 are complete. S9 cleanup retained reviewed files; no
+5. S10/D7 for v0.3.0 is complete. S9 cleanup retained reviewed files; no
    deletion was authorized. Do not begin optional R11 without approval.
 
 ## Release completion record

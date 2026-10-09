@@ -6,11 +6,12 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 ## Implementation context
 
 Pattern-correctness documentation and required reporting slices R0–R10 are
-complete on `reporting-metrics` for the forthcoming v0.3.0 release. S9 cleanup
-review is complete; reviewed artifacts were retained, with no deletions.
-S10 release preparation is in progress; commit, merge, and push were authorized
-on 2026-10-09. Package publication, Pages enablement, and optional R11 remain
-gated.
+complete and merged to `main`. Package v0.3.0 and its documentation site were
+published on 2026-10-09. The v0.3.0 PyPI description captured a stale README
+from its release tag; corrective package v0.3.1 is being prepared with a
+version-synchronized README and installation guidance. Pages is enabled and
+deployed. S9 cleanup retained reviewed artifacts; optional R11 remains out of
+scope and requires separate approval.
 See the
 [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
 and its linked plans for scope, completion records, and prerequisites.

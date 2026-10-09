@@ -154,6 +154,21 @@ def test_release_notices_are_cleared_from_published_user_content():
     ]
 
 
+def test_pypi_readme_matches_the_current_package_release():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = project["project"]["version"]
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    installation = (USER_DOCS / "getting-started" / "installation.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "not yet released" not in readme.lower()
+    assert f"## Install v{version}" in readme
+    assert f"hydropattern=={version}" in readme
+    assert f"/v{version}/examples/first-run/" in readme
+    assert f"hydropattern=={version}" in installation
+
+
 def test_docs_workflow_keeps_pull_request_build_strict_and_read_only():
     workflow = (ROOT / ".github" / "workflows" / "docs.yml").read_text(encoding="utf-8")
     assert "pull_request:" in workflow
