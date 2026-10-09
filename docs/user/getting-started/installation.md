@@ -28,7 +28,7 @@ git --version
 Install the CLI on Windows, macOS, or Linux:
 
 ```console
-uv tool install --python 3.12 hydropattern==0.3.0
+uv tool install --python 3.12 hydropattern==0.3.1
 uv tool update-shell
 ```
 
@@ -52,7 +52,7 @@ On Windows PowerShell:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install hydropattern==0.3.0
+.\.venv\Scripts\python.exe -m pip install hydropattern==0.3.1
 .\.venv\Scripts\hydropattern.exe --help
 ```
 
@@ -60,7 +60,7 @@ On macOS or Linux:
 
 ```sh
 python3.12 -m venv .venv
-.venv/bin/python -m pip install hydropattern==0.3.0
+.venv/bin/python -m pip install hydropattern==0.3.1
 .venv/bin/hydropattern --help
 ```
 
@@ -104,7 +104,7 @@ hydropattern importable in your own Python project. In a Python 3.12+ project,
 install it as a project dependency:
 
 ```console
-uv add "hydropattern==0.3.0"
+uv add "hydropattern==0.3.1"
 ```
 
 Alternatively, use the pip virtual-environment instructions above and execute
