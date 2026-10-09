@@ -1,12 +1,10 @@
 # Migration notes for v0.3.0
 
-**v0.3.0 is not yet released.** The changes below describe v0.3.0 and differ
-from the published v0.2.0 package. See
-[installation](getting-started/installation.md). Review these changes before
-comparing results with v0.2.0.
+The changes below describe v0.3.0 and differ from the published v0.2.0
+package. Review these changes before comparing results with v0.2.0.
 
 The “Earlier behavior (v0.2.0)” column describes the published package;
-“v0.3.0 behavior” describes the forthcoming release.
+“v0.3.0 behavior” describes the current release.
 
 | Area | Earlier behavior (v0.2.0) | v0.3.0 behavior and action |
 |---|---|---|

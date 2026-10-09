@@ -1,13 +1,5 @@
 # Installation
 
-**v0.3.0 is not yet released.** PyPI v0.2.0 and the latest published GitHub
-release do not match this documentation. Use a v0.3.0 source checkout for
-these examples.
-
-Until v0.3.0 source is published, remote installation and downloads are
-unavailable. If you are reviewing a local checkout, use the local-checkout
-instructions below. Do not substitute the v0.2.0 package.
-
 ## Install uv and Python
 
 hydropattern requires **Python 3.12 or newer**. uv manages Python environments
@@ -31,9 +23,9 @@ Install Git for your operating system, reopen the terminal, and check it:
 git --version
 ```
 
-## Install the v0.3.0 command-line application
+## Install the command-line application
 
-After v0.3.0 is released on PyPI, install the CLI on Windows, macOS, or Linux:
+Install the CLI on Windows, macOS, or Linux:
 
 ```console
 uv tool install --python 3.12 hydropattern==0.3.0
@@ -50,8 +42,6 @@ hydropattern --help
 
 You do not need to clone the repository or install development or test
 dependencies. Continue with the [first evaluation](first-run.md).
-
-Until v0.3.0 is released, use the local-checkout route below.
 
 ## Alternative: pip in a virtual environment
 
@@ -74,15 +64,14 @@ python3.12 -m venv .venv
 .venv/bin/hydropattern --help
 ```
 
-These package commands apply after v0.3.0 is released. You can use the full
-path to the environment's command without activating the environment. For the
-first evaluation, either keep the example files in this working folder or
-activate the environment before changing folders.
+You can use the full path to the environment's command without activating the
+environment. For the first evaluation, either keep the example files in this
+working folder or activate the environment before changing folders.
 
-## Local-checkout route before publication
+## Source checkout
 
-If you have a v0.3.0 source checkout, open a terminal in the repository root.
-Check that it contains the current code and `examples/first-run`:
+For development or to run directly from a clone, open a terminal in the
+repository root:
 
 ```console
 uv sync --no-default-groups
@@ -112,7 +101,7 @@ See [interpreting first results](results.md) for the expected files.
 
 A uv tool environment is intended for command-line use; it does not make
 hydropattern importable in your own Python project. In a Python 3.12+ project,
-after the source branch is published, install it as a project dependency:
+install it as a project dependency:
 
 ```console
 uv add "hydropattern==0.3.0"

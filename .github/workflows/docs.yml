@@ -100,7 +100,7 @@ jobs:
       - name: Confirm release notice is cleared
         run: |
           if grep -RniE "not yet released|until v0\.3\.0|become available after" \
-            README.md docs/user/index.md docs/user/getting-started docs/user/migration.md; then
+            README.md docs/user; then
             echo "::error::Clear release notices after PyPI publication before deployment."
             exit 1
           fi

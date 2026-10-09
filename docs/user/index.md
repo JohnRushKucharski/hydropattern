@@ -1,10 +1,5 @@
 # Evaluate flow patterns with hydropattern
 
-**v0.3.0 is not yet released.** These pages describe v0.3.0, not the published
-v0.2.0 package. v0.2.0 has different frequency behavior and does not support
-the ordered-table syntax documented here. Follow the
-[current-source installation instructions](getting-started/installation.md).
-
 hydropattern evaluates hydrologic time series against conditions you configure.
 You supply observations in CSV or Excel and describe components in a TOML text
 file. The application produces timestep outcomes and component summary
@@ -47,8 +42,5 @@ The examples illustrate software behavior. Their thresholds are not universal
 ecological criteria, and a configured component success is not evidence of
 ecological benefit.
 
-## Website status
-
-This site is available for local preview and pull-request validation. GitHub
-Pages publishing is not enabled yet. The unreleased notice remains until
-v0.3.0 is available on PyPI.
+The [hydropattern documentation site](https://johnrushkucharski.github.io/hydropattern/)
+is published on GitHub Pages.
