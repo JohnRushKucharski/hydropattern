@@ -1,13 +1,12 @@
 # User documentation redesign
 
-Status: D1–D5 and their reporting-dependent documentation are complete and
-integrated in local `reporting-metrics`. R0–R10 are complete and committed on
-that branch; phase 8 pattern-correctness documentation is also complete.
+Status: D1–D5, their reporting-dependent documentation, and R0–R10 are
+complete and merged to remote `main` by PR #46 at `d82d2d3`. Phase 8
+pattern-correctness documentation is also complete.
 S9/D6 cleanup review is complete: artifacts were retained and no deletion was
 authorized. D7/S10 release preparation remains; package publication and
-GitHub Pages deployment remain gated. The forthcoming package version is
-0.3.0; work has not been merged to `main` or pushed. Commit, merge, and push
-were authorized on 2026-10-09.
+GitHub Pages deployment remain gated. Package version is 0.3.0; commit,
+merge, and push were authorized on 2026-10-09.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)

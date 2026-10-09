@@ -1,19 +1,9 @@
 # Documentation and reporting work sequence
 
-**Status:** S1a–S3 complete and integrated into local `main` (not pushed).
-S3 commit `079d381` was fast-forwarded from `docs-reporting-s3`. The earlier
-source-install/download links have since been aligned to the forthcoming
-`v0.3.0` tag; those links remain unavailable until publication.
-S4's unaffected D4 portion is complete on `docs-reporting-s4` and integrated
-into local `main`, without pushing. Do not repeat S1a–S4. S1a (`b2d612e`), S1b
-(`f5c93b7`), and S1c are complete; do not repeat them.
-S5's unaffected D5 portion is complete and integrated into local `main` at
-`b05b326`, without pushing. S6 / R0 baseline was captured while working on
-`docs-reporting-r0`; its evidence is committed in the reporting plan on
-`reporting-metrics`. `docs-reporting-r0` remains at `b05b326` as the clean
-pre-R0 starting point. R0–R10 are complete and committed on `reporting-metrics`,
-based on `b05b326`; S8 and all D4/D5 topics are complete.
-Reporting-branch changes have not been merged to `main` or pushed.
+**Status:** S1a–S8 and R0–R10 are complete and merged to remote `main` by
+PR #46 at `d82d2d3`. Their phase records below preserve the original branch
+and handoff state. The v0.3.0 source-install/download refs point to tag
+`v0.3.0` and remain unavailable until that tag is published.
 S9 review is complete; reviewed artifacts were retained and no deletion was
 authorized. S10 release preparation is in progress; package release,
 deployment, and optional R11 have not been authorized.
@@ -66,11 +56,10 @@ R11 is optional and is not part of this sequence.
 
 S5 example-pack curation is complete in its separately approved scope; the
 first-run pack remains unchanged. S6 reporting baseline was captured while
-working on `docs-reporting-r0`; its evidence is committed on
-`reporting-metrics`. R1–R9 implementation and documentation are complete and
-committed there. R10 documentation is complete and committed in
-`docs: complete R10 and prepare documentation handoff`; reporting changes
-have not been merged to `main` or pushed.
+working on `docs-reporting-r0`; its evidence is committed in the reporting
+plan. R1–R9 implementation and documentation are complete. R10 documentation
+is complete and was committed in `docs: complete R10 and prepare documentation
+handoff`. All required work is integrated into `main` through PR #46.
 
 ## Status after S9 review (2026-10-09)
 
