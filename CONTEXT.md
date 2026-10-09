@@ -7,11 +7,12 @@ results as Excel/CSV summaries and, optionally, response-surface plots across sc
 
 Pattern-correctness documentation and required reporting slices R0–R10 are
 complete and merged to `main`. Package v0.3.0 and its documentation site were
-published on 2026-10-09. The v0.3.0 PyPI description captured a stale README
-from its release tag; corrective package v0.3.1 is being prepared with a
-version-synchronized README and installation guidance. Pages is enabled and
-deployed. S9 cleanup retained reviewed artifacts; optional R11 remains out of
-scope and requires separate approval.
+published on 2026-10-09. Its PyPI description captured a stale README from the
+release tag. Corrective package v0.3.1 is published with a synchronized
+README and installation guidance; the current PyPI project description is
+corrected. PyPI's v0.3.0-specific metadata remains historical and unchanged.
+Pages is enabled and deployed. S9 cleanup retained reviewed artifacts;
+optional R11 remains out of scope and requires separate approval.
 See the
 [sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
 and its linked plans for scope, completion records, and prerequisites.

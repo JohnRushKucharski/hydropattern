@@ -1,12 +1,13 @@
 # Next-session handoff
 
-v0.3.0 release and site publication are complete. Preparing corrective
-v0.3.1 patch because PyPI's embedded 0.3.0 project description still contains
-the pre-release banner from tag `v0.3.0`. User authorized v0.3.1 release on
-2026-10-09. Current `main` README and installation guidance now target 0.3.1;
-run release checks, merge the change, publish, verify PyPI metadata, then
-redeploy docs. Pattern-correctness documentation and reporting R0–R10 are
-complete. Optional R11 remains out of scope and needs separate approval.
+v0.3.0 release/site and corrective v0.3.1 PyPI description release are
+complete. PR #50 merged version-synchronized README/install guidance at
+`988fd09`; PyPI now lists 0.3.1 as latest and its project page description has
+no stale unreleased banner. The v0.3.0-specific release metadata remains
+historical. PyPI publisher run `37918580505` and Pages deployment run
+`37918727579` succeeded. Pattern-correctness documentation and reporting
+R0–R10 are complete. Optional R11 remains out of scope and needs separate
+approval.
 
 Before further work:
 
@@ -16,11 +17,12 @@ Before further work:
 2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
-3. Confirm `main` and `origin/main` are synchronized; retain existing
+3. Confirm `main` and `origin/main` contain `988fd09`; retain existing
    documentation and reporting branches for provenance.
 4. Review R1–R10 completion notes, including the R4 correction, in the reporting plan.
-5. S10/D7 for v0.3.0 is complete. S9 cleanup retained reviewed files; no
-   deletion was authorized. Do not begin optional R11 without approval.
+5. S10/D7 for v0.3.0 and the corrective v0.3.1 PyPI-description release are
+   complete. S9 cleanup retained reviewed files; no deletion was authorized.
+   Do not begin optional R11 without approval.
 
 ## Release completion record
 
@@ -35,6 +37,14 @@ performed or authorized.
 Pages uses the GitHub Actions source; deployment workflow `37916615564`
 succeeded. The public homepage and installation page returned HTTP 200 with
 current content; both first-run example downloads returned HTTP 200.
+
+**PyPI description correction completed 2026-10-09.** The `v0.3.0` tag's
+README still contained its unreleased notice, which was embedded in its
+immutable PyPI metadata. PR #50 prepared and merged v0.3.1 with corrected
+README content and install/download links. Publisher workflow `37918580505`
+and Pages deployment `37918727579` succeeded. Current PyPI project page and
+live install docs were verified; the old v0.3.0-specific metadata remains
+unchanged.
 
 ## Completed implementation and validation
 
