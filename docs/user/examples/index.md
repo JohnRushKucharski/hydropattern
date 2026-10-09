@@ -1,8 +1,7 @@
 # Runnable examples by task
 
-**For v0.3.0:** use the [v0.3.0 source checkout](../getting-started/installation.md),
-not the published PyPI v0.2.0 package. These small packs use ordered
-characteristic tables with `parameters`. Their arbitrary flow units, seasons,
+These small packs use ordered characteristic tables with `parameters`. Their
+arbitrary flow units, seasons,
 and thresholds illustrate software behavior, not universal ecological
 criteria. The response-surface pack also demonstrates unavailable calculations
 and coverage-based eligibility.
@@ -20,11 +19,10 @@ files rather than keeping a second copy.
 3. Execute the command in the table below. The named output folder contains
    raw CSV files and component summary workbooks.
 
-Source-file links point to the `v0.3.0` tag and become available when that
-release is published. Until then, copy files from your local v0.3.0 source
-checkout. These packs illustrate the evaluator behavior included in v0.3.0.
+Source-file links point to the `v0.3.0` release tag. These packs illustrate
+the evaluator behavior included in v0.3.0.
 
-With a local checkout, stay in the copied pack's folder and supply the
+With a source checkout, stay in the copied pack's folder and supply the
 checkout location to uv. For example:
 
 ```powershell
@@ -111,9 +109,9 @@ defined. See [response-surface plotting](../guide/plotting.md) and
 [unknown outcomes](../concepts/unknown-outcomes.md).
 
 Each source folder's README lists the exact output filenames, characteristic
-summaries, and local-checkout command. Browse the
+summaries, and source-checkout command. Browse the
 [example source folders](https://github.com/JohnRushKucharski/hydropattern/tree/v0.3.0/examples)
-for those details after the release tag is published.
+for those details.
 
 ## Comprehensive configuration
 

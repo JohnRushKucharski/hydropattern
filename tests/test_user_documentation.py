@@ -135,12 +135,23 @@ def test_site_foundation_uses_only_user_sources_and_material_search():
     }
     assert not any(path.suffix.lower() in {".pdf", ".csv", ".xlsx", ".ipynb"}
                    for path in USER_DOCS.rglob("*"))
-    assert "v0.3.0 is not yet released" in (
-        USER_DOCS / "index.md"
-    ).read_text(encoding="utf-8")
     groups = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert len(groups["dependency-groups"]["docs"]) == 1
     assert groups["dependency-groups"]["docs"][0].startswith("mkdocs-material")
+
+
+def test_release_notices_are_cleared_from_published_user_content():
+    paths = [
+        ROOT / "README.md",
+        *sorted(USER_DOCS.rglob("*.md")),
+    ]
+    notice = re.compile(r"not yet released|until v0\.3\.0|become available after", re.I)
+
+    assert not [
+        str(path.relative_to(ROOT))
+        for path in paths
+        if notice.search(path.read_text(encoding="utf-8"))
+    ]
 
 
 def test_docs_workflow_keeps_pull_request_build_strict_and_read_only():

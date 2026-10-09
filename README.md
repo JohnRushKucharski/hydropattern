@@ -3,15 +3,6 @@ Evaluate hydrologic time series against configured flow-pattern components.
 Designed for hydrologists and environmental scientists, hydropattern provides
 a command-line application and a secondary Python API.
 
-## Version status
-
-**v0.3.0 is not yet released.** These instructions describe v0.3.0, not the
-published v0.2.0 package. v0.2.0 uses different frequency behavior and does
-not support the ordered-table syntax documented here.
-
-Until v0.3.0 is published, use the
-[local-checkout instructions](docs/user/getting-started/installation.md#local-checkout-route-before-publication).
-
 ## Documentation
 
 Start with the [user documentation](docs/user/index.md), then follow:
@@ -23,8 +14,8 @@ Start with the [user documentation](docs/user/index.md), then follow:
 - [Configuration and characteristic reference](docs/user/reference.md)
 - [Upgrade guidance](docs/user/migration.md)
 
-The Material/MkDocs site is available for local preview. GitHub Pages publishing
-is not enabled yet; it waits for v0.3.0 release preparation and authorization.
+The [user documentation site](https://johnrushkucharski.github.io/hydropattern/)
+provides searchable guides and references.
 
 ## Inputs and results
 
@@ -46,30 +37,29 @@ Scenario grids can also produce response-surface plots. Characteristics cover
 timing, magnitude, duration, frequency, and rate of change.
 See [CLI usage](docs/user/guide/cli.md) for output choices and working folders.
 
-## Install v0.3.0 from a checkout
+## Install v0.3.0
 
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/getting-started/installation/),
-and Git. Before v0.3.0 is released, install from a local source checkout:
+Install the CLI with [uv](https://docs.astral.sh/uv/getting-started/installation/)
+and Python 3.12 or newer:
 
 ```console
-uv python install 3.12
-uv sync --no-default-groups
-uv run --no-default-groups hydropattern --help
+uv tool install --python 3.12 hydropattern==0.3.0
+uv tool update-shell
+hydropattern --help
 ```
 
-Ordinary users do not need development or test dependency groups. The
-installation guide provides platform-specific steps, a pip/virtual-environment alternative, and separate
+The installation guide provides platform-specific steps, a
+pip/virtual-environment alternative, and separate
 [Python API installation](docs/user/getting-started/installation.md#install-for-the-python-api).
 
-After v0.3.0 is published on PyPI, install the CLI with
-`uv tool install hydropattern==0.3.0`.
+To install from a source checkout, follow the
+[source-checkout instructions](docs/user/getting-started/installation.md#source-checkout).
 
 ## First evaluation
 
 Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv)
 and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml)
-in one folder. The downloads become available when the v0.3.0 release tag is
-published; until then, copy them from `examples/first-run` in a local checkout.
+in one folder.
 
 Open a terminal **in that folder**, then execute:
 
