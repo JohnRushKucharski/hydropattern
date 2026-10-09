@@ -1,6 +1,7 @@
 '''Tests for the patterns module.'''
 # test coverage backlog: is_order_1, frequency_fx, evaluate_patterns
 # pylint: disable=too-many-public-methods
+import itertools
 import unittest
 
 import numpy as np
@@ -17,7 +18,7 @@ from hydropattern.patterns import (
     identify_full_water_years,
     is_dowy_timeseries,
     magnitude_fx,
-    mark_events,
+    mark_windows,
     moving_average,
     nested_frequency_interannual_fx,
     nested_frequency_intra_annual_fx,
@@ -25,6 +26,7 @@ from hydropattern.patterns import (
     rate_of_change_fx,
     sliding_window_count,
     timing_fx,
+    water_year_label,
     water_year_probability_ratio,
     windowed_count_per_water_year,
 )
@@ -45,6 +47,33 @@ df = pd.DataFrame({'col1': [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
 
 class TestPatterns(unittest.TestCase):
     '''Tests for the patterns module.'''
+    def test_water_year_label_uses_ending_year_convention(self):
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-09-30'), 274), 2020
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-10-01'), 274), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-01-01'), 1), 2020
+        )
+
+    def test_water_year_label_normalizes_february_boundary(self):
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-02-28'), 59), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-02-29'), 59), 2021
+        )
+        self.assertEqual(
+            water_year_label(pd.Timestamp('2020-03-01'), 60), 2021
+        )
+
+    def test_water_year_label_rejects_invalid_boundary(self):
+        for boundary in (0, 366, True, 1.5):
+            with self.subTest(boundary=boundary), self.assertRaises(ValueError):
+                water_year_label(pd.Timestamp('2020-01-01'), boundary)
+
     #region: comparison_fx tests
     #region: single symbol
     def test_comparison_fx_lt(self):
@@ -239,6 +268,110 @@ class TestPatterns(unittest.TestCase):
         # duration_fx(gt(x, 1)~f(x>1), order=3) -> fx
         fx = duration_fx(comparison_fx('>', 1, None, None), order)
         self.assertTrue(np.all(fx(df, o) == np.array([1, 1, 1, 1, 1, 0])))
+
+    def test_duration_fx_preserves_uncertain_run_boundaries(self):
+        outcomes = np.array([0, 1, 1, np.nan, 1, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(
+            result, np.array([0, np.nan, np.nan, np.nan, np.nan, 0])
+        )
+
+    def test_duration_fx_unknown_run_cannot_make_settled_failure_uncertain(self):
+        outcomes = np.array([1, np.nan, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_array_equal(result, np.zeros(len(outcomes)))
+
+    def test_duration_fx_all_unknown_run_keeps_possible_success_unknown(self):
+        outcomes = np.full(4, np.nan)
+        fx = duration_fx(comparison_fx('>=', 2), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.full(len(outcomes), np.nan))
+
+    def test_duration_fx_unknown_run_at_record_boundary(self):
+        outcomes = np.array([np.nan, 1, 0], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 2), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.array([np.nan, np.nan, 0]))
+
+    def test_duration_fx_combines_preceding_unknowns_and_failures(self):
+        outcomes = np.array([
+            [0, np.nan],
+            [np.nan, 1],
+            [np.nan, np.nan],
+            [1, 0],
+        ], dtype=float)
+        fx = duration_fx(comparison_fx('>=', 2), order=3)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes)
+
+        np.testing.assert_equal(result, np.array([0, np.nan, np.nan, 0]))
+
+    def test_duration_fx_unknowns_preserve_inclusive_bounds_uncertainty(self):
+        outcomes = np.array([1, np.nan, 1], dtype=float)
+        fx = duration_fx(comparison_fx('<=', 2, '<=', 3), order=2)
+
+        result = fx(df.iloc[:len(outcomes)], outcomes.reshape(-1, 1))
+
+        np.testing.assert_equal(result, np.full(len(outcomes), np.nan))
+
+    def test_duration_fx_matches_all_binary_completions(self):
+        predicates = (
+            comparison_fx('>=', 3),
+            comparison_fx('<=', 2, '<=', 3),
+            comparison_fx('=', 2),
+            comparison_fx('!=', 2),
+            lambda run_length: run_length in (1, 4),
+        )
+        for length in range(1, 5):
+            for encoded in range(3 ** length):
+                values = []
+                remainder = encoded
+                for _ in range(length):
+                    values.append((0, 1, np.nan)[remainder % 3])
+                    remainder //= 3
+                outcomes = np.asarray(values, dtype=float)
+                for predicate in predicates:
+                    with self.subTest(outcomes=outcomes, predicate=predicate):
+                        fx = duration_fx(predicate, order=2)
+                        actual = fx(
+                            df.iloc[:length], outcomes.reshape(-1, 1)
+                        )
+                        possible = [[] for _ in range(length)]
+                        unknown_indices = np.flatnonzero(np.isnan(outcomes))
+                        for completion in range(2 ** len(unknown_indices)):
+                            resolved = outcomes.copy()
+                            for bit, index in enumerate(unknown_indices):
+                                resolved[index] = (completion >> bit) & 1
+                            expected = np.zeros(length)
+                            start = 0
+                            while start < length:
+                                if resolved[start] != 1:
+                                    start += 1
+                                    continue
+                                end = start
+                                while end + 1 < length and resolved[end + 1] == 1:
+                                    end += 1
+                                if predicate(end - start + 1):
+                                    expected[start:end + 1] = 1
+                                start = end + 1
+                            for index, value in enumerate(expected):
+                                possible[index].append(value)
+                        oracle = np.asarray([
+                            values[0] if all(value == values[0] for value in values)
+                            else np.nan
+                            for values in possible
+                        ])
+                        np.testing.assert_equal(actual, oracle)
     #endregion
 
     #region: rate_of_change_fx tests
@@ -250,15 +383,15 @@ class TestPatterns(unittest.TestCase):
         fx = rate_of_change_fx(comparison_fx('>', 1, None, None))
         df_ = pd.DataFrame({'col1': [0, 1, 2, 1] ,'col2': [1.0, 2.0, 3.0, 4.0]})
         # rate of change is [nan, 1/0, 2/1, 1/2] -> [nan, nan, 2.0, 0.5]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0]))
 
         # LT decreasing rate of change
         fx = rate_of_change_fx(comparison_fx('<', 1, None, None))
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 0, 1]))
 
         # BETWEEN decreasign rate of change
         fx = rate_of_change_fx(comparison_fx('<', 0.25, '<', 0.75))
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 0, 1]))
 
     def test_rate_of_change_fx_with_ma_periods(self):
         '''Test rate_of_change_fx with moving average periods.'''
@@ -268,7 +401,7 @@ class TestPatterns(unittest.TestCase):
         # moving average (2): [nan, 2.0, 4.0, 6.0, 5.0]
         # rate of change: [nan, nan, 4.0/2.0, 6.0/4.0, 5.0/6.0] = [nan, nan, 2.0, 1.5, 0.833...]
         # comparison > 1.5: [0, 0, 1, 0, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0, 0]))
 
     def test_rate_of_change_fx_with_look_back(self):
         '''Test rate_of_change_fx with non-default look_back period.'''
@@ -278,7 +411,7 @@ class TestPatterns(unittest.TestCase):
         # rate of change look_back=2: [nan, nan, 4.0/1.0, 10.0/2.0, 12.0/4.0, 15.0/10.0]
         #                            = [nan, nan, 4.0, 5.0, 3.0, 1.5]
         # comparison > 2.0: [0, 0, 1, 1, 1, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 1, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 1, 1, 0]))
 
     def test_rate_of_change_fx_with_minimum(self):
         '''Test rate_of_change_fx with non-default minimum threshold.'''
@@ -288,7 +421,7 @@ class TestPatterns(unittest.TestCase):
         # Values <= 1.0 become nan: [nan, 2.0, 4.0, 6.0]
         # rate of change: [nan, nan, 4.0/2.0, 6.0/4.0] = [nan, nan, 2.0, 1.5]
         # comparison > 1.5: [0, 0, 1, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 1, 0])))
+        np.testing.assert_array_equal(fx(df_), np.array([np.nan, np.nan, 1, 0]))
 
     def test_rate_of_change_fx_with_ma_and_lookback(self):
         '''Test rate_of_change_fx with both ma_periods and look_back non-default.'''
@@ -299,7 +432,9 @@ class TestPatterns(unittest.TestCase):
         # rate of change look_back=2: [nan, nan, nan, 7.0/3.0, 9.0/5.0, 11.0/7.0]
         #                            = [nan, nan, nan, 2.333..., 1.8, 1.571...]
         # comparison > 2.0: [0, 0, 0, 1, 0, 0]
-        self.assertTrue(np.all(fx(df_) == np.array([0, 0, 0, 1, 0, 0])))
+        np.testing.assert_array_equal(
+            fx(df_), np.array([np.nan, np.nan, np.nan, 1, 0, 0])
+        )
 
     def test_rate_of_change_fx_order2(self):
         '''Test rate_of_change_fx with order=2 (second characteristic in sequence).'''
@@ -314,10 +449,10 @@ class TestPatterns(unittest.TestCase):
         o = np.ones(shape=(len(df_), order-1))
         result = fx(df_, o)
         # With order check, only rows where output[:, 0:order-1] are all 1s
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 0, 0])))
+        np.testing.assert_array_equal(result, np.array([np.nan, 1, 1, 0, 0, 0]))
 
     def test_rate_of_change_fx_order3_ignores_precedents(self):
-        '''rate_of_change is an independent diagnostic (see docs/plans/2026-10-01-
+        '''rate_of_change is an independent diagnostic (see docs/developer/plans/2026-10-01-
         pattern-correctness-tdd.md): its own truth value shows regardless of
         order or preceding characteristic columns.'''
         order = 3
@@ -332,47 +467,87 @@ class TestPatterns(unittest.TestCase):
         o = np.zeros(shape=(len(df_), order-1))
         o[1:4, :] = 1  # rows 1, 2, 3 pass previous characteristics
         result = fx(df_, o)
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 0, 1, 1])))
+        np.testing.assert_array_equal(result, np.array([np.nan, 1, 1, 0, 1, 1]))
     #endregion
     #endregion
 
-class TestMarkEvents(unittest.TestCase):
-    '''Tests for the mark_events frequency event-detection/marking engine.'''
+class TestUnknownPreservingComparisons(unittest.TestCase):
+    def test_moving_average_startup_remains_unknown_for_not_equal(self):
+        component = Component(
+            name='component',
+            characteristics=[
+                Characteristic(
+                    'magnitude',
+                    magnitude_fx(comparison_fx('!=', 2.5), ma_periods=3),
+                    CharacteristicType.MAGNITUDE,
+                ),
+            ],
+            is_success_pattern=True,
+        )
+        data = pd.DataFrame(
+            {'flow': [1.0, 2.0, 3.0, 4.0, 5.0], 'dowy': [1, 2, 3, 4, 5]},
+            index=pd.date_range('2020-01-01', periods=5, name='time'),
+        )
 
-    def test_exclusive_event_window_false_returns_raw_unchanged(self):
-        '''exclusive_event_window=False: timestep-level, every trial in a run stays marked.'''
+        result = evaluate_component(data, component)
+
+        np.testing.assert_array_equal(
+            result.df['component'].to_numpy(),
+            np.array([np.nan, np.nan, 1.0, 1.0, 1.0]),
+        )
+
+    def test_restricted_rate_denominators_remain_unknown_for_not_equal(self):
+        fx = rate_of_change_fx(comparison_fx('!=', 1.0), minimum=0.0)
+        data = pd.DataFrame({'flow': [1.0, 0.0, -1.0, 2.0]})
+
+        result = fx(data)
+
+        np.testing.assert_array_equal(
+            result, np.array([np.nan, 1.0, np.nan, np.nan])
+        )
+
+class TestMarkWindows(unittest.TestCase):
+    '''Tests for the mark_windows frequency window-marking engine.'''
+
+    def test_mark_windows_collapses_successful_runs(self):
+        raw = np.array([0.0, 1.0, 1.0, 0.0])
+        result = mark_windows(raw, exclusive_windows=True)
+        np.testing.assert_array_equal(result, np.array([0, 0, 1, 0]))
+
+    def test_exclusive_windows_false_returns_raw_unchanged(self):
+        '''exclusive_windows=False: timestep-level, every trial in a run stays marked.'''
         raw = np.array([np.nan, np.nan, 1, 1, 0, 1])
-        result = mark_events(raw, exclusive_event_window=False)
+        result = mark_windows(raw, exclusive_windows=False)
         np.testing.assert_array_equal(result, raw)
 
     def test_single_run_collapses_to_last_trial(self):
         '''A single maximal run of 1s collapses to a 1 at its last trial.'''
         raw = np.array([0.0, 1.0, 1.0, 1.0, 0.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, np.array([0, 0, 0, 1, 0]))
 
     def test_run_ending_at_end_of_array(self):
         '''A run that continues through the last trial marks the final trial.'''
         raw = np.array([0.0, 1.0, 1.0, 1.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, np.array([0, 0, 0, 1]))
 
     def test_single_trial_run_stays_marked(self):
         '''A run of length 1 is already correctly marked at its own trial.'''
         raw = np.array([0.0, 1.0, 0.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, np.array([0, 1, 0]))
 
     def test_multiple_separate_runs_each_collapse(self):
         '''Each maximal run collapses independently to its own last trial.'''
         raw = np.array([1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, np.array([0, 1, 0, 0, 0, 1, 0]))
 
     def test_leading_nan_preserved_and_does_not_bridge_runs(self):
         '''NaN (insufficient history) is preserved and starts a fresh run boundary.'''
         raw = np.array([np.nan, np.nan, 1.0, 1.0, 0.0, 0.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         self.assertTrue(np.isnan(result[0]))
         self.assertTrue(np.isnan(result[1]))
         np.testing.assert_array_equal(result[2:], np.array([0, 1, 0, 0]))
@@ -380,20 +555,20 @@ class TestMarkEvents(unittest.TestCase):
     def test_all_zeros_unchanged(self):
         '''No runs present: array of all 0s is unchanged.'''
         raw = np.array([0.0, 0.0, 0.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, raw)
 
     def test_all_ones_collapses_to_last_trial_only(self):
         '''A run spanning the whole array collapses to a single 1 at the end.'''
         raw = np.array([1.0, 1.0, 1.0, 1.0])
-        result = mark_events(raw, exclusive_event_window=True)
+        result = mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(result, np.array([0, 0, 0, 1]))
 
     def test_does_not_mutate_input_array(self):
-        '''mark_events must not mutate the caller's raw array in place.'''
+        '''mark_windows must not mutate the caller's raw array in place.'''
         raw = np.array([0.0, 1.0, 1.0, 0.0])
         original = raw.copy()
-        mark_events(raw, exclusive_event_window=True)
+        mark_windows(raw, exclusive_windows=True)
         np.testing.assert_array_equal(raw, original)
 
 
@@ -461,33 +636,33 @@ class TestWaterYearProbabilityRatio(unittest.TestCase):
         # 6-day years; three consecutive eligible timesteps count as 3 trials.
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
+        result = water_year_probability_ratio(eligible, dowy, exclusive_windows=True)
         self.assertAlmostEqual(result[5], 3 / 6)
         self.assertAlmostEqual(result[11], 0.0)  # second year: no successes
 
-    def test_exclusive_event_window_false_counts_every_success(self):
+    def test_exclusive_windows_false_counts_every_success(self):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
-        result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=False)
+        result = water_year_probability_ratio(eligible, dowy, exclusive_windows=False)
         self.assertAlmostEqual(result[5], 3 / 6)
 
-    def test_exclusive_event_window_does_not_change_annual_probability(self):
+    def test_exclusive_windows_does_not_change_annual_probability(self):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
-        result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
+        result = water_year_probability_ratio(eligible, dowy, exclusive_windows=True)
         self.assertAlmostEqual(result[5], 3 / 6)
 
     def test_non_last_timesteps_are_nan(self):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         eligible = np.array([1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0])
-        result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
+        result = water_year_probability_ratio(eligible, dowy, exclusive_windows=True)
         for t in [0, 1, 2, 3, 4, 6, 7, 8, 9, 10]:
             self.assertTrue(np.isnan(result[t]))
 
     def test_leading_partial_year_is_nan(self):
         dowy = np.array([4, 5, 1, 2, 3, 1, 2])
         eligible = np.array([1, 1, 1, 1, 1, 1, 1])
-        result = water_year_probability_ratio(eligible, dowy, exclusive_event_window=True)
+        result = water_year_probability_ratio(eligible, dowy, exclusive_windows=True)
         # idx 0-1 (leading partial) excluded; idx 2-4 and 5-6 are full years
         self.assertFalse(np.isnan(result[4]))
         self.assertFalse(np.isnan(result[6]))
@@ -509,7 +684,7 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
         # flow: t0=4 t1=6 t2=6 t3=6 t4=4 t5=6; magnitude_gt5 = [0,1,1,1,0,1]
         magnitude = np.array([0, 1, 1, 1, 0, 1])
         f = comparison_fx('>=', 1)  # [op, n, N] with n=1, N=2
-        fx = frequency_fx(f, order=2, big_n=2, exclusive_event_window=True)
+        fx = frequency_fx(f, order=2, big_n=2, exclusive_windows=True)
         output = magnitude.reshape(-1, 1)
         result = fx(pd.DataFrame({'x': range(6)}), output)
         # anchors (eligible==1): t1,t2,t3,t5. forward windows [t,t+1] (truncated
@@ -522,7 +697,7 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
     def test_example_2_count_form_union_level(self):
         magnitude = np.array([0, 1, 1, 1, 0, 1])
         f = comparison_fx('>=', 1)
-        fx = frequency_fx(f, order=2, big_n=2, exclusive_event_window=False)
+        fx = frequency_fx(f, order=2, big_n=2, exclusive_windows=False)
         output = magnitude.reshape(-1, 1)
         result = fx(pd.DataFrame({'x': range(6)}), output)
         np.testing.assert_array_equal(
@@ -536,7 +711,7 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
         duration = np.array([0, 1, 1, 1])
         output = np.column_stack([magnitude, duration])
         f = comparison_fx('>=', 2)  # n=2, N=3
-        fx = frequency_fx(f, order=3, big_n=3, exclusive_event_window=False)
+        fx = frequency_fx(f, order=3, big_n=3, exclusive_windows=False)
         result = fx(pd.DataFrame({'x': range(4)}), output)
         # eligible = AND(magnitude, duration) = [0,1,1,1]
         # anchors t1,t2,t3 (forward window N=3, truncated at end):
@@ -546,16 +721,211 @@ class TestFrequencyFxUnNestedCountForm(unittest.TestCase):
     def test_between_form(self):
         magnitude = np.array([1, 1, 0, 1, 1])
         f = comparison_fx('<=', 1, '<=', 2)  # between [1, 2] inclusive
-        fx = frequency_fx(f, order=2, big_n=2, exclusive_event_window=False)
+        fx = frequency_fx(f, order=2, big_n=2, exclusive_windows=False)
         output = magnitude.reshape(-1, 1)
         result = fx(pd.DataFrame({'x': range(5)}), output)
         # anchors t0,t1,t3,t4 (forward window N=2, truncated at end):
         # t0 [0,1]=2 True; t1 [1,2]=1 True; t3 [3,4]=2 True; t4 [4,4]=1 True
         np.testing.assert_array_equal(result, np.array([1, 1, 1, 1, 1]))
 
+    def test_unknown_overlapping_windows_union_successful_coverage(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3)
+        frame = pd.DataFrame({'x': range(4)})
+
+        first = fx(frame, np.array([[np.nan], [0], [0], [0]]))
+        second = fx(frame, np.array([[np.nan], [1], [0], [0]]))
+
+        np.testing.assert_equal(first, np.array([np.nan, np.nan, np.nan, 0]))
+        np.testing.assert_array_equal(second, np.array([np.nan, 1, 1, 1]))
+
+    def test_unknown_exclusive_anchor_preserves_possible_schedules(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3, exclusive_windows=True)
+        source = np.array([[np.nan], [1], [1], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1, np.nan]))
+
+    def test_exclusive_unknown_anchor_matches_both_agreed_schedules(self):
+        f = comparison_fx('>=', 1)
+        fx = frequency_fx(f, order=2, big_n=3, exclusive_windows=True)
+        source = np.array([[np.nan], [1], [0], [0]])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1, np.nan]))
+
+    def test_frequency_count_uses_all_possible_unknown_counts(self):
+        frame = pd.DataFrame({'x': range(3)})
+        source = np.array([[1], [1], [np.nan]])
+
+        definite = frequency_fx(comparison_fx('>=', 2), order=2, big_n=3)(
+            frame, source
+        )
+        uncertain = frequency_fx(comparison_fx('>=', 3), order=2, big_n=3)(
+            frame, source
+        )
+        failed = frequency_fx(comparison_fx('>=', 4), order=2, big_n=3)(
+            frame, source
+        )
+
+        np.testing.assert_array_equal(definite, np.ones(3))
+        np.testing.assert_equal(uncertain, np.full(3, np.nan))
+        np.testing.assert_array_equal(failed, np.zeros(3))
+
+    def test_frequency_unknown_count_at_truncated_record_end(self):
+        fx = frequency_fx(comparison_fx('>=', 2), order=2, big_n=3)
+        source = np.array([[0], [1], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_equal(result, np.array([0, np.nan, np.nan]))
+
+    def test_all_count_operators_preserve_unknown_count_verdict(self):
+        operators = ('<', '<=', '>', '>=', '=', '!=')
+        frame = pd.DataFrame({'x': range(1)})
+        source = np.array([[np.nan]])
+
+        for operator in operators:
+            for count in range(2):
+                with self.subTest(operator=operator, count=count):
+                    fx = frequency_fx(
+                        comparison_fx(operator, count), order=2, big_n=1
+                    )
+                    result = fx(frame, source)
+                    possible = {
+                        comparison_fx(operator, count)(value)
+                        for value in (0, 1)
+                    }
+                    expected = (
+                        float(possible.pop())
+                        if len(possible) == 1 else np.nan
+                    )
+                    np.testing.assert_equal(result, np.array([expected]))
+
+    def test_zero_admitting_count_anchors_unknown_timesteps(self):
+        fx = frequency_fx(comparison_fx('=', 0), order=2, big_n=2)
+        source = np.array([[np.nan], [0], [0]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, 1, 1]))
+
+    def test_between_frequency_uses_inclusive_possible_count_bounds(self):
+        fx = frequency_fx(
+            comparison_fx('<=', 1, '<=', 2), order=2, big_n=3
+        )
+        source = np.array([[1], [0], [np.nan]])
+
+        result = fx(pd.DataFrame({'x': range(3)}), source)
+
+        np.testing.assert_array_equal(result, np.ones(3))
+
+    def test_frequency_combines_multiple_preceding_outcomes_three_valued(self):
+        fx = frequency_fx(comparison_fx('>=', 1), order=3, big_n=1)
+        source = np.array([
+            [np.nan, 1],
+            [1, np.nan],
+            [np.nan, 0],
+            [0, np.nan],
+        ])
+
+        result = fx(pd.DataFrame({'x': range(4)}), source)
+
+        np.testing.assert_equal(result, np.array([np.nan, np.nan, 0, 0]))
+
+    def test_unknown_frequency_matches_short_binary_completion_oracle(self):
+        operators = ('<', '<=', '>', '>=', '=', '!=')
+        sources = itertools.chain.from_iterable(
+            itertools.product((0, 1, np.nan), repeat=length)
+            for length in range(1, 5)
+        )
+        for source_values in sources:
+            source = np.asarray(source_values, dtype=float)
+            frame = pd.DataFrame({'x': range(len(source))})
+            unknown_indices = np.flatnonzero(np.isnan(source))
+            for window in range(1, len(source) + 1):
+                predicates = [
+                    (operator, count, comparison_fx(operator, count))
+                    for operator in operators
+                    for count in range(window + 1)
+                ] + [
+                    ('between', (low, high), comparison_fx('<=', low, '<=', high))
+                    for low in range(window)
+                    for high in range(low + 1, window + 1)
+                ]
+                for operator, count, predicate in predicates:
+                    for exclusive in (False, True):
+                        with self.subTest(
+                            source=source_values, window=window,
+                            operator=operator, count=count,
+                            exclusive=exclusive,
+                        ):
+                            actual = frequency_fx(
+                                predicate, order=2, big_n=window,
+                                exclusive_windows=exclusive,
+                            )(frame, source.reshape(-1, 1))
+                            completions = []
+                            for bits in range(2 ** len(unknown_indices)):
+                                resolved = source.copy()
+                                for bit, index in enumerate(unknown_indices):
+                                    resolved[index] = (bits >> bit) & 1
+                                expected = np.zeros(len(source))
+                                claimed_until = -1
+                                for start in range(len(source)):
+                                    if exclusive and start <= claimed_until:
+                                        continue
+                                    if not predicate(0) and resolved[start] != 1:
+                                        continue
+                                    end = min(start + window, len(source))
+                                    if predicate(int(resolved[start:end].sum())):
+                                        expected[start:end] = 1
+                                        if exclusive:
+                                            claimed_until = end - 1
+                                completions.append(expected)
+                            oracle = np.asarray([
+                                values[0]
+                                if np.all(values == values[0])
+                                else np.nan
+                                for values in np.asarray(completions).T
+                            ])
+                            np.testing.assert_equal(actual, oracle)
+
+    def test_correlated_equality_windows_settle_shared_coverage(self):
+        for exclusive in (False, True):
+            fx = frequency_fx(
+                comparison_fx('=', 1), order=2, big_n=2,
+                exclusive_windows=exclusive,
+            )
+            actual = fx(
+                pd.DataFrame({'x': range(2)}), np.array([[1], [np.nan]])
+            )
+            np.testing.assert_equal(actual, [np.nan, 1])
+
+    def test_exclusive_count_correlation_settles_failed_final_trial(self):
+        fx = frequency_fx(
+            comparison_fx('>=', 2), order=2, big_n=2, exclusive_windows=True,
+        )
+        actual = fx(
+            pd.DataFrame({'x': range(3)}), np.array([[1], [np.nan], [1]])
+        )
+        np.testing.assert_equal(actual, [np.nan, np.nan, 0])
+
+    def test_long_unknown_record_preserves_uncertainty_without_recursion(self):
+        source = np.full((1500, 1), np.nan)
+        frame = pd.DataFrame({'x': range(len(source))})
+        for exclusive in (False, True):
+            fx = frequency_fx(
+                comparison_fx('=', 2), order=2, big_n=3,
+                exclusive_windows=exclusive,
+            )
+            np.testing.assert_equal(fx(frame, source), source[:, 0])
+
     def test_probability_form_not_yet_implemented(self):
         f = comparison_fx('>', 0.5)
-        fx = frequency_fx(f, order=2, big_n=None, exclusive_event_window=True)
+        fx = frequency_fx(f, order=2, big_n=None, exclusive_windows=True)
         output = np.array([[1], [0], [1]])
         with self.assertRaises(NotImplementedError):
             fx(pd.DataFrame({'x': range(3)}), output)
@@ -584,7 +954,7 @@ class TestOrReducePerWaterYear(unittest.TestCase):
         diag = np.array([np.nan, np.nan, 1, 0, 0, 0, np.nan, np.nan, 0, 0, 0, 0])
         result = or_reduce_per_water_year(diag, dowy)
         self.assertEqual(result[5], 1.0)
-        self.assertEqual(result[11], 0.0)
+        self.assertTrue(np.isnan(result[11]))
 
     def test_all_nan_year_stays_nan(self):
         dowy = np.array([1, 2, 3])
@@ -607,7 +977,7 @@ class TestOrReducePerWaterYear(unittest.TestCase):
 class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
     '''
     nested_frequency_intra_annual_fx, reproducing notes/frequencyEnhancement-resolved.md
-    Example 3's intra_annual column (base pattern narrower than a full year).
+    Example 3's intra-annual column (its pattern is narrower than a full year).
     '''
 
     def test_example_3_intra_annual_column(self):
@@ -618,13 +988,13 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
         dowy = np.array([1, 2, 3, 4, 5, 6])
         df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
         f = comparison_fx('>=', 2)  # [op, n, N] with n=2, N=3
-        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_event_window=False)
+        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_windows=False)
         result = fx(df, output)
         np.testing.assert_array_equal(
             result, np.array([1, 1, 1, 1, 0, 0])
         )
 
-    def test_example_3_exclusive_event_window_does_not_change_which_ones_survive(self):
+    def test_example_3_exclusive_windows_does_not_change_which_ones_survive(self):
         # Exclusive mode suppresses a qualifying anchor inside the first
         # forward span; union mode lets the second anchor extend the span.
         magnitude = np.array([1, 1, 1, 0, 0, 1])
@@ -632,8 +1002,8 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
         dowy = np.array([1, 2, 3, 4, 5, 6])
         df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
         f = comparison_fx('>=', 2)
-        fx_event = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_event_window=True)
-        fx_timestep = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_event_window=False)
+        fx_event = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_windows=True)
+        fx_timestep = nested_frequency_intra_annual_fx(f, order=2, big_n=3, exclusive_windows=False)
         result_event = fx_event(df, output)
         result_timestep = fx_timestep(df, output)
         self.assertEqual(np.nansum(result_event == 1), 3)
@@ -647,7 +1017,7 @@ class TestNestedFrequencyIntraAnnualFx(unittest.TestCase):
         dowy = np.array([1, 2, 3, 4, 5, 6])
         df = pd.DataFrame({'flow': range(6), 'dowy': dowy})
         f = comparison_fx('>', 0.5)  # eligible fraction 4/6 > 0.5
-        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=None, exclusive_event_window=True)
+        fx = nested_frequency_intra_annual_fx(f, order=2, big_n=None, exclusive_windows=True)
         result = fx(df, output)
         np.testing.assert_array_equal(result, np.ones(6))
 
@@ -669,7 +1039,7 @@ class TestNestedFrequencyInterannualFx(unittest.TestCase):
         dowy = np.array([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6])
         df = pd.DataFrame({'flow': range(12), 'dowy': dowy})
         f = comparison_fx('>=', 1)  # nested [op, n, N] with n=1, N=2 (years)
-        fx = nested_frequency_interannual_fx(f, order=3, big_n=2, exclusive_event_window=True)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=2, exclusive_windows=True)
         result = fx(df, output)
         # Forward 2-year window at year1 sees [True, False], qualifying both.
         np.testing.assert_array_equal(result, np.ones(12))
@@ -679,7 +1049,7 @@ class TestNestedFrequencyInterannualFx(unittest.TestCase):
         output = np.column_stack([np.zeros(6), intra_annual])
         df = pd.DataFrame({'flow': range(6), 'dowy': [1, 2, 3, 4, 5, 6]})
         f = comparison_fx('>', 0.5)
-        fx = nested_frequency_interannual_fx(f, order=3, big_n=None, exclusive_event_window=True)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=None, exclusive_windows=True)
         with self.assertRaises(NotImplementedError):
             fx(df, output)
 
@@ -689,7 +1059,7 @@ class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
 
     def test_nested_terminal_column_broadcasts_without_and(self):
         # magnitude column would fail AND at some timesteps, but since the
-        # last characteristic is_nested, component == the nested column value.
+        # Last characteristic is terminal, so component == that column's value.
         magnitude_values = np.array([0, 1, 0, 1])
 
         def magnitude_stub_fx(df, output):
@@ -715,7 +1085,7 @@ class TestEvaluateComponentNestedFrequencyDispatch(unittest.TestCase):
         )
         df.index.name = 'time'
         result = evaluate_component(df, component)
-        # component should equal the nested column (all 1s), NOT AND(magnitude, nested)
+        # Component should equal interannual column (all 1s), not AND(magnitude, it).
         np.testing.assert_array_equal(result.df['comp'].values, np.array([1, 1, 1, 1]))
 
     def test_nan_in_nested_column_is_not_a_success(self):

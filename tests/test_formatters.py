@@ -8,17 +8,18 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 
-from hydropattern.errors import HydropatternError
+from hydropattern.errors import HydropatternError, PlotErrorCode
 from hydropattern.formatters import (
     build_summary_sheet,
     compute_metric_series,
     compute_portion_series,
     plot_components,
-    resolve_color_map,
+    write_results,
     write_summary,
 )
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
 from hydropattern.patterns import Characteristic, CharacteristicType, Component, Result
+from hydropattern.timeseries import to_day_of_water_year
 
 
 def _make_result(values: list[int], years: list[int],
@@ -57,6 +58,51 @@ def _make_result_with_dates(values: list[int], index: pd.DatetimeIndex,
 
 class TestComputePortionSeries(unittest.TestCase):
     '''Tests for compute_portion_series().'''
+
+    def test_unknown_outcomes_are_excluded_from_each_column_denominator(self):
+        result = _make_result([1, 0, np.nan, np.nan], [2000, 2000, 2001, 2001])
+        result.df['comp'] = [1, 1, np.nan, np.nan]
+
+        magnitude = compute_portion_series(result, 'magnitude')
+        component = compute_portion_series(result, 'comp')
+
+        self.assertAlmostEqual(magnitude['total'], 0.5)
+        self.assertAlmostEqual(component['total'], 1.0)
+        self.assertTrue(pd.isna(magnitude[2001]))
+        self.assertTrue(pd.isna(component[2001]))
+
+    def test_all_unknown_outcomes_have_undefined_summary(self):
+        result = _make_result([np.nan, np.nan], [2000, 2000])
+
+        portion = compute_portion_series(result, 'magnitude')
+
+        self.assertTrue(pd.isna(portion['total']))
+        self.assertTrue(pd.isna(portion[2000]))
+
+    def test_empty_record_has_undefined_total_summary(self):
+        result = _make_result([], [])
+
+        portion = compute_portion_series(result, 'magnitude')
+
+        self.assertTrue(pd.isna(portion['total']))
+
+    def test_frequency_table_uses_known_outcomes_and_configured_water_years(self):
+        result = _make_result([1, 0, np.nan, np.nan], [2000, 2000, 2000, 2000])
+        result.df.index = pd.DatetimeIndex(
+            ['2000-09-30', '2000-10-01', '2001-09-30', '2001-10-01'],
+            name='time',
+        )
+        result.first_day_of_water_year = 274
+        result.df['comp'] = [1, 1, np.nan, np.nan]
+
+        summary = result.frequency_table(by_water_years=True)
+
+        self.assertEqual(list(summary.index), ['total', 2000, 2001, 2002])
+        self.assertEqual(summary.loc['total', 'T'], 4)
+        self.assertEqual(summary.loc['total', 'magnitude'], 1)
+        self.assertAlmostEqual(summary.loc['total', 'magnitude(%)'], 50.0)
+        self.assertAlmostEqual(summary.loc['total', 'comp(%)'], 100.0)
+        self.assertTrue(pd.isna(summary.loc[2002, 'magnitude(%)']))
 
     def test_all_success_total_is_one(self):
         '''All successes -> total portion = 1.0.'''
@@ -188,25 +234,6 @@ class TestComputeMetricSeries(unittest.TestCase):
         s = compute_metric_series(result, 'magnitude', MetricMode.PERCENTAGE)
         self.assertAlmostEqual(s['total'], 0.0)
 
-    def test_return_period_mode_is_inverse_of_portion(self):
-        '''RETURN_PERIOD mode = 1 / portion.'''
-        result = _make_result([1, 0, 0, 0], [2000, 2000, 2001, 2001])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertAlmostEqual(s['total'], 4.0)
-
-    def test_return_period_mode_zero_portion_is_na_not_inf(self):
-        '''RETURN_PERIOD mode: zero-success portion -> NA, never inf (NA/zero policy).'''
-        result = _make_result([0, 0, 0, 0], [2000, 2000, 2001, 2001])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertTrue(pd.isna(s['total']))
-
-    def test_return_period_mode_preserves_existing_na(self):
-        '''RETURN_PERIOD mode: an already-NA portion (T=0 group) stays NA.'''
-        result = _make_result([1, 1], [2000, 2000])
-        s = compute_metric_series(result, 'magnitude', MetricMode.RETURN_PERIOD)
-        self.assertTrue(pd.isna(s.get(2001, pd.NA)))
-
-
 class TestBuildSummarySheet(unittest.TestCase):
     '''Tests for build_summary_sheet().
 
@@ -245,6 +272,18 @@ class TestBuildSummarySheet(unittest.TestCase):
         df = build_summary_sheet(sr, 'comp', 'magnitude')
         self.assertAlmostEqual(df.loc['total', 'scenario_a'], 0.5)
         self.assertAlmostEqual(df.loc['total', 'scenario_b'], 0.5)
+
+    def test_total_portion_uses_aggregate_known_counts_not_year_average(self):
+        result = _make_result(
+            [1, np.nan, np.nan, 0, 0, 0],
+            [2000, 2000, 2001, 2001, 2001, 2001],
+        )
+
+        summary = build_summary_sheet({'scenario': [result]}, 'comp', 'magnitude')
+
+        self.assertAlmostEqual(summary.loc[2000, 'scenario'], 1.0)
+        self.assertAlmostEqual(summary.loc[2001, 'scenario'], 0.0)
+        self.assertAlmostEqual(summary.loc['total', 'scenario'], 0.25)
 
     def test_per_year_values(self):
         '''Per-year values match compute_portion_series.'''
@@ -295,6 +334,43 @@ class TestWriteSummary(unittest.TestCase):
         r_b = _make_result([0, 0, 1, 1], [2000, 2000, 2001, 2001])
         return {'scenario_a': [r_a], 'scenario_b': [r_b]}
 
+    def _monthly_result(
+        self,
+        characteristic_name: str = 'magnitude',
+        characteristic_values: list[float] | None = None,
+        component_values: list[float] | None = None,
+    ) -> Result:
+        dates = pd.date_range('2020-01-01', periods=24, freq='MS', name='time')
+        characteristic_values = characteristic_values or [1, np.nan] + [0] * 22
+        component_values = component_values or [1, 0, np.nan] + [0] * 21
+        first_day_of_wy = 274
+        component = Component(
+            name='comp',
+            characteristics=[
+                Characteristic(
+                    name=characteristic_name,
+                    fx=lambda df, out: np.array(characteristic_values),
+                    type=CharacteristicType.MAGNITUDE,
+                )
+            ],
+            is_success_pattern=True,
+        )
+        df = pd.DataFrame({
+            'flow': np.ones(len(dates)),
+            'dowy': [to_day_of_water_year(date, first_day_of_wy) for date in dates],
+            characteristic_name: characteristic_values,
+            'comp': component_values,
+        }, index=dates)
+        return Result(df=df, component=component, first_day_of_water_year=first_day_of_wy)
+
+    def _monthly_scenario_results(self, characteristic_name: str = 'magnitude'):
+        return {
+            'scenario_a': [self._monthly_result(characteristic_name)],
+            'scenario_b': [self._monthly_result(
+                characteristic_name, [0] * 24, [1] * 24
+            )],
+        }
+
     def test_creates_summary_file_per_component(self):
         '''One {component}_summary.xlsx file per component in output dir.'''
         import tempfile
@@ -317,6 +393,148 @@ class TestWriteSummary(unittest.TestCase):
             # component 'comp' has one characteristic 'magnitude' + component itself
             self.assertIn('magnitude', sheetnames)
             self.assertIn('comp', sheetnames)
+
+    def test_reporting_details_align_counts_coverage_and_partial_years(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary(
+                self._monthly_scenario_results(), output_path, first_day_of_wy=274
+            )
+            details = pd.read_excel(
+                output_path / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        characteristic_total = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'magnitude')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(characteristic_total['successful_timesteps'], 1)
+        self.assertEqual(characteristic_total['known_timesteps'], 23)
+        self.assertEqual(characteristic_total['total_timesteps'], 24)
+        self.assertAlmostEqual(characteristic_total['known_outcome_coverage'], 23 / 24)
+        self.assertEqual(characteristic_total['completeness'], 'whole_record')
+        self.assertTrue(pd.isna(characteristic_total['event_count_lower']))
+
+        component_total = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'comp')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(component_total['known_timesteps'], 23)
+        self.assertEqual(component_total['successful_timesteps'], 1)
+        self.assertEqual(component_total['observed_exposure_water_years'], 2.0)
+        self.assertEqual(component_total['availability_status'], 'available')
+        self.assertEqual(component_total['event_count_lower'], 1)
+        self.assertEqual(component_total['event_count_upper'], 2)
+
+        annual = details[
+            (details['scenario'] == 'scenario_a')
+            & (details['outcome_column'] == 'comp')
+            & (details['interval'] != 'total')
+        ].set_index('interval')
+        self.assertEqual(annual.loc[2020, 'completeness'], 'partial')
+        self.assertEqual(annual.loc[2021, 'completeness'], 'complete')
+        self.assertEqual(annual.loc[2022, 'completeness'], 'partial')
+        self.assertEqual(annual.loc[2021, 'total_timesteps'], 12)
+        self.assertEqual(annual.loc[2020, 'observed_exposure_water_years'], 0.75)
+        self.assertEqual(
+            details[
+                (details['scenario'] == 'scenario_b')
+                & (details['outcome_column'] == 'comp')
+                & (details['interval'] == 'total')
+            ].iloc[0]['successful_timesteps'],
+            24,
+        )
+
+    def test_reporting_details_sheet_name_avoids_characteristic_collision(self):
+        import tempfile
+
+        from openpyxl import load_workbook
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary(
+                self._monthly_scenario_results('reporting_details'),
+                output_path,
+                first_day_of_wy=274,
+            )
+            workbook = load_workbook(
+                output_path / 'comp_summary.xlsx', read_only=True
+            )
+            sheetnames = workbook.sheetnames
+            workbook.close()
+
+        self.assertIn('reporting_details', sheetnames)
+        self.assertIn('reporting_details_1', sheetnames)
+
+    def test_unsupported_cadence_keeps_counts_and_marks_event_rates_unavailable(self):
+        import tempfile
+
+        result = self._monthly_result()
+        result.df = result.df.drop(result.df.index[4])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp)
+            write_summary({'scenario': [result]}, output_path, first_day_of_wy=274)
+            details = pd.read_excel(
+                output_path / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        component_total = details[
+            (details['outcome_column'] == 'comp')
+            & (details['interval'] == 'total')
+        ].iloc[0]
+        self.assertEqual(component_total['known_timesteps'], 22)
+        self.assertEqual(component_total['event_count_lower'], 1)
+        self.assertEqual(
+            component_total['availability_status'], 'event_rate_unavailable'
+        )
+        self.assertTrue(pd.isna(component_total['observed_exposure_water_years']))
+        self.assertIn('unsupported cadence', component_total['availability_reason'])
+        annual = details[details['interval'] != 'total']
+        self.assertTrue((annual['completeness'] == 'undetermined').all())
+
+    def test_csv_and_excel_exports_keep_raw_layout_and_add_details_summary(self):
+        import tempfile
+
+        scenario_results = self._monthly_scenario_results()
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_directory = Path(tmp) / 'csv'
+            excel_directory = Path(tmp) / 'excel'
+            write_results(
+                scenario_results, 'input.toml', str(csv_directory), False,
+                first_day_of_wy=274,
+            )
+            write_results(
+                scenario_results, 'input.toml', str(excel_directory), True,
+                first_day_of_wy=274,
+            )
+
+            raw_csv = pd.read_csv(csv_directory / 'scenario_a_comp.csv')
+            raw_excel = pd.read_excel(excel_directory / 'input_output.xlsx')
+            self.assertEqual(
+                list(raw_csv.columns),
+                ['time', 'flow', 'dowy', 'magnitude', 'comp'],
+            )
+            self.assertEqual(
+                list(raw_excel.columns),
+                ['time', 'flow', 'dowy', 'magnitude', 'comp'],
+            )
+            csv_details = pd.read_excel(
+                csv_directory / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+            excel_details = pd.read_excel(
+                excel_directory / 'comp_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        pd.testing.assert_frame_equal(csv_details, excel_details)
 
     def test_summary_sheet_columns_are_scenarios(self):
         '''Each summary sheet has scenario names as columns.'''
@@ -379,6 +597,15 @@ class TestPlotComponents(unittest.TestCase):
         }, index=index)
         return Result(df=df, component=component)
 
+    def _grid_result_outcomes(self, component_name: str, outcomes: list[float]) -> Result:
+        component = Component(
+            name=component_name, characteristics=[], is_success_pattern=True
+        )
+        index = pd.date_range('2000-01-01', periods=len(outcomes), freq='D', name='time')
+        df = pd.DataFrame({'flow': np.ones(len(outcomes)), component_name: outcomes},
+                          index=index)
+        return Result(df=df, component=component)
+
     def test_plot_components_writes_grid_csv_and_png_per_component(self):
         '''One {component}_grid.csv and {component}_plot.png written per component.'''
         import tempfile
@@ -395,7 +622,200 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions(interpolate=False, show=False))
 
             self.assertTrue((output_path / 'single_characteristic_grid.csv').exists())
+            self.assertTrue(
+                (output_path / 'single_characteristic_grid_coverage.csv').exists()
+            )
             self.assertTrue((output_path / 'single_characteristic_plot.png').exists())
+
+    def test_minimum_coverage_includes_scenario_at_exact_ninety_percent(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes(
+                'component', [1.0] * 9 + [np.nan]
+            )],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0, 0.0, 0.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0, 1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0, 1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(), 1,
+                ClimateCanvasPlotOptions(interpolate=False),
+            )
+            plotted_zs = mocked.call_args.args[2]
+            self.assertEqual(plotted_zs[0, 0], 1.0)
+            self.assertIn('minimum coverage: 90%', mocked.call_args.kwargs['title'].lower())
+            coverage = pd.read_csv(Path(temp_dir) / 'component_grid_coverage.csv')
+
+        row = coverage.set_index('scenario').loc['_0_0']
+        self.assertEqual(row['precip_delta'], 0)
+        self.assertEqual(row['temp_delta'], 0)
+        self.assertEqual(row['raw_summary'], 1.0)
+        self.assertEqual(row['known_count'], 9)
+        self.assertEqual(row['total_count'], 10)
+        self.assertEqual(row['coverage'], 0.9)
+        self.assertTrue(row['eligible'])
+        self.assertTrue(np.isnan(row['exclusion_reason']))
+
+    def test_scenario_below_minimum_coverage_is_withheld(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(), 1,
+                ClimateCanvasPlotOptions(interpolate=False),
+                minimum_coverage=0.5,
+            )
+            zs = mocked.call_args.args[2]
+            self.assertTrue(np.isnan(zs[0, 0]))
+            coverage = pd.read_csv(Path(temp_dir) / 'component_grid_coverage.csv')
+        row = coverage.set_index('scenario').loc['_0_0']
+        self.assertFalse(row['eligible'])
+        self.assertEqual(row['exclusion_reason'], 'below_minimum_coverage')
+
+    def test_portion_and_percentage_surfaces_have_same_eligibility(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 0.0, 0.0, 0.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(MetricMode.PORTION), 1,
+                minimum_coverage=0.5,
+            )
+            portion_zs = mocked.call_args.args[2].copy()
+            plot_components(
+                scenario_results, Path(temp_dir), MetricOptions(MetricMode.PERCENTAGE), 1,
+                minimum_coverage=0.5,
+            )
+            percentage_zs = mocked.call_args.args[2]
+
+        np.testing.assert_array_equal(np.isnan(portion_zs), np.isnan(percentage_zs))
+        np.testing.assert_allclose(percentage_zs, portion_zs * 100, equal_nan=True)
+
+    def test_actual_renderer_preserves_withheld_gap_with_interpolation_on_or_off(self):
+        import tempfile
+
+        from matplotlib.axes import Axes
+
+        names = [f'_{x}_{y}' for y in range(3) for x in range(3)]
+        scenario_results = {
+            name: [self._grid_result_outcomes(
+                'component', [1.0, np.nan] if name == '_1_1' else [1.0, 1.0]
+            )]
+            for name in names
+        }
+        for interpolate in (False, True):
+            rendered: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+            original = Axes.pcolormesh
+
+            def capture_mesh(axis, *args, **kwargs):
+                if len(args) >= 3:
+                    xs, ys, zs = args[:3]
+                    if np.asarray(zs).ndim == 2:
+                        rendered.append((np.asarray(xs), np.asarray(ys), np.asarray(zs)))
+                return original(axis, *args, **kwargs)
+
+            with tempfile.TemporaryDirectory() as temp_dir, \
+                 mock.patch.object(Axes, 'pcolormesh', new=capture_mesh), \
+                 self.assertWarns(RuntimeWarning):
+                plot_components(
+                    scenario_results, Path(temp_dir), MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=interpolate, show=False),
+                    minimum_coverage=0.9,
+                )
+
+            xs, ys, zs = rendered[0]
+            x_index = int(np.where(xs == 1.0)[0][0])
+            y_index = int(np.where(ys == 1.0)[0][0])
+            self.assertTrue(np.isnan(zs[y_index, x_index]))
+
+    def test_all_unknown_surface_exports_data_then_raises_no_renderable_surface(self):
+        import tempfile
+        scenario_results = {
+            name: [self._grid_result_outcomes('component', [np.nan, np.nan])]
+            for name in ('_0_0', '_0_1', '_1_0', '_1_1')
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=False),
+                )
+            self.assertEqual(
+                ctx.exception.envelope.code, PlotErrorCode.NO_RENDERABLE_SURFACE
+            )
+            self.assertTrue((output_path / 'component_grid.csv').exists())
+            self.assertTrue((output_path / 'component_grid_coverage.csv').exists())
+
+    def test_three_non_collinear_scenarios_can_render_after_one_is_withheld(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertWarns(RuntimeWarning):
+                plot_components(
+                    scenario_results, Path(temp_dir), MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(interpolate=False, show=False),
+                    minimum_coverage=0.9,
+                )
+            self.assertTrue((Path(temp_dir) / 'component_plot.png').exists())
+
+    def test_zero_cutoff_does_not_make_all_unknown_metrics_renderable(self):
+        import tempfile
+        scenario_results = {
+            name: [self._grid_result_outcomes('component', [np.nan, np.nan])]
+            for name in ('_0_0', '_0_1', '_1_0', '_1_1')
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    minimum_coverage=0,
+                )
+            coverage = pd.read_csv(output_path / 'component_grid_coverage.csv')
+        self.assertEqual(ctx.exception.envelope.code, PlotErrorCode.NO_RENDERABLE_SURFACE)
+        self.assertFalse(coverage['eligible'].any())
+        self.assertTrue((coverage['exclusion_reason'] == 'no_known_outcomes').all())
+
+    def test_fillin_conflicts_with_withheld_scenarios_after_export(self):
+        import tempfile
+        scenario_results = {
+            '_0_0': [self._grid_result_outcomes('component', [1.0, np.nan, np.nan])],
+            '_0_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_0': [self._grid_result_outcomes('component', [1.0, 1.0])],
+            '_1_1': [self._grid_result_outcomes('component', [1.0, 1.0])],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir)
+            with self.assertRaises(HydropatternError) as ctx:
+                plot_components(
+                    scenario_results, output_path, MetricOptions(), 1,
+                    ClimateCanvasPlotOptions(fillin=True),
+                    minimum_coverage=0.9,
+                )
+            self.assertEqual(
+                ctx.exception.envelope.code, PlotErrorCode.FILLIN_WITHHELD_SCENARIOS
+            )
+            self.assertTrue((output_path / 'component_grid.csv').exists())
+            self.assertTrue((output_path / 'component_grid_coverage.csv').exists())
 
     def test_plot_components_raises_for_non_grid_scenarios(self):
         '''Non-grid scenario names raise HydropatternError (PLOT_INVALID_SCENARIO_GRID).'''
@@ -429,11 +849,16 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions())
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['title'], 'single_characteristic')
+            self.assertTrue(kwargs['title'].startswith('single_characteristic\n'))
+            self.assertIn('withheld: 0 scenario(s)', kwargs['title'])
             self.assertEqual(
                 kwargs['labels'],
-                ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+                (
+                    'Precipitation Delta (%)', 'Temperature Delta (C)',
+                    'Percentage of known outcomes (%)',
+                ),
             )
+            self.assertEqual(kwargs['color_map'], 'RdBu')
 
     def test_plot_components_uses_configured_title_and_labels_when_set(self):
         '''Explicit title/xlabel/ylabel/zlabel override the dynamic defaults.'''
@@ -454,7 +879,8 @@ class TestPlotComponents(unittest.TestCase):
                             ))
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['title'], 'Custom Title')
+            self.assertTrue(kwargs['title'].startswith('Custom Title\n'))
+            self.assertIn('Minimum coverage:', kwargs['title'])
             self.assertEqual(kwargs['labels'], ('X', 'Y', 'Z'))
 
     def test_plot_components_forwards_threshold_color_map_and_ticks(self):
@@ -544,8 +970,8 @@ class TestPlotComponents(unittest.TestCase):
             self.assertEqual(kwargs['levels'], (0.0,))
             self.assertEqual(kwargs['widths'], (1.0,))
 
-    def test_plot_components_reverses_default_color_map_for_failure_pattern(self):
-        '''success_pattern=False reverses the default RdBu colormap to RdBu_r.'''
+    def test_plot_components_keeps_default_color_map_for_failure_pattern(self):
+        '''Both pattern modes use same default coloring for final outcomes.'''
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir, \
              mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
@@ -565,7 +991,7 @@ class TestPlotComponents(unittest.TestCase):
                             ClimateCanvasPlotOptions())
 
             _, kwargs = mocked.call_args
-            self.assertEqual(kwargs['color_map'], 'RdBu_r')
+            self.assertEqual(kwargs['color_map'], 'RdBu')
 
     def test_plot_components_keeps_explicit_color_map_for_failure_pattern(self):
         '''An explicitly-configured color_map is never auto-reversed.'''
@@ -589,49 +1015,3 @@ class TestPlotComponents(unittest.TestCase):
 
             _, kwargs = mocked.call_args
             self.assertEqual(kwargs['color_map'], 'viridis')
-
-
-class TestResolveColorMap(unittest.TestCase):
-    '''Tests for resolve_color_map.'''
-
-    def test_default_map_portion_success_pattern_stays_rdbu(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=True, metric_mode=MetricMode.PORTION),
-            'RdBu',
-        )
-
-    def test_default_map_return_period_success_pattern_reverses(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=True,
-                              metric_mode=MetricMode.RETURN_PERIOD),
-            'RdBu_r',
-        )
-
-    def test_default_map_portion_failure_pattern_reverses(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False, metric_mode=MetricMode.PORTION),
-            'RdBu_r',
-        )
-
-    def test_default_map_return_period_failure_pattern_cancels_out(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False,
-                              metric_mode=MetricMode.RETURN_PERIOD),
-            'RdBu',
-        )
-
-    def test_default_map_percentage_mode_behaves_like_portion(self):
-        self.assertEqual(
-            resolve_color_map('RdBu', is_success_pattern=False,
-                              metric_mode=MetricMode.PERCENTAGE),
-            'RdBu_r',
-        )
-
-    def test_explicit_color_map_never_reversed(self):
-        for is_success_pattern in (True, False):
-            for metric_mode in MetricMode:
-                self.assertEqual(
-                    resolve_color_map('viridis', is_success_pattern=is_success_pattern,
-                                      metric_mode=metric_mode),
-                    'viridis',
-                )

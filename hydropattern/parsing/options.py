@@ -10,6 +10,7 @@ from hydropattern.parsing.specs import (
     MetricOptions,
     OutputOptions,
     PlotOptions,
+    is_valid_minimum_coverage,
 )
 
 
@@ -30,10 +31,19 @@ def parse_metric_options(section: Any = None, section_name: str = 'metric') -> M
         match key:
             case 'mode':
                 if not isinstance(value, str) or value not in valid_metric_modes:
+                    if value == 'return_period':
+                        message = (
+                            'return_period mode was removed; replace it with '
+                            '"portion" or "percentage".'
+                        )
+                    else:
+                        message = (
+                            f'{section_name}.mode must be one of {sorted(valid_metric_modes)}, '
+                            f'got: {value!r}.'
+                        )
                     raise_parser_error(
                         ParserErrorCode.INVALID_VALUE,
-                        f'{section_name}.mode must be one of {sorted(valid_metric_modes)}, '
-                        f'got: {value!r}.',
+                        message,
                         section=section_name,
                         field='mode',
                         value=value,
@@ -132,12 +142,32 @@ def parse_plot_options(section: Any = None) -> PlotOptions:
         )
 
     enabled = False
+    minimum_coverage = 0.9
     climate_canvas = ClimateCanvasPlotOptions()
     for key, value in section.items():
         match key:
             case 'enabled':
                 _require_type(value, bool, name, 'enabled')
                 enabled = value
+            case 'minimum_coverage':
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise_parser_error(
+                        ParserErrorCode.INVALID_TYPE,
+                        f'{name}.minimum_coverage must be a number, got: {value!r}.',
+                        section=name,
+                        field=key,
+                        value=value,
+                    )
+                if not is_valid_minimum_coverage(value):
+                    raise_parser_error(
+                        ParserErrorCode.INVALID_VALUE,
+                        f'{name}.minimum_coverage must be finite and between 0 and 1, '
+                        f'got: {value!r}.',
+                        section=name,
+                        field=key,
+                        value=value,
+                    )
+                minimum_coverage = float(value)
             case 'climate-canvas':
                 climate_canvas = parse_climate_canvas_plot_options(value)
             case _:
@@ -147,7 +177,9 @@ def parse_plot_options(section: Any = None) -> PlotOptions:
                     section=name,
                     field=key,
                 )
-    return PlotOptions(enabled=enabled, climate_canvas=climate_canvas)
+    return PlotOptions(
+        enabled=enabled, minimum_coverage=minimum_coverage, climate_canvas=climate_canvas
+    )
 
 
 def parse_output_options(data: dict[str, Any]) -> OutputOptions:

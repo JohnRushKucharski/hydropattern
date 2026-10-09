@@ -18,7 +18,7 @@ from hydropattern.parsing.characteristics import (
 from hydropattern.parsing.specs import CharacteristicSpec, ComponentSpec, Request
 from hydropattern.patterns import CharacteristicType
 
-# Options removed per docs/plans/2026-10-01-pattern-correctness-tdd.md:
+# Options removed per docs/developer/plans/2026-10-01-pattern-correctness-tdd.md:
 # `order` is always inferred from characteristic sequence; `verbose` is gone
 # because timing/magnitude/rate_of_change are now unconditionally independent
 # diagnostics (duration/frequency unconditionally stay gated).
@@ -107,18 +107,18 @@ def _rate_of_change_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
 
 def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
     if is_nested_frequency_shape(metrics):
-        base, nested = validate_nested_frequency_metrics(metrics)
+        intra_annual, interannual = validate_nested_frequency_metrics(metrics)
         return CharacteristicSpec(
             type=CharacteristicType.FREQUENCY,
-            operator=base.operator,
-            values=base.values,
-            big_n=base.big_n,
-            exclusive_event_window=base.exclusive_event_window,
-            is_nested=True,
-            nested_operator=nested.operator,
-            nested_values=nested.values,
-            nested_big_n=nested.big_n,
-            nested_exclusive_event_window=nested.exclusive_event_window,
+            operator=intra_annual.operator,
+            values=intra_annual.values,
+            big_n=intra_annual.big_n,
+            exclusive_windows=intra_annual.exclusive_windows,
+            has_interannual_pattern=True,
+            interannual_operator=interannual.operator,
+            interannual_values=interannual.values,
+            interannual_big_n=interannual.big_n,
+            interannual_exclusive_windows=interannual.exclusive_windows,
             order=order,
         )
     parsed = validate_frequency_metrics(list(metrics))
@@ -127,7 +127,7 @@ def _frequency_spec(metrics: list[Any], order: int) -> CharacteristicSpec:
         operator=parsed.operator,
         values=parsed.values,
         big_n=parsed.big_n,
-        exclusive_event_window=parsed.exclusive_event_window,
+        exclusive_windows=parsed.exclusive_windows,
         order=order,
     )
 
@@ -156,7 +156,7 @@ def _parse_compact_characteristics(
             raise_parser_error(
                 ParserErrorCode.REMOVED_OPTION,
                 f'''"{name}" is no longer a supported component option (see
-                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                docs/developer/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
                 order is always inferred from sequence; diagnostic characteristics
                 are always independent.''',
                 component=component_name,
@@ -182,7 +182,7 @@ def _parse_compact_characteristics(
 def _parse_ordered_characteristics(
         component_name: str, elements: dict[str, Any]) -> tuple[list[Any], bool]:
     '''Ordered array-of-tables form: elements['characteristics'] is a list of
-    {'type': ..., 'metrics': [...]} tables; list order is TOML-guaranteed.
+    {'type': ..., 'parameters': [...]} tables; list order is TOML-guaranteed.
     '''
     success = True
     for name, metrics in elements.items():
@@ -192,7 +192,7 @@ def _parse_ordered_characteristics(
             raise_parser_error(
                 ParserErrorCode.REMOVED_OPTION,
                 f'''"{name}" is no longer a supported component option (see
-                docs/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
+                docs/developer/plans/2026-10-01-pattern-correctness-tdd.md). Characteristic
                 order is always inferred from sequence; diagnostic characteristics
                 are always independent.''',
                 component=component_name,
@@ -218,12 +218,25 @@ def _parse_ordered_characteristics(
                 with a "type" field.''',
                 component=component_name,
             )
-        extra_keys = set(entry) - {'type', 'metrics'}
+        extra_keys = set(entry) - {'type', 'parameters'}
         if extra_keys & _REMOVED_OPTIONS:
             raise_parser_error(
                 ParserErrorCode.REMOVED_OPTION,
                 f'''Characteristic tables never accept {sorted(extra_keys & _REMOVED_OPTIONS)};
                 order is always inferred from array position.''',
+                component=component_name,
+            )
+        if 'metrics' in entry:
+            if 'parameters' in entry:
+                message = '''Ordered characteristic tables cannot contain both
+                "metrics" and "parameters"; remove "metrics" and keep
+                "parameters".'''
+            else:
+                message = '''Ordered characteristic tables require "parameters";
+                replace "metrics" with "parameters".'''
+            raise_parser_error(
+                ParserErrorCode.UNKNOWN_OPTION,
+                message,
                 component=component_name,
             )
         if extra_keys:
@@ -241,7 +254,29 @@ def _parse_ordered_characteristics(
                 component=component_name,
                 characteristic=char_type,
             )
-        char_specs.append(builder(entry.get('metrics', []), order))
+        if 'parameters' not in entry:
+            raise_parser_error(
+                ParserErrorCode.MISSING_FIELD,
+                f'Characteristic {char_type!r} requires a "parameters" field.',
+                component=component_name,
+                characteristic=char_type,
+            )
+        parameters = entry['parameters']
+        if not isinstance(parameters, list):
+            raise_parser_error(
+                ParserErrorCode.INVALID_TYPE,
+                'Characteristic "parameters" must be an array.',
+                component=component_name,
+                characteristic=char_type,
+            )
+        if not parameters:
+            raise_parser_error(
+                ParserErrorCode.MISSING_FIELD,
+                f'Characteristic {char_type!r} requires non-empty "parameters".',
+                component=component_name,
+                characteristic=char_type,
+            )
+        char_specs.append(builder(parameters, order))
     return char_specs, success
 
 

@@ -11,9 +11,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from hydropattern.formatters import build_summary_sheet, plot_component_response_surface, \
-    write_results
+from hydropattern.formatters import (
+    build_summary_sheet,
+    plot_component_response_surface,
+    write_results,
+)
 from hydropattern.parsers import ClimateCanvasPlotOptions, MetricMode, MetricOptions
+from hydropattern.parsing.specs import is_valid_minimum_coverage
 from hydropattern.patterns import Component, Result, evaluate_components
 from hydropattern.timeseries import Timeseries
 
@@ -115,7 +119,8 @@ class ScenarioResults:
     def plot_response_surface(
             self, component_name: str, output_path: str | Path | None = None,
             metric_options: MetricOptions = MetricOptions(),
-            climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions()) -> None:
+            climate_canvas: ClimateCanvasPlotOptions = ClimateCanvasPlotOptions(),
+            minimum_coverage: float = 0.9) -> None:
         '''Builds and plots component_name's response-surface grid.
 
         Raises ValueError if component_name isn't found (see by_component) or
@@ -123,17 +128,20 @@ class ScenarioResults:
         grid (see hydropattern.scenario_grid).
 
         output_path=None (default): shows the plot interactively, writes no files.
-        output_path given: treated as a directory (created if needed) and follows
-        the CLI's file layout -- writes both '{component}_grid.csv' and
-        '{component}_plot.png' into it.
+        output_path given: treated as a directory (created if needed) and uses
+        the CLI's file layout, writing '{component}_grid.csv',
+        '{component}_grid_coverage.csv', and '{component}_plot.png'.
+        minimum_coverage is a finite fraction from 0 to 1, default 0.9.
         '''
         component = next(iter(self.by_component(component_name).values())).component
+        if not is_valid_minimum_coverage(minimum_coverage):
+            raise ValueError('minimum_coverage must be a finite number in [0, 1].')
         resolved_output_path = Path(output_path) if output_path is not None else None
         if resolved_output_path is not None:
             resolved_output_path.mkdir(parents=True, exist_ok=True)
         plot_component_response_surface(
             self.scenario_results, component, metric_options, self.first_day_of_water_year,
-            climate_canvas, resolved_output_path,
+            climate_canvas, resolved_output_path, minimum_coverage,
         )
 
 
@@ -146,11 +154,13 @@ def evaluate_scenarios(timeseries: Timeseries, components: list[Component]) -> S
     '''
     scenarios = split_scenarios(timeseries.data)
     scenario_results = {
-        name: evaluate_components(df, components) for name, df in scenarios.items()
+        name: evaluate_components(
+            df, components, first_day_of_water_year=timeseries.first_day_of_water_year
+        )
+        for name, df in scenarios.items()
     }
     return ScenarioResults(scenario_results, timeseries.first_day_of_water_year,
                           timeseries.file_path)
 
 
 __all__ = ['ScenarioResults', 'evaluate_scenarios', 'split_scenarios']
-

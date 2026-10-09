@@ -9,9 +9,12 @@ can be imported without a circular reference back into parsers.py.
 import dataclasses
 from dataclasses import dataclass, field
 from enum import Enum
+from math import isfinite
+from numbers import Real
 from typing import Any
 
 from hydropattern.patterns import CharacteristicType
+
 
 @dataclass(frozen=True)
 class CharacteristicSpec:
@@ -28,15 +31,15 @@ class CharacteristicSpec:
     min_val: float = 0.0          # minimum denominator value (rate_of_change only)
     order: int = 1                # position in evaluation sequence
     big_n: int | None = None      # trial-window size N (frequency count/between forms only)
-    exclusive_event_window: bool = False       # exclusive (True) vs union (False) windowing (frequency only)
-    # Nested frequency (frequency = [<base>, [<nested>]]): when is_nested is True,
-    # operator/values/big_n/exclusive_event_window above describe the BASE (intra-annual)
-    # pattern, and nested_* below describe the NESTED (interannual) pattern.
-    is_nested: bool = False
-    nested_operator: str | None = None
-    nested_values: tuple[float | int, ...] = ()
-    nested_big_n: int | None = None
-    nested_exclusive_event_window: bool = False
+    exclusive_windows: bool = False       # exclusive vs union windowing (frequency only)
+    # Nested frequency (frequency = [<intra-annual>, [<interannual>]]):
+    # the shared fields above describe the intra-annual pattern, while the
+    # interannual_* fields below describe the interannual pattern.
+    has_interannual_pattern: bool = False
+    interannual_operator: str | None = None
+    interannual_values: tuple[float | int, ...] = ()
+    interannual_big_n: int | None = None
+    interannual_exclusive_windows: bool = False
 
 
 @dataclass(frozen=True)
@@ -59,13 +62,11 @@ class Request:
 class MetricMode(Enum):
     '''Supported formatter summary metric modes.
 
-    PORTION:        fraction of timesteps in [0.0, 1.0] where the condition holds.
+    PORTION:         fraction of known outcomes in [0.0, 1.0] marked as success.
     PERCENTAGE:      portion expressed on a 0-100 scale (portion * 100).
-    RETURN_PERIOD:   1 / portion; undefined (NA) when portion is 0 or NA.
     '''
     PORTION = 'portion'
     PERCENTAGE = 'percentage'
-    RETURN_PERIOD = 'return_period'
 
 
 @dataclass(frozen=True)
@@ -96,9 +97,24 @@ class ClimateCanvasPlotOptions:
 
 @dataclass(frozen=True)
 class PlotOptions:
-    '''Pure-data specification for the [output.plot] section.'''
+    '''[output.plot] settings; cutoff is known-outcome coverage from 0 to 1.'''
     enabled: bool = False
     climate_canvas: ClimateCanvasPlotOptions = field(default_factory=ClimateCanvasPlotOptions)
+    minimum_coverage: float = 0.9
+
+    def __post_init__(self) -> None:
+        if not is_valid_minimum_coverage(self.minimum_coverage):
+            raise ValueError('minimum_coverage must be a finite number in [0, 1].')
+
+
+def is_valid_minimum_coverage(value: object) -> bool:
+    '''Return whether a plot coverage cutoff is a finite, non-boolean fraction.'''
+    return (
+        isinstance(value, Real)
+        and not isinstance(value, bool)
+        and isfinite(float(value))
+        and 0.0 <= float(value) <= 1.0
+    )
 
 
 @dataclass(frozen=True)
@@ -156,10 +172,9 @@ __all__ = [
     'merge_overrides',
     'MetricMode',
     'MetricOptions',
+    'is_valid_minimum_coverage',
     'OutputOptions',
     'PlotOptions',
     'Request',
     'TimeseriesSpec',
 ]
-
-

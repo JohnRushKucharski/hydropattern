@@ -76,7 +76,9 @@ hydropattern/
 │   ├── detailed.toml      # Comprehensive config example
 │   └── *.csv              # Sample time series data
 ├── notebooks/             # Jupyter demonstrations
-└── docs/                  # Documentation and papers
+└── docs/
+    ├── user/              # User-facing documentation source
+    └── developer/         # Engineering records, plans, reviews, and papers
 ```
 
 ## Key Files to Understand

@@ -1,0 +1,42 @@
+site_name: hydropattern
+site_description: Flow-pattern evaluation for hydrologists and environmental scientists.
+site_url: https://johnrushkucharski.github.io/hydropattern/
+repo_url: https://github.com/JohnRushKucharski/hydropattern
+docs_dir: docs/user
+theme:
+  name: material
+plugins:
+  - search
+nav:
+  - Start here:
+      - Overview: index.md
+      - Installation: getting-started/installation.md
+      - First evaluation: getting-started/first-run.md
+      - Interpreting first results: getting-started/results.md
+  - User guide:
+      - Command-line usage: guide/cli.md
+      - Preparing data: guide/preparing-data.md
+      - Output files: guide/outputs.md
+      - Response-surface plots: guide/plotting.md
+  - Scientific concepts:
+      - Scientific foundations: concepts/scientific-foundations.md
+      - Evaluation order: concepts/evaluation-order.md
+      - Unknown outcomes: concepts/unknown-outcomes.md
+      - Glossary: concepts/glossary.md
+  - Reference:
+      - Overview: reference.md
+      - Configuration: reference/configuration.md
+      - Characteristics:
+          - Timing: reference/characteristics/timing.md
+          - Magnitude: reference/characteristics/magnitude.md
+          - Rate of change: reference/characteristics/rate-of-change.md
+          - Duration: reference/characteristics/duration.md
+          - Frequency: reference/characteristics/frequency.md
+      - CLI options and errors: reference/cli.md
+  - Examples:
+      - Runnable packs: examples/index.md
+  - Upgrade guidance: migration.md
+  - Python API: api/index.md
+validation:
+  links:
+    anchors: warn

@@ -1,218 +1,102 @@
 # hydropattern
-Finds natural flow regimes type patterns in time series data.
+Evaluate hydrologic time series against configured flow-pattern components.
+Designed for hydrologists and environmental scientists, hydropattern provides
+a command-line application and a secondary Python API.
 
-## Background
-Natural flow regimes are widely used in water resources management. Learn more about natural flow regimes:
-> Poff, N. L., Allan, J. D., Bain, M. B., Karr, J. R., Prestegaard, K. L., Richter, B. D., Sparks, R. E., & Stromberg, J. C. (1997). The Natural Flow Regime. BioScience, 47(11), 769–784. https://doi.org/10.2307/1313099
+## Version status
 
-The repository tends to use functional flows terminology. Functional flows are natural flow regimes linked to specific environmental processes. Learn more about functional flows:
-> Yarnell, S. M., Stein, E. D., Webb, J. A., Grantham, T., Lusardi, R. A., Zimmerman, J., Peek, R. A., Lane, B. A., Howard, J., & Sandoval-Solis, S. (2020). A functional flows approach to selecting ecologically relevant flow metrics for environmental flow applications. River Research and Applications, 36(2), 318-324. https://doi.org/10.1002/rra.3575
+**v0.3.0 is not yet released.** These instructions describe v0.3.0, not the
+published v0.2.0 package. v0.2.0 uses different frequency behavior and does
+not support the ordered-table syntax documented here.
 
-> Note: Figure 2 and Table 2 are particularly helpful for understanding the natural flow regimes this program tracks.
+Until v0.3.0 is published, use the
+[local-checkout instructions](docs/user/getting-started/installation.md#local-checkout-route-before-publication).
 
-Natural flow regimes can be adapted to classify hydrologic regimes in non-riverine environments, like static water levels in lakes. They can be used to evaluate the alteration of natural hydrologic patterns. This program imagines their usage in climate impact studies.
+## Documentation
 
-## Basic Terminology
-To define a natural flow regime the following hierarchical labels must be defined:
+Start with the [user documentation](docs/user/index.md), then follow:
 
-**Component:** Natural flow regimes consist of one or more *components*.
+- [Installation](docs/user/getting-started/installation.md)
+- [First evaluation](docs/user/getting-started/first-run.md)
+- [Interpreting first results](docs/user/getting-started/results.md)
+- [Glossary](docs/user/concepts/glossary.md)
+- [Configuration and characteristic reference](docs/user/reference.md)
+- [Upgrade guidance](docs/user/migration.md)
 
-**Characteristic:** Each component consists of one or more of the following *characteristics*.
+The Material/MkDocs site is available for local preview. GitHub Pages publishing
+is not enabled yet; it waits for v0.3.0 release preparation and authorization.
 
-- Timing: when the hydrologic pattern occurs (i.e., wet season).
-- Magnitude: the size hydrologic pattern (i.e., flow, stage, etc.).
-- Duration: how long the hydrologic pattern persists (i.e., 7 days).
-- Frequency: how often the pattern occurs (i.e. in 1 out of every 5 years).
-- Rate of Change: change in the size of the hydrologic pattern (i.e., doubling of the previous day's flow).
+## Inputs and results
 
-**Metric:** A metric defines the truth value for each characteristic. For example, the magnitude of flow > 100.
+Provide a CSV or Excel file with a `time` column and one or more observation
+columns. Each observation column is a scenario, evaluated independently.
+A TOML file specifies components, ordered characteristic conditions, and
+optional output settings.
 
-Examples are provided below.
+For example, a small CSV can contain a date column and one flow scenario:
 
-## Getting Started
-The program can be used as either: (a) python package, imported from the project GitHub repository: https://github.com/JohnRushKucharski/hydropattern or the PiPl python package index. (b) a command line application.
-
-### Installation Instructions
-
-hydropattern requires python 3.12+. It aims to be multi-platform and has been run on Windows 11 and MacOS 14 and 15.
-
-#### Clone or Fork climate-canvas from GitHub
-The hydropattern source code can be found here: https://github.com/JohnRushKucharski/hydropattern is available under the GNU Version 3 General Public License.
-
-It can be cloned or forked by following the normal cloning or forking instructions, which are available here: https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository and here: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo.
-
-
-#### Installation with uv
-
-hydropattern is developed with uv, which simplifies dependency management and virtual environment setup.
-
-To install uv, follow the instructions here: https://docs.astral.sh/uv/getting-started/installation/.
-
-Once uv is installed, use your favorite shell to go to the location of the local hydropattern repository, e.g.
-
-```
-cd <PATH_TO_LOCAL>\hydropattern
+```csv
+time,flow
+2020-01-01,0
+2020-01-02,2
 ```
 
-Next run:
+Results include raw timestep outcomes and component summary workbooks.
+Scenario grids can also produce response-surface plots. Characteristics cover
+timing, magnitude, duration, frequency, and rate of change.
+See [CLI usage](docs/user/guide/cli.md) for output choices and working folders.
 
-```
-uv sync --group test --group dev
-```
+## Install v0.3.0 from a checkout
 
-This will create or update a project virtual environment containing all required hydropattern dependencies, without affecting your system's global Python environment.
-
-The hydropattern program should now be ready for use as either a Python package or command line utility. To test the command line interface (CLI), run:
-
-```
-uv run python -m hydropattern --help
-```
-
-This should return help instructions for the hydropattern CLI.
-
-### Inputs
-The program requires two primary inputs:
-
-1. A .toml configuration file. This file must contain the following sections:
-
-    a. **[timeseries]**: in this section the *path* variable provides the location of the .csv or .xlsx timeseries input file, described below. The optional *date_format* variable is used to provide the timeseries datetime format code, see: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-behavior. By default pandas will, with a warning message and possible error, attempt to guess format of this string, if not date format is provided. The optional *first_day_of_water_year* is used to distinguish between water and calendar years, see: https://en.wikipedia.org/wiki/Water_year. By default, the water and calendar year are assumed be the same (i.e., first_day_of_water_year = 1). The optional *sheet_name* selects which Excel sheet to read (ignored for .csv files); defaults to 0 (the first sheet). See [docs/user/reference.md](docs/user/reference.md#timeseries-options) for the full field reference.
-
-    b. **[components]**: in this section components, characteristics, and metrics are provided.
-
-    c. **[output]** *(optional)*: controls output directory/overwrite/Excel behavior, the `[output.metric]` summary mode, and `[output.plot]`/`[output.plot.climate-canvas]` response-surface plotting. All keys are optional and default to the same behavior as the CLI's own defaults (see [docs/user/reference.md](docs/user/reference.md#output-options) for the full schema). Any CLI flag explicitly passed (e.g. `--plot`, `--output-dir`) always overrides the corresponding `[output]` toml value.
-    
-The toml configuration file follows basic toml file syntax (see: https://toml.io/en/). A minimal example can be found in the project GitHub repository at .\examples\minimal.toml. A more complete example file with extensive instructions and comments can be found at .\examples\detailed.toml.
-
-2. One or more hydrologic time series provided in a .csv file. This file must have the following format:
-
-time    | column_0      | column_1  | ... | column_n-1  | column_n      |
----     | ---           | ---       | --- | ---         | ---           | 
-t_0     | value_0,0     | value_1,0 | ... | value_n-1,0 | value_n,0     |
-t_1     | value_0,1     | ...       | ... | ...         | value_n,1     |
-...     | ...           | ...       | ... | ...         | ...           |         
-t_m-1   | value_0,m-1   | ...       | ... | ...         | value_n,m-1   |
-t_m     | value_0,m     | value_1,m | ... | value_n-1,m | value_n,m     |
-
-where the 'time' column contains a datetimestring that can be parsed as a pandas datetime index. By default pandas will, with a warning message and possible error, attempt to guess format of this string. However, the format of this string can be specified in the toml file, described above. Example time series are provided in the .\examples directory on the project's GiHub repository.
-
-## CLI Basic Usage
-The program can be run on a timeseries of input data, given a valid .toml file configuration (see inputs section above), using the **run** command. For example, using uv in a terminal the run command has the following syntax:
-
-```
-uv run python -m hydropattern run "path_to_toml_file"
-```
-
-where "path_to_toml_file" is replaced with a valid path to the input .toml file. The following **optional arguments**, can be appended to the end of the run command above. Each corresponds to an `[output]` toml key of the same behavior (see [docs/user/reference.md](docs/user/reference.md#output-options)); when a flag is explicitly passed on the CLI it always overrides the toml value, otherwise the toml value (or its own default) applies:
-
-```
---output-dir "path_to_output_csv_or_xlsx_files"
-```
-
-> By default, a `{config_stem}_output` directory is created next to the .toml
-> configuration file, and both the per-scenario results and the component summary
-> files are written there. Providing a valid path to this optional argument, or an
-> `[output].directory` value in the toml file, stores the outputs in a different
-> location instead.
-
-```
---plot / --no-plot
-```
-
-> Writes one response-surface plot (`{component}_plot.png`) and one grid csv
-> (`{component}_grid.csv`) per component to the output directory. Requires the
-> timeseries's scenario columns to encode a precip/temp scenario grid via the
-> `_<precip_delta>_<temp_delta>` naming convention (e.g. `_0_1.5`). Can also be
-> enabled via `[output.plot].enabled = true` in the toml file (no CLI flag needed).
-> See [docs/user/reference.md](docs/user/reference.md#response-surface-plots---plot) for
-> details, the grid naming convention, and related `--interp/--no-interp`, `--show/--no-show`,
-> `--threshold`, `--color-map`, and `--color-map-ticks` options and their
-> `[output.plot.climate-canvas]` toml equivalents (which also configure
-> plot title/xlabel/ylabel/zlabel).
-
-```
---excel / --no-excel
-```
-
-> This writes the outputs to a single excel file. Otherwise each timeseries in the input timeseries is written to a seperate .csv file. Equivalent to `[output].excel` in the toml file.
-
-```
---overwrite / --no-overwrite
-```
-
-> If true (default), existing output files are replaced on each run; if false, a numeric suffix is appended instead. Equivalent to `[output].overwrite` in the toml file.
-
-```
---run-toml-options / --override-toml-options
-```
-
-> If `--run-toml-options` is passed, the program runs exactly as specified in the
-> `.toml` file's `[output]` section; none of the other output-related CLI options
-> above (`--output-dir`, `--plot/--no-plot`, `--excel/--no-excel`,
-> `--overwrite/--no-overwrite`, `--interp/--no-interp`, `--show/--no-show`,
-> `--threshold`, `--color-map`, `--color-map-ticks`) may also be passed explicitly —
-> doing so raises a `CLI_CONFLICTING_OPTIONS` error. Default is
-> `--override-toml-options`, which keeps the normal CLI-overrides-toml precedence
-> described above.
-
-### Pattern evaluation example
-
-The standalone frequency example includes compact configuration, portable
-ordered characteristic tables, explicit exclusive windows, and nested annual
-frequency:
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/getting-started/installation/),
+and Git. Before v0.3.0 is released, install from a local source checkout:
 
 ```console
-uv run python -m hydropattern run examples/frequency.toml --no-excel
+uv python install 3.12
+uv sync --no-default-groups
+uv run --no-default-groups hydropattern --help
 ```
 
-Un-nested `N` counts input timesteps, not years. Compact TOML remains supported
-but emits a warning because table-key order is not guaranteed by TOML. Use
-ordered tables when explicit characteristic order is important:
+Ordinary users do not need development or test dependency groups. The
+installation guide provides platform-specific steps, a pip/virtual-environment alternative, and separate
+[Python API installation](docs/user/getting-started/installation.md#install-for-the-python-api).
 
-```toml
-# Compact; order follows the parsed table keys and warns.
-[components.pulse]
-magnitude = [">", 0]
-frequency = [">=", 1, 5]
+After v0.3.0 is published on PyPI, install the CLI with
+`uv tool install hydropattern==0.3.0`.
+
+## First evaluation
+
+Save [flow.csv](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/flow.csv)
+and [first-run.toml](https://raw.githubusercontent.com/JohnRushKucharski/hydropattern/v0.3.0/examples/first-run/first-run.toml)
+in one folder. The downloads become available when the v0.3.0 release tag is
+published; until then, copy them from `examples/first-run` in a local checkout.
+
+Open a terminal **in that folder**, then execute:
+
+```console
+hydropattern run first-run.toml --no-excel
 ```
 
-Equivalent ordered configuration:
+Relative input-data paths resolve from the terminal's working folder, not the
+TOML file's location. No repository clone is needed for the published downloads.
+The command creates `first-run_output/flow_sustained_flow.csv` and
+`first-run_output/sustained_flow_summary.xlsx`.
 
-```toml
-[components.pulse]
-[[components.pulse.characteristics]]
-type = "magnitude"
-metrics = [">", 0]
-[[components.pulse.characteristics]]
-type = "frequency"
-metrics = [">=", 1, 5]
-```
+The example marks two of eight fully known timesteps as component success:
+its total portion is 0.25. It identifies flow above 1 for at least two
+consecutive timesteps; isolated threshold exceedances fail duration.
+Configured success does not establish ecological benefit. Read the results
+guide before interpreting other configurations or unknown outcomes.
 
-The Python API evaluates one selected data column and retains its name in the
-result. This example prints the same frequency array asserted by
-`tests/test_documented_contracts.py`:
+## Scientific foundations
 
-```python
-import pandas as pd
+Natural flow regimes describe hydrologic variation relevant to ecosystems;
+functional flows connect that variation to environmental processes.
+See [Poff et al. (1997), *The Natural Flow Regime*](https://doi.org/10.2307/1313099)
+and [Yarnell et al. (2020), *A functional flows approach*](https://doi.org/10.1002/rra.3575).
+Illustrative thresholds are not universal ecological criteria.
 
-from hydropattern.parsers import build_components, parse_request
-from hydropattern.patterns import evaluate_component
+## License
 
-source = [0, 1, 0, 0, 1, 0, 0, 0, 0, 0]
-data = pd.DataFrame(
-    {"flow": source, "dowy": range(1, len(source) + 1)},
-    index=pd.date_range("2020-01-01", periods=len(source), name="time"),
-)
-request = parse_request(
-    {"pulse": {"magnitude": [">", 0], "frequency": [">=", 1, 5]}}
-)
-result = evaluate_component(data, build_components(request)[0])
-
-print(result.df["frequency_ge1in5(union)"].tolist())
-# [0, 1, 1, 1, 1, 1, 1, 1, 1, 0]
-# Result columns: flow, dowy, magnitude_gt0, frequency_ge1in5(union), pulse
-```
-
-See the [complete pattern reference](docs/user/reference.md#frequency) for
-frequency semantics, golden arrays, and the `Result` column contract. The
-[migration notes](docs/user/migration.md) describe behavior changes from
-earlier releases.
+hydropattern is available under the
+[GNU General Public License v3 or later](LICENSE.txt).

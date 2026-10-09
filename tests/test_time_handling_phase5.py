@@ -7,6 +7,7 @@ from hydropattern.patterns import (
     comparison_fx,
     identify_full_water_years,
     nested_frequency_intra_annual_fx,
+    water_year_exposure,
 )
 from hydropattern.patterns.characteristics import timing_fx
 from hydropattern.parsers import timing_parser
@@ -93,6 +94,58 @@ def test_water_year_completeness_rejects_gaps_and_unsupported_cadence():
         identify_full_water_years(np.ones(len(daily)), daily)
     with pytest.raises(ValueError, match='unsupported|cadence'):
         identify_full_water_years(np.ones(len(unsupported)), unsupported)
+
+
+def test_february_boundary_does_not_split_february_29_into_second_water_year():
+    dates = pd.date_range('2019-02-28', '2021-02-28', freq='D', name='time')
+    data = pd.DataFrame({'flow': np.ones(len(dates))}, index=dates)
+    dowy = Timeseries.from_dataframe(data, first_dowy=59).data['dowy'].to_numpy()
+
+    assert identify_full_water_years(dowy, dates) == [(0, 364), (365, 730)]
+
+
+def test_daily_water_year_accepts_missing_february_29_only():
+    dates = pd.date_range('2019-02-28', '2021-02-28', freq='D', name='time')
+    dates = dates.delete(dates.get_loc(pd.Timestamp('2020-02-29')))
+    data = pd.DataFrame({'flow': np.ones(len(dates))}, index=dates)
+    dowy = Timeseries.from_dataframe(data, first_dowy=59).data['dowy'].to_numpy()
+
+    assert identify_full_water_years(dowy, dates) == [(0, 364), (365, 729)]
+
+
+def test_water_year_exposure_is_one_for_daily_years_with_or_without_leap_day():
+    with_leap_day = pd.date_range('2019-10-01', '2020-09-30', freq='D')
+    without_leap_day = with_leap_day.delete(
+        with_leap_day.get_loc(pd.Timestamp('2020-02-29'))
+    )
+
+    assert water_year_exposure(with_leap_day, 274) == 1.0
+    assert water_year_exposure(without_leap_day, 274) == 1.0
+
+
+def test_water_year_exposure_counts_partial_daily_and_monthly_years():
+    daily = pd.date_range('2019-10-01', '2019-12-31', freq='D')
+    monthly = pd.date_range('2020-01-01', periods=18, freq='MS')
+    monthly_mid = pd.date_range('2020-01-15', periods=18, freq='MS') + pd.offsets.Day(14)
+
+    assert water_year_exposure(daily, 274) == len(daily) / 365
+    assert water_year_exposure(monthly, 1) == 1.5
+    assert water_year_exposure(monthly_mid, 1) == 1.5
+
+
+def test_partial_daily_exposure_uses_leap_day_only_when_observed():
+    before_leap_day = pd.date_range('2020-01-01', '2020-02-28', freq='D')
+    with_leap_day = pd.date_range('2020-01-01', '2020-03-01', freq='D')
+
+    assert water_year_exposure(before_leap_day, 1) == len(before_leap_day) / 365
+    assert water_year_exposure(with_leap_day, 1) == len(with_leap_day) / 366
+
+
+def test_water_year_exposure_rejects_unsupported_cadence():
+    dates = pd.to_datetime(['2020-01-01', '2020-01-03', '2020-01-06'])
+
+    with pytest.raises(ValueError, match='unsupported|cadence|gap'):
+        water_year_exposure(dates, 1)
 
 
 def test_daily_full_water_year_survives_adjacent_partial_years():

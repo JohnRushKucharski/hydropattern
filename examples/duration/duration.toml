@@ -1,0 +1,27 @@
+[timeseries]
+path = "flow.csv"
+date_format = "%Y-%m-%d"
+
+[components.long_flow]
+[[components.long_flow.characteristics]]
+type = "magnitude"
+parameters = [">", 0]
+
+[[components.long_flow.characteristics]]
+type = "duration"
+parameters = [">=", 3]
+
+[components.bounded_flow]
+[[components.bounded_flow.characteristics]]
+type = "magnitude"
+parameters = [">", 0]
+
+[[components.bounded_flow.characteristics]]
+type = "duration"
+parameters = [2, 3]
+
+[output]
+excel = false
+
+[output.metric]
+mode = "portion"

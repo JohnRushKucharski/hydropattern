@@ -1,12 +1,11 @@
-'''TDD for Phase 2: event_count.
+'''TDD for event counts and uncertainty bounds.
 
-count_events() is a thin, DRY wrapper around the existing mark_events()
-run-collapsing engine (already used by frequency_fx/nested_frequency_fx) --
-no duplicate run-detection logic. It counts distinct qualifying events
-(maximal runs of consecutive successes) in any 0/1(/NaN) success array.
+count_events() returns a scalar only when every completion of unknown final
+outcomes has the same maximal-success-run count. count_event_bounds() reports
+conservative bounds without retaining source dependencies.
 
-Result.event_count() applies it uniformly to a component's final success
-column (self.df[component.name]), with NO special-casing for nested vs
+Result event APIs apply uniformly to a component's final outcome
+(self.df[component.name]), with NO special-casing for nested vs
 non-nested components. This is deliberate, not an oversight: empirically
 verified (see TestEventCountNestedFrequencyEquivalence below) that a nested
 frequency characteristic's terminal column is piecewise-constant across each
@@ -19,6 +18,7 @@ needed before collapsing.
 '''
 # pylint: disable=missing-class-docstring,missing-function-docstring
 import unittest
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ from hydropattern.patterns import (
     CharacteristicType,
     Component,
     comparison_fx,
+    count_event_bounds,
     count_events,
     evaluate_component,
     nested_frequency_interannual_fx,
@@ -36,7 +37,7 @@ from hydropattern.parsers import duration_parser, magnitude_parser
 
 
 class TestCountEventsPureFunction(unittest.TestCase):
-    '''count_events: thin wrapper over mark_events, no new run-detection logic.'''
+    '''Scalar counts require one uniquely determined value.'''
 
     def test_no_successes_is_zero_events(self):
         self.assertEqual(count_events(np.array([0, 0, 0, 0])), 0)
@@ -50,10 +51,51 @@ class TestCountEventsPureFunction(unittest.TestCase):
     def test_all_successes_is_one_event(self):
         self.assertEqual(count_events(np.array([1, 1, 1, 1])), 1)
 
-    def test_leading_nan_does_not_count_as_or_extend_a_run(self):
-        # NaN (e.g. insufficient trailing history) breaks a run, matching
-        # mark_events' existing NaN semantics.
-        self.assertEqual(count_events(np.array([np.nan, np.nan, 1, 1, 0, 1])), 2)
+    def test_unknown_leading_outcomes_make_scalar_count_ambiguous(self):
+        success = np.array([np.nan, np.nan, 1, 1, 0, 1])
+
+        self.assertEqual(count_event_bounds(success), (2, 3))
+        with self.assertRaisesRegex(ValueError, 'count_event_bounds'):
+            count_events(success)
+
+    def test_unknown_outcome_returns_named_event_count_bounds(self):
+        bounds = count_event_bounds(np.array([1, np.nan, 1]))
+
+        self.assertEqual((bounds.lower, bounds.upper), (1, 2))
+        with self.assertRaisesRegex(ValueError, 'count_event_bounds'):
+            count_events(np.array([1, np.nan, 1]))
+
+    def test_invalid_outcome_values_are_rejected(self):
+        for outcomes in (np.array([0, 2]), np.array([0, np.inf]), np.array(['1'])):
+            with self.subTest(outcomes=outcomes), self.assertRaisesRegex(
+                ValueError, 'only 0, 1, or NaN'
+            ):
+                count_event_bounds(outcomes)
+
+    def test_bounds_match_all_short_binary_completions(self):
+        for length in range(5):
+            for source in product((0.0, 1.0, np.nan), repeat=length):
+                unknown_positions = [
+                    index for index, outcome in enumerate(source)
+                    if np.isnan(outcome)
+                ]
+                possible_counts = []
+                for completion in product((0.0, 1.0), repeat=len(unknown_positions)):
+                    outcomes = np.array(source, dtype=float)
+                    outcomes[unknown_positions] = completion
+                    starts = (
+                        (outcomes == 1)
+                        & np.concatenate(([True], outcomes[:-1] != 1))
+                        if len(outcomes)
+                        else np.array([], dtype=bool)
+                    )
+                    possible_counts.append(int(np.sum(starts)))
+
+                with self.subTest(source=source):
+                    self.assertEqual(
+                        count_event_bounds(np.array(source, dtype=float)),
+                        (min(possible_counts), max(possible_counts)),
+                    )
 
 
 class TestResultEventCountNonNested(unittest.TestCase):
@@ -88,7 +130,7 @@ class TestResultEventCountNonNested(unittest.TestCase):
 class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
     '''Proves month-grain run-counting on a nested frequency's broadcast
     terminal column always agrees with year-grain counting -- the empirical
-    basis for NOT special-casing is_nested in Result.event_count().
+    basis for not special-casing terminal characteristics in Result.event_count().
     '''
 
     def test_broadcast_column_run_count_matches_qualifying_year_runs(self):
@@ -106,7 +148,7 @@ class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
         output = np.column_stack([dummy, intra_annual])
         df = pd.DataFrame({'flow': range(16), 'dowy': dowy})
         f = comparison_fx('>=', 1)
-        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, exclusive_event_window=False)
+        fx = nested_frequency_interannual_fx(f, order=3, big_n=1, exclusive_windows=False)
         broadcast = fx(df, output)
 
         # 2 distinct qualifying blocks (year1 alone; year3+year4 contiguous)
@@ -119,7 +161,7 @@ class TestEventCountNestedFrequencyEquivalence(unittest.TestCase):
         # Same qualifying-year pattern as above, wired through evaluate_component
         # via a nested-terminal stub characteristic (mirrors
         # TestEvaluateComponentNestedFrequencyDispatch in test_patterns.py),
-        # to confirm Result.event_count() needs no is_nested branching.
+        # to confirm Result.event_count() needs no terminal-marker branching.
         nested_broadcast = np.array([
             1, 1, 1, 1,   # year1 (broadcast verdict: 1)
             0, 0, 0, 0,   # year2 (broadcast verdict: 0)

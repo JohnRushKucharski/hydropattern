@@ -9,7 +9,7 @@ patterns.py decomposition started in #30).
 from collections import namedtuple
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,13 +28,10 @@ class CharacteristicType(StrEnum):
 
 type CharacteristicFx = Callable[[pd.DataFrame, None|np.ndarray], np.ndarray]
 
-# is_nested marks the terminal (interannual) column of a nested frequency
-# characteristic. evaluate_component() uses this to broadcast the interannual
-# result across each qualifying water year instead of the generic row-wise AND
-# used for every other characteristic (including un-nested frequency and the
-# nested pattern's own intra-annual column). See
-# notes/frequencyEnhancement-resolved.md.
-Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type', 'is_nested'],
+# is_terminal identifies a characteristic that completes its component's
+# evaluation. Nested frequency's interannual pattern is currently the only
+# characteristic that sets this marker.
+Characteristic = namedtuple('Characteristic', ['name', 'fx', 'type', 'is_terminal'],
                             defaults=[False])
 
 #region utility functions
@@ -140,8 +137,11 @@ def moving_average(data: np.ndarray,
     return ma
 
 def eval_order_1_characteristic(f: Callable[[float], bool], data: np.ndarray) -> np.ndarray:
-    '''Evaluates eligble order 1 characteristic, returning array of [0, 1] values.'''
-    return np.array([1 if f(value) else 0 for value in data], dtype=int)
+    '''Evaluate an independent characteristic, preserving unavailable values as NaN.'''
+    return np.array([
+        np.nan if np.isnan(value) else int(f(value))
+        for value in data
+    ], dtype=float)
 
 def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
                                 output: np.ndarray, order: int) -> np.ndarray:
@@ -155,32 +155,27 @@ def eval_order_n_characteristic(f: Callable[[float], bool], data: np.ndarray,
 #endregion
 
 #region event/window helpers
-def mark_events(raw: np.ndarray, exclusive_event_window: bool = True) -> np.ndarray:
+def mark_windows(raw: np.ndarray, exclusive_windows: bool = True) -> np.ndarray:
     '''
-    Collapses maximal runs of consecutive successes in a raw 0/1/NaN diagnostic
-    array into event-level or timestep-level markers.
-
-    This is the shared event-marking engine used by both un-nested frequency
-    (applied to a sliding-window success diagnostic) and nested frequency
-    (applied to the intra-annual base-pattern diagnostic).
+    Optionally collapses each maximal run of consecutive successes in a raw
+    0/1/NaN diagnostic array to one marker at the run's last timestep.
 
     Parameters
     ----------
-        raw (np.ndarray): a 0/1/NaN array, e.g. a sliding-window success
-            diagnostic. NaN marks insufficient history (no verdict yet).
-        exclusive_event_window (bool): if True (default), each maximal run of consecutive
-            1s collapses to a single 1 marked at the run's last trial
-            (event-level); every other trial in the run is set to 0. If False,
-            every trial in a qualifying run is marked 1 (timestep-level) and
-            `raw` is returned unchanged.
+        raw (np.ndarray): a 0/1/NaN diagnostic array. NaN marks an unknown
+            outcome and breaks a run.
+        exclusive_windows (bool): if True (default), each maximal run of
+            consecutive 1s collapses to a single 1 at its last timestep.
+            Earlier 1s in that run become 0. If False, all values are
+            returned unchanged.
 
     Returns
     -------
-        np.ndarray: same shape as `raw`. NaNs and 0s always pass through
-        unchanged; only 1s within a run may be zeroed (exclusive_event_window=True).
+        np.ndarray: same shape as `raw`. NaNs and 0s are unchanged; only
+        earlier 1s in a run may become 0 when `exclusive_windows=True`.
     '''
     result = np.array(raw, dtype=float)
-    if not exclusive_event_window:
+    if not exclusive_windows:
         return result
 
     run_start = None
@@ -227,15 +222,75 @@ def sliding_window_count(data: np.ndarray, window: int) -> np.ndarray:
         result[t] = np.sum(data[t - window + 1:t + 1])
     return result
 
+class EventCountBounds(NamedTuple):
+    '''Inclusive lower and upper bounds for an observed component event count.'''
+    lower: int
+    upper: int
+
+
+class EventRateBounds(NamedTuple):
+    '''Inclusive lower and upper bounds for an observed component event rate.'''
+    lower: float
+    upper: float
+
+
+def _validate_outcomes(success: np.ndarray) -> np.ndarray:
+    raw_outcomes = np.asarray(success)
+    if raw_outcomes.ndim != 1 or raw_outcomes.dtype.kind not in 'biuf':
+        raise ValueError('outcomes must contain only 0, 1, or NaN.')
+    outcomes = raw_outcomes.astype(float, copy=False)
+    if np.any(
+        ~np.isnan(outcomes) & (outcomes != 0) & (outcomes != 1)
+    ):
+        raise ValueError('outcomes must contain only 0, 1, or NaN.')
+    return outcomes
+
+
+def _event_count_bounds(
+    success: np.ndarray, included: np.ndarray | None = None
+) -> EventCountBounds:
+    outcomes = _validate_outcomes(success)
+    if included is None:
+        included = np.ones(len(outcomes), dtype=bool)
+    if len(included) != len(outcomes):
+        raise ValueError('included must have the same length as outcomes.')
+
+    bounds_by_previous = {0: (0, 0)}
+    for index, outcome in enumerate(outcomes):
+        choices = (0, 1) if np.isnan(outcome) else (int(outcome),)
+        next_bounds: dict[int, tuple[int, int]] = {}
+        for previous, (minimum, maximum) in bounds_by_previous.items():
+            for current in choices:
+                starts_event = int(bool(included[index]) and current == 1 and previous == 0)
+                candidate = (minimum + starts_event, maximum + starts_event)
+                existing = next_bounds.get(current)
+                if existing is None:
+                    next_bounds[current] = candidate
+                else:
+                    next_bounds[current] = (
+                        min(existing[0], candidate[0]),
+                        max(existing[1], candidate[1]),
+                    )
+        bounds_by_previous = next_bounds
+
+    return EventCountBounds(
+        min(bounds[0] for bounds in bounds_by_previous.values()),
+        max(bounds[1] for bounds in bounds_by_previous.values()),
+    )
+
+
+def count_event_bounds(success: np.ndarray) -> EventCountBounds:
+    '''Return conservative event-count bounds for final 0/1/unknown outcomes.
+
+    Unknown timesteps are considered independently; bounds may therefore be
+    wider than counts permitted by dependencies in the source characteristics.
+    '''
+    return _event_count_bounds(success)
+
+
 def count_events(success: np.ndarray) -> int:
     '''
-    Counts distinct qualifying events in a 0/1(/NaN) success array.
-
-    An "event" is a maximal run of consecutive successes (collapsed via the
-    existing mark_events() engine, exclusive_event_window=True -- the same run-detection
-    already used by frequency_fx/nested_frequency_interannual_fx). This is a
-    thin wrapper, not a new run-detection algorithm, so any future change to
-    what counts as a "run" only needs to happen in mark_events().
+    Counts distinct component events when final outcomes determine one count.
 
     Works uniformly for any component's success column, regardless of
     whether it is a raw per-timestep grain (magnitude, duration, un-nested
@@ -253,9 +308,18 @@ def count_events(success: np.ndarray) -> int:
 
     Returns
     -------
-        int: number of distinct qualifying events.
+    int: number of distinct component events.
+
+    Raises
+    ------
+    ValueError: If unknown outcomes permit more than one count.
     '''
-    return int(np.nansum(mark_events(np.asarray(success, dtype=float), exclusive_event_window=True)))
+    bounds = count_event_bounds(success)
+    if bounds.lower != bounds.upper:
+        raise ValueError(
+            'Event count is ambiguous; use count_event_bounds() to inspect bounds.'
+        )
+    return bounds.lower
 
 def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     '''
@@ -267,7 +331,7 @@ def find_runs(eligible: np.ndarray) -> list[tuple[int, int]]:
     run-detection implementation, not two.
 
     NaN breaks a run (does not count as, or extend, a run of successes),
-    matching mark_events' existing NaN semantics.
+    matching mark_windows' existing NaN semantics.
 
     Parameters
     ----------
@@ -340,7 +404,7 @@ def event_rate(events: int, years: float) -> float:
     and does NOT assume independence between events. Great Lakes water-level
     records show documented multi-decadal persistence/clustering, so
     between-event independence should not be assumed when interpreting this
-    rate (see docs/adr and prior review notes on this component's stats).
+    rate (see docs/developer/adr and prior review notes on this component's stats).
 
     Parameters
     ----------
@@ -375,45 +439,133 @@ class Result:
     df: pd.DataFrame
     component: Component
     dv_name: str = ''
+    first_day_of_water_year: int | None = None
 
     def __post_init__(self):
         if not self.dv_name:
             self.dv_name = self.df.columns[0]
+        if self.first_day_of_water_year is not None:
+            from hydropattern.patterns.water_year import validate_water_year_boundary
+            self.first_day_of_water_year = validate_water_year_boundary(
+                self.first_day_of_water_year
+            )
 
     def event_count(self) -> int:
-        '''Counts distinct qualifying events (maximal runs of success) for
-        this component. See count_events() for the underlying rule; applies
-        uniformly regardless of component composition (magnitude/duration/
-        frequency/nested-frequency -- see count_events() docstring).'''
-        return count_events(self.df[self.component.name].to_numpy())
+        '''Return component event count; reject ambiguous counts.'''
+        bounds = self.event_count_bounds()
+        if bounds.lower != bounds.upper:
+            raise ValueError(
+                'Event count is ambiguous; use event_count_bounds() to inspect bounds.'
+            )
+        return bounds.lower
+
+    def event_count_bounds(self) -> EventCountBounds:
+        '''Return conservative whole-record event-count bounds.
+
+        Unknown final outcomes are treated independently, so bounds may be
+        wider than counts permitted by dependencies in the source evaluation.
+        '''
+        return count_event_bounds(self.df[self.component.name].to_numpy())
+
+    def event_count_bounds_by_water_year(self) -> dict[int, EventCountBounds]:
+        '''Return event-count bounds attributed to each event's start water year.'''
+        labels = self._water_year_labels()
+        outcomes = self.df[self.component.name].to_numpy()
+        return {
+            int(year): _event_count_bounds(outcomes, labels == year)
+            for year in np.unique(labels)
+        }
 
     def event_rate(self) -> float:
-        '''Descriptive rate of qualifying events per water year: event_count()
-        / record_length_years(dowy). See event_rate() and
-        record_length_years() docstrings for what this is (and is not) -- a
-        plain descriptive statistic, not a recurrence-interval/Poisson claim,
-        and not is_nested-branched (T is a property of the record's own
-        water-year structure via its dowy column, independent of any one
-        component's success-column grain).'''
-        # Local import: hydropattern.patterns.water_year imports mark_events/
-        # sliding_window_count from this module, so importing it back at
-        # module scope here would create a circular import.
-        from hydropattern.patterns.water_year import record_length_years 
-        timestamps = self.df.index if isinstance(self.df.index, pd.DatetimeIndex) else None
-        return event_rate(
-            self.event_count(),
-            record_length_years(self.df['dowy'].to_numpy(), timestamps),
-        )
+        '''Return whole-record event rate; reject ambiguous counts or exposure.'''
+        bounds = self.event_rate_bounds()
+        if bounds.lower != bounds.upper:
+            raise ValueError(
+                'Event rate is ambiguous; use event_rate_bounds() to inspect bounds.'
+            )
+        return bounds.lower
 
-    def identify_water_years(self):
+    def event_rate_bounds(self) -> EventRateBounds:
+        '''Return whole-record event-rate bounds per observed water year.'''
+        from hydropattern.patterns.water_year import water_year_exposure
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        exposure = water_year_exposure(timestamps, boundary)
+        counts = self.event_count_bounds()
+        if exposure <= 0:
+            raise ValueError('Observed water-year exposure must be greater than 0.')
+        return EventRateBounds(counts.lower / exposure, counts.upper / exposure)
+
+    def event_rate_bounds_by_water_year(self) -> dict[int, EventRateBounds]:
+        '''Return annual event-rate bounds using each year's observed exposure.'''
+        from hydropattern.patterns.water_year import water_year_exposure_by_year
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        exposures = water_year_exposure_by_year(timestamps, boundary)
+        counts = self.event_count_bounds_by_water_year()
+        return {
+            year: EventRateBounds(bounds.lower / exposures[year],
+                                  bounds.upper / exposures[year])
+            for year, bounds in counts.items()
+        }
+
+    def _timestamps(self) -> pd.DatetimeIndex:
+        if not isinstance(self.df.index, pd.DatetimeIndex):
+            raise ValueError(
+                'DatetimeIndex is required to determine observed water-year exposure.'
+            )
+        return self.df.index
+
+    def _water_year_boundary(self, timestamps: pd.DatetimeIndex) -> int:
+        from hydropattern.patterns.water_year import infer_first_day_of_water_year
+        inferred = infer_first_day_of_water_year(
+            self.df['dowy'].to_numpy(), timestamps
+        )
+        if (
+            self.first_day_of_water_year is not None
+            and self.first_day_of_water_year != inferred
+        ):
+            raise ValueError(
+                'first_day_of_water_year conflicts with timestamps and dowy.'
+            )
+        return self.first_day_of_water_year or inferred
+
+    def _water_year_labels(self) -> np.ndarray:
+        from hydropattern.patterns.water_year import water_year_label
+        timestamps = self._timestamps()
+        boundary = self._water_year_boundary(timestamps)
+        return np.array([water_year_label(date, boundary) for date in timestamps])
+
+    def identify_water_years(
+        self, first_day_of_water_year: int | None = None
+    ) -> pd.DataFrame:
         '''Identifies water years in the timeseries.'''
-        # yr = np.nan
-        data = self.df['dowy']
-        wy = np.full(len(data), np.nan)
-        for i in range(len(data)):
-            # if data.iat[i] == 1:
-            #     yr = data.index[i].year
-            wy[i] = data.index[i].year
+        if not isinstance(self.df.index, pd.DatetimeIndex):
+            raise ValueError('DatetimeIndex is required to identify water years.')
+        if (
+            first_day_of_water_year is not None
+            and self.first_day_of_water_year is not None
+            and first_day_of_water_year != self.first_day_of_water_year
+        ):
+            raise ValueError(
+                'first_day_of_water_year conflicts with Result boundary metadata.'
+            )
+        boundary = first_day_of_water_year
+        if boundary is None:
+            boundary = self.first_day_of_water_year
+        if boundary is None:
+            raise ValueError(
+                'first_day_of_water_year is required to identify water years.'
+            )
+        from hydropattern.patterns.water_year import (
+            validate_water_year_boundary,
+            water_year_label,
+        )
+        boundary = validate_water_year_boundary(boundary)
+        wy = [
+            water_year_label(timestamp, boundary)
+            for timestamp in self.df.index
+        ]
         df = self.df.copy()
         df['water_year'] = wy
         return df
@@ -423,33 +575,31 @@ class Result:
         # return df
 
     def frequency_table(self, by_water_years: bool = False) -> pd.DataFrame:
-        '''Returns a frequency table of the component success.'''
-        T = len(self.df) # pylint: disable=invalid-name
-        data = {'T': [T]}
-        for _, characteristic in enumerate(self.component.characteristics):
-            n = self.df[characteristic.name].sum()
-            data[characteristic.name] = [n]
-            data[f'{characteristic.name}(%)'] = [(n / T) * 100]
-        n = self.df[self.component.name].sum()
-        data[self.component.name] = [n]
-        data[f'{self.component.name}(%)'] = [(n / T) * 100]
+        '''Returns success counts and known-outcome percentages per column.'''
+        def summarize(group: pd.DataFrame) -> dict[str, int | float]:
+            row: dict[str, int | float] = {'T': len(group)}
+            for column in [
+                *(characteristic.name for characteristic in self.component.characteristics),
+                self.component.name,
+            ]:
+                known = int(group[column].notna().sum())
+                successes = int(group[column].sum())
+                row[column] = successes
+                row[f'{column}(%)'] = (
+                    successes / known * 100 if known else float('nan')
+                )
+            return row
+
+        rows = [summarize(self.df)]
+        indexes: list[str | int] = ['total']
         if by_water_years:
             df = self.identify_water_years().dropna(subset=['water_year'])
             wys = df['water_year'].dropna().unique()
-            for _, wy in enumerate(wys):
+            for wy in wys:
                 df_wy = df[df['water_year'] == wy]
-                T = len(df_wy) # pylint: disable=invalid-name
-                data['T'].append(T)
-                for _, characteristic in enumerate(self.component.characteristics):
-                    n_wy = df_wy[characteristic.name].sum()
-                    data[characteristic.name].append(n_wy)
-                    data[f'{characteristic.name}(%)'].append((n_wy / T) * 100)
-                n_wy = df_wy[self.component.name].sum()
-                data[self.component.name].append(n_wy)
-                data[f'{self.component.name}(%)'].append((n_wy / T) * 100)
-            indexs = ['total'] + [str(int(wy)) for wy in wys]
-            return pd.DataFrame(data, index=indexs)
-        return pd.DataFrame(data)
+                rows.append(summarize(df_wy))
+                indexes.append(int(wy))
+        return pd.DataFrame(rows, index=indexes)
 
     def plot_success(self,
                      ylimits: None|tuple[float, float] = None,
@@ -486,7 +636,10 @@ class Result:
         plt.show()
 
 def evaluate_component(
-    df: pd.DataFrame, component: Component, data_column: int = 0
+    df: pd.DataFrame,
+    component: Component,
+    data_column: int = 0,
+    first_day_of_water_year: int | None = None,
 ) -> Result:
     '''Evaluates a single component on a single timeseries.
 
@@ -560,14 +713,22 @@ def evaluate_component(
     )
     if isinstance(df.index, pd.DatetimeIndex):
         df.index.name = 'time'
-    return Result(df, component, str(selected_name))
+    return Result(df, component, str(selected_name), first_day_of_water_year)
 
 def evaluate_components(
-    df: pd.DataFrame, components: list[Component], data_column: int = 0
+    df: pd.DataFrame,
+    components: list[Component],
+    data_column: int = 0,
+    first_day_of_water_year: int | None = None,
 ) -> list[Result]:
     ''''Evaluates a list of components on a single timeseries.'''
     return [
-        evaluate_component(df, component, data_column=data_column)
+        evaluate_component(
+            df,
+            component,
+            data_column=data_column,
+            first_day_of_water_year=first_day_of_water_year,
+        )
         for component in components
     ]
 

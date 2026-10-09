@@ -5,7 +5,6 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 import pandas as pd
 from typer.testing import CliRunner
@@ -21,6 +20,7 @@ from hydropattern.cli import (
 from hydropattern.errors import CliErrorCode, HydropatternError, ParserErrorCode, PlotErrorCode
 from hydropattern.parsers import MetricMode, MetricOptions
 from hydropattern.patterns import Component, Result
+from hydropattern.scenarios import evaluate_scenarios
 
 RUNNER = CliRunner()
 
@@ -302,6 +302,43 @@ class TestCLICommand(unittest.TestCase):
 
             self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertTrue(any(output_dir.glob('*.csv')))
+            self.assertTrue(
+                (output_dir / 'single_characteristic_summary.xlsx').exists()
+            )
+            details = pd.read_excel(
+                output_dir / 'single_characteristic_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+            self.assertIn('known_outcome_coverage', details.columns)
+
+    def test_cli_and_python_exports_have_matching_reporting_details(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cli_output = Path(temp_dir) / 'cli'
+            python_output = Path(temp_dir) / 'python'
+            cli_result = RUNNER.invoke(
+                app,
+                ['run', str(self.cli_smoke_config_path),
+                 '--output-dir', str(cli_output)],
+            )
+            self.assertEqual(cli_result.exit_code, 0, msg=cli_result.stdout)
+
+            config = load_config_file(str(self.cli_smoke_config_path))
+            scenarios = evaluate_scenarios(
+                load_timeseries(config),
+                load_components(config),
+            )
+            scenarios.to_excel(output_directory=str(python_output))
+
+            cli_details = pd.read_excel(
+                cli_output / 'single_characteristic_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+            python_details = pd.read_excel(
+                python_output / 'single_characteristic_summary.xlsx',
+                sheet_name='reporting_details',
+            )
+
+        pd.testing.assert_frame_equal(cli_details, python_details)
 
     def test_run_command_plot_writes_grid_csv_and_png_for_scenario_grid(self):
         '''--plot on a config whose scenario names form a grid writes grid csv + png.'''
@@ -318,6 +355,44 @@ class TestCLICommand(unittest.TestCase):
             self.assertEqual(result.exit_code, 0, msg=result.stdout)
             self.assertTrue((output_dir / 'single_characteristic_grid.csv').exists())
             self.assertTrue((output_dir / 'single_characteristic_plot.png').exists())
+            self.assertTrue(
+                (output_dir / 'single_characteristic_grid_coverage.csv').exists()
+            )
+
+    def test_minimum_coverage_cli_option_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = RUNNER.invoke(
+                app,
+                ['run', str(self.test_files_dir / 'cli_smoke_grid_config.toml'),
+                 '--output-dir', str(Path(temp_dir) / 'out'), '--no-excel', '--plot',
+                 '--minimum-coverage', '0.6'],
+            )
+        self.assertEqual(result.exit_code, 0, msg=result.stdout)
+
+    def test_minimum_coverage_conflicts_with_run_toml_options(self):
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--run-toml-options',
+             '--minimum-coverage', '0.6'],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIsInstance(result.exception, HydropatternError)
+        self.assertEqual(
+            result.exception.envelope.code, CliErrorCode.CONFLICTING_OPTIONS
+        )
+        self.assertIn('minimum_coverage', result.exception.envelope.context['options'])
+
+    def test_minimum_coverage_rejects_nonfinite_cli_value(self):
+        result = RUNNER.invoke(
+            app,
+            ['run', str(self.cli_smoke_config_path), '--minimum-coverage', 'NaN'],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        message = _strip_ansi(
+            result.output + (str(result.exception) if result.exception else '')
+        )
+        self.assertIn('--minimum-coverage', message)
+        self.assertIn('finite fraction', message)
 
     def test_run_command_plot_fails_for_non_grid_scenarios(self):
         '''--plot on a single-scenario config raises a clear PLOT_INVALID_SCENARIO_GRID error.'''
@@ -724,4 +799,3 @@ class TestCLIOutputModes(unittest.TestCase):
             )
             # 2 of 3 timesteps succeed -> portion 2/3 -> percentage ~66.67.
             self.assertAlmostEqual(summary_df.loc['total', 'flow'], 200 / 3)
-

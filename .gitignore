@@ -144,6 +144,15 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# Reproducible outputs from the first-run pack only
+/examples/first-run/first-run_output/
+
+# Reproducible outputs from the focused S5 packs only
+/examples/seasonal-thresholds/seasonal-thresholds_output/
+/examples/duration/duration_output/
+/examples/frequency/frequency_output/
+/examples/multiple-scenarios/multiple-scenarios_output/
+
 # mypy
 .mypy_cache/
 .dmypy.json

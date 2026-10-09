@@ -1,9 +1,9 @@
-'''Phase 2 (frequency) tests, per docs/plans/2026-10-01-pattern-correctness-tdd.md.
+'''Phase 2 (frequency) tests, per docs/developer/plans/2026-10-01-pattern-correctness-tdd.md.
 
 Supersedes the phase 0 baseline (tests/test_golden_frequency_baseline.py,
 removed): the same six golden rows now pass for real (forward, event-
 anchored windows), plus the plan's required edge-case oracle tests, and
-coverage of the `event_bool` -> `exclusive_event_window` rename (new default
+coverage of the `event_bool` -> `exclusive_windows` rename (new default
 False).
 
 Un-nested frequency contract:
@@ -13,9 +13,9 @@ Un-nested frequency contract:
   - A window qualifies when `f(count)` is true, where count is the number of
     source-success timesteps actually inside the (possibly truncated)
     window.
-  - exclusive_event_window=False (default): qualifying windows are unioned
+  - exclusive_windows=False (default): qualifying windows are unioned
     (OR'd) across all anchors.
-  - exclusive_event_window=True: the first qualifying anchor fixes an
+  - exclusive_windows=True: the first qualifying anchor fixes an
     N-timestep marked span; anchors inside that span are suppressed
     (skipped, not evaluated) until the span ends. A failed candidate never
     suppresses a later candidate.
@@ -32,7 +32,7 @@ from hydropattern.patterns import comparison_fx, frequency_fx
 # ---------------------------------------------------------------------------
 
 GOLDEN_FREQUENCY_ROWS = [
-    # (source diagnostic, [op, n, N], exclusive_event_window, expected)
+    # (source diagnostic, [op, n, N], exclusive_windows, expected)
     ([1, 0, 0, 0, 0, 0], ['>=', 1, 5], True, [1, 1, 1, 1, 1, 0]),
     ([1, 0, 0, 0, 0, 0], ['>=', 1, 5], False, [1, 1, 1, 1, 1, 0]),
     ([0, 0, 0, 0, 1, 0], ['>=', 1, 5], True, [0, 0, 0, 0, 1, 1]),
@@ -49,27 +49,27 @@ GOLDEN_FREQUENCY_ROWS = [
 ]
 
 
-def _run_frequency(source: list[int], metrics: list, exclusive_event_window: bool) -> list[float]:
+def _run_frequency(source: list[int], metrics: list, exclusive_windows: bool) -> list[float]:
     df = pd.DataFrame({'flow': source, 'dowy': np.arange(1, len(source) + 1)})
     output = np.array(source, dtype=float).reshape(-1, 1)
     op, n, big_n = metrics
     fx = frequency_fx(
         comparison_fx(op, n), order=2, big_n=big_n,
-        exclusive_event_window=exclusive_event_window,
+        exclusive_windows=exclusive_windows,
     )
     return fx(df, output).tolist()
 
 
-@pytest.mark.parametrize('source,metrics,exclusive_event_window,expected', GOLDEN_FREQUENCY_ROWS)
-def test_golden_frequency_row(source, metrics, exclusive_event_window, expected):
-    assert _run_frequency(source, metrics, exclusive_event_window) == expected
+@pytest.mark.parametrize('source,metrics,exclusive_windows,expected', GOLDEN_FREQUENCY_ROWS)
+def test_golden_frequency_row(source, metrics, exclusive_windows, expected):
+    assert _run_frequency(source, metrics, exclusive_windows) == expected
 
 
 # ---------------------------------------------------------------------------
-# Default: exclusive_event_window now defaults to False (union), not True.
+# Default: exclusive_windows now defaults to False (union), not True.
 # ---------------------------------------------------------------------------
 
-def test_default_exclusive_event_window_is_false():
+def test_default_exclusive_windows_is_false():
     # Row 7/8 above show union (False) and exclusive (True) diverge for this
     # source; the no-kwarg default must match the union (False) result.
     source = [0, 1, 0, 0, 1, 0, 0, 0, 0, 0]
@@ -118,7 +118,7 @@ def test_inclusive_between_bounds():
     df = pd.DataFrame({'flow': source, 'dowy': np.arange(1, len(source) + 1)})
     output = np.array(source, dtype=float).reshape(-1, 1)
     f = lambda c: 1 <= c <= 2  # noqa: E731 inclusive [min_n, max_n] = [1, 2]
-    fx = frequency_fx(f, order=2, big_n=5, exclusive_event_window=False)
+    fx = frequency_fx(f, order=2, big_n=5, exclusive_windows=False)
     result = fx(df, output).tolist()
     # anchors t=0 (window [0,4], count=2, qualifies: min_n<=2<=max_n) and
     # t=1 (window [1,4], count=1, qualifies) -> union marks 0..4.
@@ -165,4 +165,3 @@ def test_suppression_boundary_next_anchor_exactly_at_span_end():
     # anchor t=4 lands exactly at span_end=4 -> suppressed.
     expected = [1, 1, 1, 1, 1, 0]
     assert _run_frequency(source, ['>=', 1, 5], True) == expected
-

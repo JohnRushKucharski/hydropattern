@@ -120,7 +120,48 @@ class TestEvaluateScenarios(unittest.TestCase):
         result = evaluate_scenarios(ts, components)
 
         self.assertEqual(result.first_day_of_water_year, 274)
+        self.assertEqual(
+            result.scenario_results['value'][0].first_day_of_water_year, 274
+        )
 
+    def test_result_water_year_labels_use_configured_boundary(self):
+        dates = pd.to_datetime(['2020-09-30', '2020-10-01', '2020-10-02'])
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        ts = Timeseries.from_dataframe(data, first_dowy=274)
+        evaluated = evaluate_scenarios(ts, _above_threshold_component())
+        result = evaluated.scenario_results['value'][0]
+
+        labels = result.identify_water_years()['water_year'].tolist()
+
+        self.assertEqual(labels, [2020, 2021, 2021])
+
+    def test_result_water_year_labels_require_boundary_for_direct_callers(self):
+        dates = pd.date_range('2020-09-30', periods=3, freq='D')
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        result = evaluate_scenarios(
+            Timeseries.from_dataframe(data), _above_threshold_component()
+        ).scenario_results['value'][0]
+        result.first_day_of_water_year = None
+
+        with self.assertRaisesRegex(ValueError, 'first_day_of_water_year is required'):
+            result.identify_water_years()
+
+        labels = result.identify_water_years(first_day_of_water_year=274)
+        self.assertEqual(labels['water_year'].tolist(), [2020, 2021, 2021])
+
+    def test_result_rejects_conflicting_water_year_boundary(self):
+        dates = pd.date_range('2020-09-30', periods=3, freq='D')
+        data = pd.DataFrame({'value': [1.0, 2.0, 3.0]}, index=dates)
+        data.index.name = 'time'
+        result = evaluate_scenarios(
+            Timeseries.from_dataframe(data, first_dowy=274),
+            _above_threshold_component(),
+        ).scenario_results['value'][0]
+
+        with self.assertRaisesRegex(ValueError, 'conflicts with Result'):
+            result.identify_water_years(first_day_of_water_year=1)
 
 class TestByComponent(unittest.TestCase):
     '''Tests for ScenarioResults.by_component.'''
@@ -250,7 +291,7 @@ class TestToExcelAndToCsv(unittest.TestCase):
                 expected_dir = Path(temp_dir) / 'flows_output'
                 self.assertEqual(output_path, expected_dir)
                 self.assertTrue((expected_dir / 'flows_output.xlsx').exists())
-                self.assertTrue((expected_dir / 'Low_summary.xlsx').exists())
+                self.assertTrue((expected_dir / 'low_summary.xlsx').exists())
             finally:
                 for f in expected_dir.glob('*'):
                     os.remove(f)
@@ -266,13 +307,13 @@ class TestToExcelAndToCsv(unittest.TestCase):
 
             self.assertEqual(output_path, custom_dir)
             self.assertTrue((custom_dir / 'flows_output.xlsx').exists())
-            self.assertTrue((custom_dir / 'Low_summary.xlsx').exists())
+            self.assertTrue((custom_dir / 'low_summary.xlsx').exists())
 
     def test_to_csv_writes_per_scenario_component_csv_plus_summary(self):
         '''write_to_excel=False path: one csv per scenario/component pair, plus the
         per-component summary xlsx (always written, matching CLI parity).'''
         with tempfile.TemporaryDirectory() as temp_dir:
-            result, component = self._evaluate_from_csv(temp_dir)
+            result, _ = self._evaluate_from_csv(temp_dir)
             custom_dir = Path(temp_dir) / 'csv_out'
 
             output_path = result.to_csv(output_directory=str(custom_dir))
@@ -280,7 +321,7 @@ class TestToExcelAndToCsv(unittest.TestCase):
             self.assertEqual(output_path, custom_dir)
             csv_files = list(custom_dir.glob('*.csv'))
             self.assertEqual(len(csv_files), 1)
-            self.assertTrue((custom_dir / f'{component.name}_summary.xlsx').exists())
+            self.assertTrue((custom_dir / 'low_summary.xlsx').exists())
 
     def test_to_excel_without_source_file_falls_back_to_hydropattern_output_name(self):
         '''An in-memory Timeseries (no file_path) must still produce a sensible default
@@ -388,11 +429,28 @@ class TestPlotResponseSurface(unittest.TestCase):
             )
 
         _, kwargs = mocked.call_args
-        self.assertEqual(kwargs['title'], component.name)
+        self.assertTrue(kwargs['title'].startswith(component.name + '\n'))
         self.assertEqual(
             kwargs['labels'],
-            ('Precipitation Delta (%)', 'Temperature Delta (C)', 'percentage'),
+            (
+                'Precipitation Delta (%)', 'Temperature Delta (C)',
+                'Percentage of known outcomes (%)',
+            ),
         )
+
+    def test_forwards_minimum_coverage_to_shared_plotting_logic(self):
+        result, component = self._grid_evaluate()
+        with mock.patch('hydropattern.formatters.plot_response_surface') as mocked:
+            result.plot_response_surface(component.name, minimum_coverage=0.65)
+
+        _, kwargs = mocked.call_args
+        self.assertIn('Minimum coverage: 65%', kwargs['title'])
+
+    def test_rejects_invalid_python_minimum_coverage(self):
+        result, component = self._grid_evaluate()
+        for value in (True, float('nan'), -0.1, 1.1):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                result.plot_response_surface(component.name, minimum_coverage=value)
 
 
 if __name__ == '__main__':

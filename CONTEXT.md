@@ -3,7 +3,23 @@
 Evaluates hydrologic timeseries against configured flow-pattern components, and reports
 results as Excel/CSV summaries and, optionally, response-surface plots across scenarios.
 
+## Implementation context
+
+Pattern-correctness documentation and required reporting slices R0–R10 are
+complete on `reporting-metrics` for the forthcoming v0.3.0 release. S9 cleanup
+review is complete; reviewed artifacts were retained, with no deletions.
+S10 release preparation is in progress; commit, merge, and push were authorized
+on 2026-10-09. Package publication, Pages enablement, and optional R11 remain
+gated.
+See the
+[sequence](docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md)
+and its linked plans for scope, completion records, and prerequisites.
+
 ## Language
+
+This file is the source of truth for domain terminology. Its reporting and
+pattern-correctness terms describe the implemented v0.3.0 behavior unless an
+entry explicitly labels itself as historical.
 
 **Scenario**:
 One data column in a `[timeseries]` input, representing one hydrologic trace/run to
@@ -232,9 +248,11 @@ _Avoid_: base pattern, inner pattern, first pattern.
 The second part of a nested frequency, evaluated across water years on
 the intra-annual pattern's qualifying water years.
 _Avoid_: nested pattern, outer pattern, second pattern.
-Code identifiers using `base_`/`nested_` are scheduled for renaming to
-`intra_annual_`/`interannual_` (or neutral equivalents where un-nested
-frequency shares the field).
+Code uses neutral names for fields shared with un-nested frequency and
+`interannual_` names only for fields specific to the interannual part of a
+nested frequency.
+`CharacteristicSpec` uses `has_interannual_pattern` and `interannual_*` fields;
+the generic characteristic marker is `is_terminal`.
 
 ## Example dialogue
 

@@ -1,0 +1,19 @@
+[timeseries]
+path = "flow.csv"
+date_format = "%Y-%m-%d"
+
+[components.increasing_flow]
+[[components.increasing_flow.characteristics]]
+type = "rate_of_change"
+parameters = [">=", 1.5]
+
+[output]
+excel = false
+
+[output.plot]
+enabled = true
+minimum_coverage = 0.9
+
+[output.plot.climate-canvas]
+interpolate = false
+show = false

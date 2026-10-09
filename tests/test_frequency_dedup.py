@@ -40,7 +40,7 @@ class TestFrequencyDelegatesToFrequencyParser(unittest.TestCase):
         mock_parser.assert_called_once_with([1, 3, 5], order=2)
         self.assertIs(components[0].characteristics[1], sentinel)
 
-    def test_exclusive_event_window_forwarded_when_not_default(self):
+    def test_exclusive_windows_forwarded_when_not_default(self):
         sentinel = patterns.Characteristic(
             name='sentinel', fx=lambda df, output: df, type=patterns.CharacteristicType.FREQUENCY
         )

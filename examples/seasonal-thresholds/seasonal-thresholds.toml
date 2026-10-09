@@ -1,0 +1,18 @@
+[timeseries]
+path = "flow.csv"
+date_format = "%Y-%m-%d"
+
+[components.early_december]
+[[components.early_december.characteristics]]
+type = "timing"
+parameters = [335, 336]
+
+[[components.early_december.characteristics]]
+type = "magnitude"
+parameters = [">", 1]
+
+[output]
+excel = false
+
+[output.metric]
+mode = "portion"

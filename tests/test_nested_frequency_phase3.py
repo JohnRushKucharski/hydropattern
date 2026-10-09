@@ -131,7 +131,7 @@ def test_antecedent_frequency_exclusivity_changes_nested_probability():
                     comparison_fx('>=', 2),
                     order=2,
                     big_n=3,
-                    exclusive_event_window=exclusive,
+                    exclusive_windows=exclusive,
                 ),
                 CharacteristicType.FREQUENCY,
             ),

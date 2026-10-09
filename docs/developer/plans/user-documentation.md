@@ -1,19 +1,25 @@
 # User documentation redesign
 
-Status: agreed design; implementation pending.
+Status: D1–D5 and their reporting-dependent documentation are complete and
+integrated in local `reporting-metrics`. R0–R10 are complete and committed on
+that branch; phase 8 pattern-correctness documentation is also complete.
+S9/D6 cleanup review is complete: artifacts were retained and no deletion was
+authorized. D7/S10 release preparation remains; package publication and
+GitHub Pages deployment remain gated. The forthcoming package version is
+0.3.0; work has not been merged to `main` or pushed. Commit, merge, and push
+were authorized on 2026-10-09.
 
 Related prerequisite: the
-[reporting and unknown-outcome TDD plan](../../plans/2026-10-06-reporting-metrics-tdd.md)
-now defines additional scientific and reporting changes for the next release.
-Keep those changes separate from editorial implementation, but coordinate the
-user-facing explanations and worked examples with this redesign. In particular,
-do not publish the former reciprocal mode, denominator policies, or failure-pattern
-color reversal as the new behavior; document the implementation actually released.
+[reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
+records additional scientific and reporting changes implemented for v0.3.0.
+Keep algorithm changes separate from editorial work and describe the
+implemented behavior; do not present superseded reciprocal mode, denominator
+policies, or failure-pattern color reversal as current behavior.
 The reporting plan requires a dedicated unknown-outcome section and characteristic,
 event-count, water-year, and plotting examples, not merely developer records.
 
 Work order across both plans is defined in the
-[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md).
+[documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md).
 Phases below are labelled D1–D7 there.
 
 ## Goal and audience
@@ -29,9 +35,9 @@ Documentation must explain actual behavior, not merely improve existing prose.
 
 ## Non-negotiable boundaries
 
-- Preserve existing modified and untracked work. The pattern-correctness plan
-  records documentation changes awaiting review; integrate them, do not reset
-  or silently replace them.
+- Preserve existing modified and untracked work. Pattern-correctness
+  documentation is complete for v0.3.0; integrate it without overwriting
+  subsequent local edits.
 - Do not edit, move, or delete these case-study directories:
   `examples\Data_comparing`, `examples\frio`, `examples\longtailpoint`,
   `examples\Luvuvhu`. Do not include them in the documentation site.
@@ -61,9 +67,13 @@ Keep the authoring system close to ordinary Markdown:
 - No additional plugins, external search service, Docker requirement, custom
   frontend, generated API documentation, or multi-version tooling.
 - Local preview: `uv run --group docs mkdocs serve`.
-- Pull requests build the site with strict validation. Deployment through
-  GitHub Pages is enabled only after reporting slice R10 and is triggered by a
-  version-bump commit tagged `v*`, not by every main-branch update.
+- Pull requests build the site with strict validation. The package release
+  workflow is triggered by a published GitHub Release; it validates the
+  version tag, reruns tests, builds distributions, and publishes through the
+  configured PyPI trusted publisher. Pages deployment is a separate manual
+  workflow dispatch after PyPI verification and after post-release notices
+  have been removed. It validates the release tag and package version and
+  deploys the current default branch, not every main-branch update.
 - Set the documentation source directory to `docs\user`. Developer records,
   PDFs, and protected case studies must not be copied into the site.
 
@@ -73,20 +83,20 @@ the user navigation.
 
 ## Version and installation policy
 
-Document current code and the next release. Display a prominent **unreleased**
-notice until a matching package release exists.
+Document v0.3.0. Display a prominent **unreleased** notice until that package
+release exists.
 
-At design time, PyPI and the latest GitHub release provide v0.2.0, whose frequency
-behavior differs from current code. Do not pair current examples with an
-unqualified instruction to install that release.
+PyPI and the latest GitHub release provide v0.2.0, whose frequency behavior
+differs from v0.3.0. Do not pair v0.3.0 examples with an unqualified
+instruction to install v0.2.0.
 
-After the matching release, lead CLI installation with `uv tool install
-hydropattern`. Explain Python 3.12+ requirements and provide platform-specific
-setup steps. PyPI is the package source; uv is the installer, so publishing to
-PyPI does not change this recommendation.
+After v0.3.0 is published, lead CLI installation with
+`uv tool install hydropattern==0.3.0`. Explain Python 3.12+ requirements and
+provide platform-specific setup steps. PyPI is the package source; uv is the
+installer.
 
-During the unreleased transition, provide an explicit current-source installation
-route. Keep pip/virtual-environment installation as an alternative, and explain
+Until v0.3.0 is released, provide an explicit local-source installation route.
+Keep pip/virtual-environment installation as an alternative, and explain
 Python API installation separately. Ordinary users should not install test or
 development dependency groups.
 
@@ -242,7 +252,7 @@ failure-pattern settings affect the component outcome.
 Explain retrospective assessment, independent characteristic conditions versus
 dependent duration/frequency assessment, and the meaning of `success_pattern`.
 For failure-pattern configurations, distinguish non-failure from demonstrated
-ecological success. `return_period` is removed in the next release; document
+ecological success. `return_period` is removed in v0.3.0; document
 only its removal and migration, and never present `1 / portion` as a hydrologic
 recurrence interval or guarantee of event independence.
 
@@ -269,18 +279,20 @@ Use existing parser error conventions. Test every characteristic's ordered
 form, missing/invalid parameters, legacy-key rejection, conflicting keys,
 ordering, and equivalent evaluation outcomes. Preserve tests for compact syntax.
 
-Two further agreed naming changes belong to this prerequisite phase, each in
-its own TDD slice with migration notes and no compatibility alias:
+The S1b frequency-window API changes are complete: use `exclusive_windows` for
+Python arguments and the un-nested or intra-annual specification field,
+`interannual_exclusive_windows` for the interannual specification field, and
+`mark_windows` for the run-marking helper. There are no compatibility aliases;
+migration guidance is in `docs\user\migration.md`.
 
-- Rename `exclusive_event_window` to `exclusive_windows` in spec fields,
-  function arguments, docstrings, tests, and documentation. TOML is positional,
-  so configuration files are unaffected. The interannual spec field becomes
-  `interannual_exclusive_windows`; fields shared with un-nested frequency take
-  no qualifier.
-- Rename `base_`/`nested_` code identifiers (including `is_nested`) to
-  `intra_annual_`/`interannual_`, or neutral names where un-nested frequency
-  shares the field. This explicitly overrides "avoid unrelated internal/API
-  renaming" for these identifiers only. Keep evaluation behavior unchanged.
+S1c is complete in its own TDD slice with no compatibility aliases. Fields
+shared with un-nested frequency keep neutral names; fields specific to the
+interannual part use `interannual_*`. The generic characteristic marker is
+`is_terminal`. Helper names for the overall nested-frequency construct,
+result-column names, and evaluation behavior are unchanged. See the
+[migration guide](../../user/migration.md) for the Python API name changes.
+This explicitly overrides "avoid unrelated internal/API renaming" for these
+identifiers only.
 
 ## Examples and reviewed cleanup
 
@@ -319,7 +331,7 @@ any consolidation/deletion. The default outcome is reorganization.
 ## Implementation sequence and completion criteria
 
 Execute in the order given by the
-[documentation and reporting sequence](../../plans/2026-10-07-documentation-and-reporting-sequence.md);
+[documentation and reporting sequence](2026-10-07-documentation-and-reporting-sequence.md);
 phases 4 and 5 are split around reporting slices R0–R10 there.
 
 1. **Schema prerequisite (D1):** add failing tests, implement `parameters`-only
@@ -361,3 +373,169 @@ Completion means:
 - Protected directories have no changes; no unapproved deletions occurred.
 - Release status is accurate; the unreleased notice is removed only after
   publishing a package that supports the documented behavior and syntax.
+
+## D3 completion record
+
+The user-site foundation now has explicit Material/MkDocs navigation, built-in
+search, a `docs` dependency group, and a read-only pull-request strict-build
+workflow. README is the shorter front door; installation, first evaluation,
+result interpretation, glossary, CLI guidance, and the secondary API example
+live under `docs\user`. The existing reference and migration pages remain
+available, with their reference reorganization deferred to D4 and reporting
+updates deferred to the implementing R-slices.
+
+The single authoritative first-run pair is under `examples\first-run`.
+Acceptance tests execute the pair from a separate working folder, compare the
+published timestep table and summary rows with actual output, check its TOML
+block against the download, execute the relocated Python example, and scan
+user prose for unambiguous `CONTEXT.md` avoided terms. Context-dependent terms
+still require editorial review; code identifiers and historical migration
+syntax are excluded from the prose scan. A separate documentation editor
+reviewed the draft, and its changes were inspected.
+
+Completion checks passed: strict MkDocs build, all 642 pytest tests, linting
+of the changed tests, built-site local links and anchors, site exclusions, and
+preservation of scientific code, protected directories, and both tracked PDFs.
+
+Local preview is `uv run --group docs mkdocs serve`; strict validation is
+`uv run --group docs mkdocs build --strict`. Authors edit Markdown in
+`docs\user` and update explicit navigation in `mkdocs.yml`. Developer records,
+scientific PDFs, protected case studies, and research files stay outside the
+site source.
+
+At the D3 handoff, source-install and first-run download links shared the
+`docs-reporting-s3` ref and were unavailable until that branch was pushed.
+Release-preparation edits have since aligned user-facing downloads to the
+`v0.3.0` tag; those links remain unavailable until publication. Local-checkout
+instructions work before publication. GitHub Pages deployment is not enabled;
+S10 will add it after R10. No cleanup deletions or scientific changes were
+made in D3.
+
+## D4 (S4) completion record
+
+The unaffected scientific and reference content is now organized as separate
+user pages. The site adds practical scientific foundations, evaluation order
+and interpretation, data preparation, output and plotting guides, detailed
+configuration and CLI references, and one reference page for each
+characteristic. `reference.md` remains a useful entry point and retains
+deliberate legacy anchors for previously published links.
+
+Worked examples are backed by executable evaluator fixtures in
+`tests/test_s4_documentation.py`; fixtures were written before their prose.
+The tests parse every fenced TOML block under `docs/user`, check the published
+diagnostic and final component arrays, and retain the existing API and
+first-run checks. A separate documentation-editor pass reviewed the S4 draft
+and its edits were inspected.
+
+Focused documentation tests, the strict MkDocs build, changed-test Ruff
+checks, and the full pytest suite passed (678 tests). S4 is committed on
+`docs-reporting-s4` and fast-forwarded into local `main` with user approval;
+nothing has been pushed. S5 example-pack work and R0–R10 reporting
+implementation were not started as part of S4.
+
+## D5 (S5) completion record
+
+The unaffected example curation is complete on `docs-reporting-s5`. Four new
+small, self-contained packs cover seasonal thresholds, whole-run duration
+thresholds and inclusive bounds, overlapping versus exclusive frequency
+windows, and multiple scenarios. Each contains its own illustrative CSV,
+ordered TOML configuration, working-folder commands, exact output filenames,
+and expected component outcomes and summaries. The existing first-run pack
+is retained unchanged and is included in the same parametrized acceptance
+checks.
+
+`examples\detailed.toml` now uses ordered `parameters` tables, clearer
+terminology, correct whole-run duration explanations, optional-output
+comments, and links to the reference. Its original three component
+specifications, thresholds, characteristic order, failure-pattern setting,
+and input specification are preserved. No scientific algorithms changed.
+
+The site's Examples navigation now leads to `docs\user\examples\index.md`,
+with task-labelled downloads, commands, expected arrays and portions, and
+interpretation linked to the characteristic pages. Runnable files remain
+authoritative under `examples`; none are copied into the site. At the D5 handoff, new download links targeted `docs-reporting-s5` and the
+first-run/source-install references still used `docs-reporting-s3`. Release
+preparation has since aligned these user-facing references to the `v0.3.0`
+tag, with a notice that links are unavailable until publication. Four
+narrowly scoped ignore rules prevent default outputs from the new packs being
+accidentally tracked.
+
+Expected results were written first in `tests/test_s5_examples.py`. The
+initial run passed the existing first-run case and failed for the four
+missing packs and the unconverted detailed configuration. Acceptance checks
+now execute each downloaded pair in an isolated working folder and verify
+all diagnostic/component arrays, raw-column layouts, summary-sheet names,
+annual and whole-record portions, published component arrays/portions, and
+exact output files. Additional checks verify authoritative download links,
+preserved detailed component specifications, and its repository-root CLI
+command.
+
+Completion checks passed: 80 focused example/documentation tests, all 692
+pytest tests, strict MkDocs build, Ruff for the new test file, and
+`git diff --check`. Scientific source and all four protected case-study
+directories are unchanged; no files were deleted. S5 work is committed
+on its own branch with user approval, initially without integration or
+pushing. It was subsequently integrated into local `main` at `b05b326`;
+the earlier non-integration statement describes the S5 handoff only.
+
+At the time of the S5 handoff, S6 / R0 was next and had not started. It has
+since been captured while working on `docs-reporting-r0`; see the baseline
+record committed in the reporting plan on `reporting-metrics`. R1–R8 are
+complete and committed there. R6 updated output guidance, configuration
+reference, migration guidance, glossary, example comments, and the GUI-agent
+handoff to explain per-column known-outcome denominators, undefined all-unknown
+summaries, aggregation across the full record, and removal of `return_period`.
+
+R7 updated output and API guidance plus migration notes for conservative event
+bounds, scalar ambiguity errors, annual attribution, and whole-record observed
+exposure. R8 added reporting-details guidance to the output page. R9 updated
+plotting, configuration, CLI, API, and migration guidance; implementation and
+these page changes are committed on `reporting-metrics`. R10's
+response-surface example pack, unknown-outcome section, cross-linked
+uncertainty examples, and migration guidance are complete and committed on
+`reporting-metrics`; see the R10 completion record below. S9/D6 cleanup review
+is complete; reviewed files were retained and no deletions were authorized.
+D7/S10 release preparation remains pending. GitHub Pages deployment is disabled.
+
+## R10 documentation and release-readiness completion record
+
+Added `docs\user\concepts\unknown-outcomes.md` and linked it from the concept
+index, glossary, evaluation guidance, affected characteristic references,
+configuration, output and plotting guides, migration guidance, and Python API.
+It documents unknown representations and sources, three-valued combination,
+duration/frequency uncertainty, annual fractions, partial water years,
+optional leap-day handling and unsupported schedules, known-outcome summaries,
+conservative event bounds, coverage cutoffs, protected plot gaps, and color
+interpretation.
+
+Added the runnable `examples\response-surface` pack and its user-site entry.
+Its CLI acceptance fixture exercises four scenario outcomes, 90% eligibility,
+the withheld-scenario coverage CSV, retained summary portion, exported grid,
+and rendered PNG. `tests\test_r10_documentation.py` also checks worked
+duration, frequency, annual-fraction, and `[1, unknown, 1]` summary/event
+examples against the evaluator and reporting API. The migration guide records
+unknown propagation, the annual denominator change, leap-day trade-off, and
+current reporting behavior. The unreleased notice remains; deployment and
+publication remain disabled.
+
+Validation results are recorded in the reporting-plan completion record.
+R10 is committed on `reporting-metrics` in
+`docs: complete R10 and prepare documentation handoff`; reporting changes
+have not been merged to `main` or pushed.
+
+## Release preparation status (2026-10-09)
+
+D1–D5 and reporting slices R0–R10 are complete; do not restart schema,
+reference, example, or reporting work without a concrete defect. S9/D6 review
+of the six generated-output candidates and historical developer records is
+complete. Artifacts were retained; no deletion was authorized or performed.
+
+D7/S10 is in progress: developer authoring/release instructions, verification of the
+installation and download references to v0.3.0, deployment configuration, and
+verification of the first successful deployment. `.github/workflows/docs.yml`
+strictly builds PRs and accepts a manual deployment dispatch after the matching
+package is available on PyPI and release notices are removed. Keep Pages
+disabled and the v0.3.0 unreleased notice until then. Package publication and
+Pages enablement remain gated; branch commit, merge, and push were authorized
+on 2026-10-09.
+Optional R11 is not required and must not be started without approval.

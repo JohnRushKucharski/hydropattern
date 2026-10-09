@@ -1,5 +1,6 @@
 '''Executable checks for examples and golden outputs published in the docs.'''
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -13,16 +14,15 @@ from hydropattern.timeseries import Timeseries
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_readme_frequency_example_produces_published_golden_array():
-    source = [0, 1, 0, 0, 1, 0, 0, 0, 0, 0]
-    data = pd.DataFrame(
-        {'flow': source, 'dowy': range(1, len(source) + 1)},
-        index=pd.date_range('2020-01-01', periods=len(source), name='time'),
+def test_api_frequency_example_produces_published_golden_array(capsys):
+    page = ROOT / 'docs' / 'user' / 'api' / 'index.md'
+    blocks = re.findall(r'```python\n(.*?)```', page.read_text(encoding='utf-8'), re.DOTALL)
+    namespace = {}
+    exec(compile(blocks[0], str(page), 'exec'), namespace)
+    result = namespace['result']
+    assert capsys.readouterr().out.strip() == (
+        '[0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0]'
     )
-    request = parse_request(
-        {'pulse': {'magnitude': ['>', 0], 'frequency': ['>=', 1, 5]}}
-    )
-    result = evaluate_component(data, build_components(request)[0])
 
     np.testing.assert_array_equal(
         result.df['frequency_ge1in5(union)'],

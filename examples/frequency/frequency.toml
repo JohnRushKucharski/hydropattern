@@ -1,0 +1,27 @@
+[timeseries]
+path = "flow.csv"
+date_format = "%Y-%m-%d"
+
+[components.overlapping]
+[[components.overlapping.characteristics]]
+type = "magnitude"
+parameters = [">", 0]
+
+[[components.overlapping.characteristics]]
+type = "frequency"
+parameters = [">=", 1, 5]
+
+[components.exclusive]
+[[components.exclusive.characteristics]]
+type = "magnitude"
+parameters = [">", 0]
+
+[[components.exclusive.characteristics]]
+type = "frequency"
+parameters = [">=", 1, 5, true]
+
+[output]
+excel = false
+
+[output.metric]
+mode = "portion"

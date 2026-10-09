@@ -1,6 +1,6 @@
 [project]
 name = "hydropattern"
-version = "0.2.0"
+version = "0.3.0"
 description = "A python command line application and package that finds natural flow regime like patterns in time series data."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,6 +21,9 @@ dependencies = [
 hydropattern = "hydropattern.cli:app"
 
 [dependency-groups]
+docs = [
+	"mkdocs-material>=9.7.0,<10.0.0",
+]
 test = [
 	"pytest>=8.3.2,<9.0.0",
 ]

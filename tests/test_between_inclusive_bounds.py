@@ -4,7 +4,7 @@ duration characteristics, and fixing the duration between-form bug
 (currently mis-built as `comparison_fx('<', min, '>', max)`, which
 collapses to `n > max` instead of `min <= n <= max`).
 
-See docs/agents session plan: Phase 1 (between-bounds inclusivity +
+See docs/developer/agents session plan: Phase 1 (between-bounds inclusivity +
 duration bug fix).
 '''
 # pylint: disable=missing-class-docstring,missing-function-docstring
@@ -67,7 +67,7 @@ class TestRateOfChangeParserBetweenIsInclusive(unittest.TestCase):
         df = pd.DataFrame({'flow': [1.0, 1.0, 2.0, 3.0, 1.5]})
         # z = [nan, 1.0, 2.0, 1.5, 0.5]
         result = char.fx(df)
-        self.assertTrue(np.all(result == np.array([0, 1, 1, 1, 0])))
+        np.testing.assert_array_equal(result, [np.nan, 1, 1, 1, 0])
 
 
 class TestDurationParserBetweenIsFixedAndInclusive(unittest.TestCase):

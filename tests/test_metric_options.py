@@ -24,6 +24,12 @@ class TestParseMetricOptionsDefaults(unittest.TestCase):
 class TestParseMetricOptionsValidModes(unittest.TestCase):
     '''Each documented mode string maps deterministically to a MetricMode.'''
 
+    def test_only_portion_and_percentage_are_supported(self):
+        self.assertEqual(
+            {mode.value for mode in MetricMode},
+            {'portion', 'percentage'},
+        )
+
     def test_portion_mode(self):
         opts = parse_metric_options({'mode': 'portion'})
         self.assertEqual(opts.mode, MetricMode.PORTION)
@@ -31,11 +37,6 @@ class TestParseMetricOptionsValidModes(unittest.TestCase):
     def test_percentage_mode(self):
         opts = parse_metric_options({'mode': 'percentage'})
         self.assertEqual(opts.mode, MetricMode.PERCENTAGE)
-
-    def test_return_period_mode(self):
-        opts = parse_metric_options({'mode': 'return_period'})
-        self.assertEqual(opts.mode, MetricMode.RETURN_PERIOD)
-
 
 class TestParseMetricOptionsInvalid(unittest.TestCase):
     '''Invalid configuration inputs raise deterministic, machine-readable errors.'''
@@ -45,6 +46,13 @@ class TestParseMetricOptionsInvalid(unittest.TestCase):
         with self.assertRaises(HydropatternError) as ctx:
             parse_metric_options({'mode': 'average'})
         self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_VALUE)
+
+    def test_return_period_is_rejected_with_migration_guidance(self):
+        with self.assertRaises(HydropatternError) as ctx:
+            parse_metric_options({'mode': 'return_period'}, section_name='output.metric')
+
+        self.assertEqual(ctx.exception.envelope.code, ParserErrorCode.INVALID_VALUE)
+        self.assertIn('replace it with "portion" or "percentage"', str(ctx.exception))
 
     def test_non_string_mode_raises_invalid_value(self):
         '''Non-string mode value -> PARSER_INVALID_VALUE.'''
