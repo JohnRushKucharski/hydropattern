@@ -5,8 +5,10 @@ and release preparation to `main` at `d82d2d3`; PR #48 merged post-release
 user guidance at `67e964b`. GitHub Release `v0.3.0`, PyPI distributions, and
 the GitHub Pages site have been verified. Phase records below preserve their
 original branch and handoff state. S9 review retained artifacts; no deletion
-was authorized. Optional R11 remains out of scope and requires separate
-approval.
+was authorized. Corrective v0.3.1, for the stale PyPI description captured in
+the v0.3.0 release README, was merged by PR #50 at `988fd09`; publisher and
+Pages redeployment succeeded, and the current PyPI project description was
+verified. Optional R11 remains out of scope and requires separate approval.
 See the [next-session handoff](../agents/next-session-prompt.md) for the pickup
 checklist.
 
@@ -94,6 +96,20 @@ Those release gates have since completed as recorded below.
   HTTP 200. A first deploy attempt encountered a transient artifact lookup
   failure; a fresh dispatch completed successfully.
 - S10 is complete. Optional R11 remains unapproved and out of scope.
+
+## PyPI description correction (2026-10-09)
+
+The PyPI project description for v0.3.0 contained the unreleased banner
+because its distribution embedded the README from tag `v0.3.0`. PyPI release
+metadata cannot be replaced in place. The authorized correction was published
+as v0.3.1: PR #50 (`988fd09`) synchronized package version, README install
+commands, and example links, and added a regression test tying them to
+`pyproject.toml`. Full pytest (809 tests), mypy, strict MkDocs build, Ruff,
+package metadata inspection, and clean wheel CLI smoke passed. Publisher run
+`37918580505` succeeded; PyPI's latest project metadata now reports v0.3.1
+with no stale notice. Pages deployment `37918727579` succeeded with install
+guidance for v0.3.1. The historical v0.3.0-specific description remains as
+uploaded.
 
 ## R10 topics completed in S8
 

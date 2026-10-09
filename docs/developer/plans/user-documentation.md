@@ -4,8 +4,10 @@ Status: D1–D7 and R0–R10 are complete. PR #46 merged reporting and release
 preparation at `d82d2d3`; PR #48 merged post-release user guidance at
 `67e964b`. GitHub Release `v0.3.0`, PyPI publication, and GitHub Pages
 deployment were verified on 2026-10-09. S9 cleanup review retained artifacts;
-no deletion was authorized. Optional R11 is not required and needs separate
-approval.
+PR #50 and v0.3.1 corrected the PyPI project description and current install
+guidance; PyPI and Pages were reverified. The v0.3.0-specific PyPI metadata
+remains unchanged. No deletion was authorized. Optional R11 is not required
+and needs separate approval.
 
 Related prerequisite: the
 [reporting and unknown-outcome TDD plan](2026-10-06-reporting-metrics-tdd.md)
