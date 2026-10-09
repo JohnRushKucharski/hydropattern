@@ -1,15 +1,11 @@
 # Reporting metrics and unknown outcomes: TDD plan
 
-**Status:** required MVP R0–R10 complete and committed on
-`reporting-metrics`. Optional R11 has not started and requires separate approval.
-Documentation sequence S3–S5 is complete; S4 is integrated into local
-`main`, while S5 is integrated into local `main` at `b05b326`, without pushing.
-R0 evidence was captured while working on `docs-reporting-r0`. R1–R10 are
-committed on `reporting-metrics`, based on `b05b326`. Reporting-branch changes
-have not been merged to `main` or pushed. The S9 cleanup review is complete;
-the reviewed files were retained and no deletion was authorized. Remaining
-work is S10 release preparation and publication, which requires separate
-authorization; no required reporting slice remains.
+**Status:** required MVP R0–R10 complete and merged to remote `main` by PR #46
+at `d82d2d3`. Optional R11 has not started and requires separate approval.
+Documentation sequence S3–S5 and R0–R10 are integrated and pushed. The S9
+cleanup review is complete; reviewed files were retained and no deletion was
+authorized. Remaining work is S10 release verification and publication, which
+remain gated; no required reporting slice remains.
 This is separate from the pattern-correctness and user-documentation plans.
 Preserve their work and decisions; coordinate documentation changes.
 See [ADR 0004](../adr/0004-reporting-and-unknown-outcomes.md) and the

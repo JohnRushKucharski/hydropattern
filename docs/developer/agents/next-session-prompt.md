@@ -1,8 +1,10 @@
 # Next-session handoff
 
-Continue 0.3.0 documentation and release preparation from local branch
-`reporting-metrics`. Pattern-correctness documentation and reporting slices
-R0–R10 are complete on this branch. Do not repeat completed implementation.
+Continue v0.3.0 release preparation from `main`. PR #46 merged
+`reporting-metrics` and release preparation into `main` at `d82d2d3`; the
+remote is pushed and the `reporting-metrics` branch is retained. Pattern-
+correctness documentation and reporting slices R0–R10 are complete. Do not
+repeat completed implementation.
 The user authorized commit, merge, and push on 2026-10-09. Do not publish the
 package or enable Pages without separate release authorization.
 
@@ -14,11 +16,8 @@ Before further work:
 2. Read `CONTEXT.md`, `docs/developer/plans/user-documentation.md`,
    `docs/developer/plans/2026-10-06-reporting-metrics-tdd.md`, and
    `docs/developer/plans/2026-10-07-documentation-and-reporting-sequence.md`.
-3. Confirm commit history. `main`,
-   `docs-reporting-s5`, and `docs-reporting-r0` intentionally remain at
-   `b05b326`; previous documentation branches remain unchanged. Local `main`
-   is already ten commits ahead of `origin/main` from earlier approved work;
-   do not push it.
+3. Confirm `main` and `origin/main` contain merge commit `d82d2d3`; retain
+   existing documentation and reporting branches for provenance.
 4. Review R1–R10 completion notes, including the R4 correction, in the reporting plan.
 5. R0–R10 are complete. S9/D6 cleanup review is complete; reviewed files
    were retained, and no deletion was authorized. S10/D7 release preparation

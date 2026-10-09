@@ -1,10 +1,10 @@
 # Pattern correctness: TDD implementation plan
 
 **Status:** implementation, documentation, and executable examples are
-complete for the forthcoming 0.3.0 release. The work is integrated on
-`reporting-metrics`; see the reporting plan's R0–R10 completion records for
-validation and release readiness. The frequency, minimal, and detailed
-example configurations run successfully from the CLI.
+complete for v0.3.0 and merged to remote `main` by PR #46 at `d82d2d3`.
+See the reporting plan's R0–R10 completion records for validation and release
+readiness. The frequency, minimal, and detailed example configurations run
+successfully from the CLI.
 **Scope:** component calculation,
 configuration, validation, tests, and user-facing documentation. This document
 is a handoff for a new implementation session, not a description of all current
