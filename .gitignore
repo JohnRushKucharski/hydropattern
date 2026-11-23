@@ -236,8 +236,10 @@ Backup[ ]of[ ]*.numbers/
 Data_comparing/
 frio/
 Luvuvhu/
+longtailpoint/
 
 *.code-workspace
 
 README.html
 README_files/
+
