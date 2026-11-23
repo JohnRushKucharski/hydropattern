@@ -468,13 +468,27 @@ class Result:
         return count_event_bounds(self.df[self.component.name].to_numpy())
 
     def event_count_bounds_by_water_year(self) -> dict[int, EventCountBounds]:
-        '''Return event-count bounds attributed to each event's start water year.'''
+        '''Return event-count bounds attributed to each event's start water year.
+
+        Each year's bounds are computed on its own span plus the preceding timestep
+        (which decides whether the year's first timestep can start an event), not on
+        the whole record, so the cost stays linear in the record length.
+        '''
         labels = self._water_year_labels()
-        outcomes = self.df[self.component.name].to_numpy()
-        return {
-            int(year): _event_count_bounds(outcomes, labels == year)
-            for year in np.unique(labels)
-        }
+        outcomes = _validate_outcomes(self.df[self.component.name].to_numpy())
+        bounds: dict[int, EventCountBounds] = {}
+        for year in np.unique(labels):
+            included = labels == year
+            positions = np.flatnonzero(included)
+            first, last = int(positions[0]), int(positions[-1])
+            if last - first + 1 != len(positions):  # non-contiguous labels: use the full series
+                bounds[int(year)] = _event_count_bounds(outcomes, included)
+                continue
+            start = max(first - 1, 0)
+            bounds[int(year)] = _event_count_bounds(
+                outcomes[start:last + 1], included[start:last + 1]
+            )
+        return bounds
 
     def event_rate(self) -> float:
         '''Return whole-record event rate; reject ambiguous counts or exposure.'''

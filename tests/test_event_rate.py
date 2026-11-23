@@ -164,6 +164,34 @@ class TestResultEventRate(unittest.TestCase):
         self.assertEqual(rates[2020], EventRateBounds(365 / 2, 365 / 2))
         self.assertEqual(rates[2021], EventRateBounds(0.0, 0.0))
 
+    def test_annual_bounds_match_whole_series_dp_with_unknown_outcomes(self):
+        from hydropattern.patterns import core
+        rng = np.random.default_rng(7)
+        dates = pd.date_range('2020-01-01', periods=60, freq='MS', name='time')
+        outcomes = rng.choice([0.0, 1.0, np.nan], size=len(dates))
+        result = self._result(outcomes, dates, 1)
+
+        labels = result._water_year_labels()  # pylint: disable=protected-access
+        expected = {
+            int(year): core._event_count_bounds(  # pylint: disable=protected-access
+                outcomes, labels == year
+            )
+            for year in np.unique(labels)
+        }
+        self.assertEqual(result.event_count_bounds_by_water_year(), expected)
+
+    def test_annual_bounds_do_not_rescan_the_whole_record_per_year(self):
+        from unittest import mock
+
+        from hydropattern.patterns import core
+        dates = pd.date_range('2000-01-01', periods=240, freq='MS', name='time')
+        result = self._result(np.ones(len(dates)), dates, 1)
+        real = core._event_count_bounds  # pylint: disable=protected-access
+        with mock.patch.object(core, '_event_count_bounds', wraps=real) as spy:
+            result.event_count_bounds_by_water_year()
+
+        self.assertLessEqual(max(len(call.args[0]) for call in spy.call_args_list), 13)
+
     def test_unknown_bounds_allow_independent_mvp_completions(self):
         self.assertEqual(count_event_bounds(np.full(3, np.nan)), EventCountBounds(0, 2))
 
