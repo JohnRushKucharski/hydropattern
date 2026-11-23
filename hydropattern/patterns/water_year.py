@@ -187,8 +187,11 @@ def _is_complete_water_year(
 ) -> bool:
     start_date = dates[start]
     next_boundary = start_date + pd.DateOffset(years=1)
+    unit = dates.unit
     if cadence == 'daily':
-        expected = pd.date_range(start_date, next_boundary, freq='D', inclusive='left')
+        expected = pd.date_range(
+            start_date, next_boundary, freq='D', inclusive='left', unit=unit
+        )
         observed = dates[start:end + 1]
         if not observed.isin(expected).all():
             return False
@@ -198,15 +201,18 @@ def _is_complete_water_year(
         return True
     elif cadence == 'month_start':
         expected = pd.date_range(
-            start_date, next_boundary, freq=pd.offsets.MonthBegin(), inclusive='left'
+            start_date, next_boundary, freq=pd.offsets.MonthBegin(), inclusive='left',
+            unit=unit,
         )
     elif cadence == 'month_end':
         expected = pd.date_range(
-            start_date, next_boundary, freq=pd.offsets.MonthEnd(), inclusive='left'
+            start_date, next_boundary, freq=pd.offsets.MonthEnd(), inclusive='left',
+            unit=unit,
         )
     else:
         expected = pd.date_range(
-            start_date, next_boundary, freq=pd.DateOffset(months=1), inclusive='left'
+            start_date, next_boundary, freq=pd.DateOffset(months=1), inclusive='left',
+            unit=unit,
         )
 
     observed = dates[start:end + 1]

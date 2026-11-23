@@ -96,6 +96,13 @@ def test_water_year_completeness_rejects_gaps_and_unsupported_cadence():
         identify_full_water_years(np.ones(len(unsupported)), unsupported)
 
 
+def test_water_years_support_timestamps_beyond_nanosecond_bounds():
+    for freq, periods in (('D', 1095), ('MS', 36), (pd.offsets.MonthEnd(), 36)):
+        dates = pd.date_range('2261-01-01', periods=periods, freq=freq, unit='s')
+        dowy = np.array([date.dayofyear for date in dates])
+        assert len(identify_full_water_years(dowy, dates)) >= 2
+
+
 def test_february_boundary_does_not_split_february_29_into_second_water_year():
     dates = pd.date_range('2019-02-28', '2021-02-28', freq='D', name='time')
     data = pd.DataFrame({'flow': np.ones(len(dates))}, index=dates)
